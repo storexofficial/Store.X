@@ -565,6 +565,65 @@ website hosting (not inside the HTML):
    ============================================================ */
 
 // ---------- Runtime/UI state ----------
+
+/* ---------- Product analytics: one event per real product view / Buy Now click ---------- */
+let PRODUCT_ANALYTICS = Object.create(null);
+let PRODUCT_ANALYTICS_READY = false;
+let PRODUCT_ANALYTICS_CHANNEL = null;
+let LAST_TRACKED_PRODUCT_VIEW = '';
+
+function analyticsCounts(p){
+  const a=PRODUCT_ANALYTICS[String(p?.id||'')]||{};
+  return {views:Math.max(0,Number(a.views??p?.views)||0),clicks:Math.max(0,Number(a.clicks??p?.clicks)||0)};
+}
+async function loadProductAnalytics(){
+  if(!supabaseClient||!SUPABASE_READY)return;
+  try{
+    const {data,error}=await supabaseClient.from('storex_product_analytics').select('product_id,views,clicks,updated_at');
+    if(error)throw error;
+    PRODUCT_ANALYTICS=Object.create(null);
+    (data||[]).forEach(r=>{PRODUCT_ANALYTICS[String(r.product_id)]={views:Number(r.views)||0,clicks:Number(r.clicks)||0,updated_at:r.updated_at};});
+    PRODUCT_ANALYTICS_READY=true;
+    if(route().startsWith('/admin-of-storex')) render();
+  }catch(e){ console.warn('Product analytics read skipped:',e); }
+}
+async function trackProductEvent(productId,eventType){
+  const id=String(productId||'').trim();
+  const type=eventType==='click'?'click':'view';
+  if(!id||!supabaseClient||!SUPABASE_READY)return;
+  try{
+    const {data,error}=await supabaseClient.rpc('storex_track_product_event',{p_product_id:id,p_event_type:type});
+    if(error)throw error;
+    if(data&&data.product_id){
+      PRODUCT_ANALYTICS[String(data.product_id)]={views:Number(data.views)||0,clicks:Number(data.clicks)||0,updated_at:data.updated_at};
+      const p=PRODUCTS.find(x=>String(x.id)===id);
+      if(p){p.views=Number(data.views)||0;p.clicks=Number(data.clicks)||0;}
+      if(route().startsWith('/admin-of-storex')) render();
+    }
+  }catch(e){ console.warn('Product analytics event skipped:',e); }
+}
+function trackProductViewOnce(productId){
+  const id=String(productId||'').trim();
+  const currentRoute=String(location.hash||'');
+  const token=id+'|'+currentRoute;
+  if(!id||LAST_TRACKED_PRODUCT_VIEW===token)return;
+  LAST_TRACKED_PRODUCT_VIEW=token;
+  trackProductEvent(id,'view');
+}
+function trackProductBuyClick(productId){ trackProductEvent(productId,'click'); }
+function subscribeProductAnalytics(){
+  if(!supabaseClient||PRODUCT_ANALYTICS_CHANNEL)return;
+  try{
+    PRODUCT_ANALYTICS_CHANNEL=supabaseClient.channel('storex-product-analytics-live-'+Math.random().toString(36).slice(2))
+      .on('postgres_changes',{event:'*',schema:'public',table:'storex_product_analytics'},payload=>{
+        const row=payload.new||payload.old; if(!row||!row.product_id)return;
+        PRODUCT_ANALYTICS[String(row.product_id)]={views:Number(row.views)||0,clicks:Number(row.clicks)||0,updated_at:row.updated_at};
+        const p=PRODUCTS.find(x=>String(x.id)===String(row.product_id));
+        if(p){p.views=Number(row.views)||0;p.clicks=Number(row.clicks)||0;}
+        if(route().startsWith('/admin-of-storex')) render();
+      }).subscribe();
+  }catch(e){ console.warn('Product analytics realtime unavailable:',e); }
+}
 let SETTINGS=null, PRODUCTS=[], CATEGORIES=[], FLASHSALES=[], BANNERS=[], MEDIA=[], PAGES=[], ORDERS=[];
 let ORDER_ADMIN_BUSY=false;
 let MOBILE_DRAWER_OPEN=false, MOBILE_SEARCH_OPEN=false;
@@ -647,6 +706,8 @@ function subscribeRealtime(){
         if(row && row.id){ ORDERS=ORDERS.map(x=>String(x.id)===String(row.id)?row:x); if(route().includes('/admin-of-storex') && ADMIN_VIEW==='orders') render(); }
       })
       .subscribe();
+    loadProductAnalytics();
+    subscribeProductAnalytics();
   }catch(err){ console.warn('StoreX realtime unavailable; normal cloud reads remain available.',err); }
 }
 
@@ -984,11 +1045,11 @@ function showOrderInvoice(order,p,qty,customer){
   const orderNo=order&&order.order_number ? order.order_number : (order&&order.id ? String(order.id) : 'Pending');
   const created=order&&order.created_at ? new Date(order.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK');
   showModal(`<div class="order-invoice" style="background:#fff;border-radius:14px;padding:22px;max-width:620px;margin:auto;box-shadow:0 12px 40px rgba(0,0,0,.12);">
-    <div style="text-align:center;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">${storexLogoHtml()}<div style="margin-top:12px;font-size:22px;font-weight:800;">ORDER</div><div style="margin-top:5px;font-size:13px;color:var(--ink-soft);">Thank you for your order.</div></div>
+    <div style="text-align:center;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">${storexLogoHtml()}<div style="margin-top:12px;font-size:22px;font-weight:800;">ORDER</div><div style="margin-top:5px;font-size:13px;color:var(--ink-soft);">Thanks for the order</div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;font-size:13px;"><div><b>Order Number</b><br>${esc(orderNo)}</div><div><b>Order Date</b><br>${esc(created)}</div><div><b>Status</b><br>Pending</div><div><b>Customer</b><br>${esc(customer.name)}</div></div>
     <div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;"><b>Order Details</b><div style="margin-top:9px;font-size:13px;"><div style="display:flex;justify-content:space-between;gap:10px;"><span>${esc(p.title)}</span><span>Qty: ${qty}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Unit price</span><span>${money(total.unitPrice)}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Delivery</span><span>${total.delivery?money(total.delivery):'FREE'}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:16px;font-weight:800;border-top:1px solid var(--line);padding-top:9px;"><span>Total</span><span>${money(total.total)}</span></div></div></div>
     <div style="display:grid;gap:5px;font-size:13px;margin-bottom:16px;"><b>Delivery Details</b><span>Name: ${esc(customer.name)}</span><span>Phone: ${esc(customer.phone)}</span>${customer.email?`<span>Email: ${esc(customer.email)}</span>`:''}<span>City: ${esc(customer.city)}</span><span>Address: ${esc(customer.address)}</span></div>
-    <div style="text-align:center;border-top:1px solid var(--line);padding-top:12px;font-weight:800;">Asim Ali, Asif<div style="font-size:12px;font-weight:500;color:var(--ink-soft);margin-top:4px;">Thank you — Shukriya!</div></div>
+    <div style="text-align:center;border-top:1px solid var(--line);padding-top:12px;font-weight:800;">Asim Ali, Asif<div style="font-size:12px;font-weight:500;color:var(--ink-soft);margin-top:4px;">Thanks for the order</div></div>
     <div class="modal-close-row"><button class="btn" onclick="closeModal()">Done</button><button class="btn ghost" onclick="window.print()">Print / Save Invoice</button></div>
   </div>`);
 }
@@ -1071,10 +1132,25 @@ async function boot(){
   /* ---------- CACHE-FIRST STARTUP ----------
      If this browser has a previous complete snapshot, render it first.
      Cloud reads below still run and become authoritative afterwards. */
-  // Initial customer content stays blank until the authoritative Supabase state is loaded.
+  // Cache-first startup: a returning browser renders its last complete customer view immediately.
   window.FV_CACHE_FIRST_RENDERED = false;
+  try{
+    const cached=window.StoreXCustomerCache&&window.StoreXCustomerCache.read();
+    if(window.StoreXCustomerCache&&window.StoreXCustomerCache.isUsable(cached)){
+      const c=cached.data||{};
+      if(c.settings) SETTINGS=c.settings;
+      if(Array.isArray(c.products)) PRODUCTS=c.products;
+      if(Array.isArray(c.categories)) CATEGORIES=c.categories;
+      if(Array.isArray(c.flashsales)) FLASHSALES=c.flashsales;
+      if(Array.isArray(c.banners)) BANNERS=c.banners;
+      if(Array.isArray(c.media)) MEDIA=c.media;
+      if(Array.isArray(c.pages)) PAGES=c.pages;
+      normalizeCloudState(); applyTheme(); injectGA(); render(); applyMediaSizing(); initLazyMedia();
+      window.FV_CACHE_FIRST_RENDERED=true;
+    }
+  }catch(e){ console.warn('StoreX cached startup skipped:',e); }
 
-  try{ await initSupabase(); }catch(e){ console.error('Supabase initialization failed:',e); toast('Supabase connection failed. StoreX is running in safe demo mode; admin saves are disabled.'); }
+  try{ await initSupabase(); loadProductAnalytics(); subscribeProductAnalytics(); }catch(e){ console.error('Supabase initialization failed:',e); toast('Supabase connection failed. StoreX is running in safe demo mode; admin saves are disabled.'); }
 
   SETTINGS = await loadKey(KEYS.settings, demo.settings);
   SETTINGS = Object.assign({}, DEFAULT_SETTINGS, SETTINGS, {
@@ -1098,7 +1174,7 @@ async function boot(){
   // Public pages come only from the backend/admin configuration.
   applyTheme();
   injectGA();
-  window.addEventListener('hashchange',function(){const h=route();if(h.startsWith('/p/')||h.startsWith('/product/')){const el=document.getElementById('StoreX-loading-text');if(el)el.textContent='Please wait, the product is loading.';const loader=document.getElementById('StoreX-loading');if(loader)loader.classList.remove('is-hidden');}else if(h.startsWith('/f/')||h.startsWith('/flash-sale/')){const el=document.getElementById('StoreX-loading-text');if(el)el.textContent='Please wait, the flash sale is loading.';const loader=document.getElementById('StoreX-loading');if(loader)loader.classList.remove('is-hidden');}render();});
+  window.addEventListener('hashchange',function(){const h=route();render();});
   render();
   applyMediaSizing();
   initLazyMedia();
@@ -1637,7 +1713,7 @@ function renderCollectionSection(sec){
       <div class="spotlight-body">
         <a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}"><h3>${esc(p.shortTitle||p.title)}</h3></a>
         ${p.shortDesc?`<p style="color:var(--ink-soft);margin:0;">${esc(p.shortDesc)}</p>`:''}
-        <button class="btn" style="margin-top:6px;width:fit-content;" onclick="openOrderModal('${p.id}')">Buy Now</button>
+        <button class="btn" style="margin-top:6px;width:fit-content;" onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">Buy Now</button>
       </div>
     </div></section>`;
   }
@@ -1697,7 +1773,7 @@ function renderBannerSection(sec){
 function renderProductCard(p){
   const img=p.mainImage?mediaSrc(p.mainImage):(p.images&&p.images[0]?mediaSrc(p.images[0]):'');
   const original=Number(p.originalPrice??p.oldPrice??p.price)||0, special=Number(p.specialPrice??p.price)||original, pct=original>special?Math.round((original-special)/original*100):0, stock=Math.max(0,Number(p.stock)||0);
-  return `<div class="card"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-img">${img?`<img src="${img}" alt="${esc(p.title)}" loading="lazy" decoding="async">`:''}</a><div class="card-body"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-title">${esc(p.shortTitle||p.title)}</a>${p.shortDesc?`<div class="card-desc">${esc(p.shortDesc)}</div>`:''}<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;"><strong class="price">${money(special)}</strong>${original>special?`<del style="font-size:12px;color:var(--ink-soft);">${money(original)}</del><span class="badge-status on">-${pct}%</span>`:''}</div><button class="card-cta" onclick="openOrderModal('${p.id}')">Buy Now</button></div></div>`;
+  return `<div class="card"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-img">${img?`<img src="${img}" alt="${esc(p.title)}" loading="lazy" decoding="async">`:''}</a><div class="card-body"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-title">${esc(p.shortTitle||p.title)}</a>${p.shortDesc?`<div class="card-desc">${esc(p.shortDesc)}</div>`:''}<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;"><strong class="price">${money(special)}</strong>${original>special?`<del style="font-size:12px;color:var(--ink-soft);">${money(original)}</del><span class="badge-status on">-${pct}%</span>`:''}</div><button class="card-cta" onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">Buy Now</button></div></div>`;
 }
 
 /* ================= PRODUCT DETAIL ================= */
@@ -1718,7 +1794,7 @@ function renderProductPage(key){
   // View counters are session-only here. Do not call saveKey() while rendering
   // a product page: saveKey() itself renders, which previously caused recursive
   // re-renders and made product navigation feel slow/unresponsive.
-  p.views = (p.views||0)+1;
+  trackProductViewOnce(p.id);
   const images = (p.images&&p.images.length? p.images : (p.mainImage?[p.mainImage]:[]));
   const main = images[PD_ACTIVE_IMG] || images[0];
   const cat = CATEGORIES.find(c=>c.id===p.category);
@@ -1735,7 +1811,7 @@ function renderProductPage(key){
         <h1 class="pd-title">${esc(p.title)}</h1>
         <div class="pd-desc">${esc(p.fullDesc||p.shortDesc||'')}</div>
         ${p.tags&&p.tags.length?`<div class="pd-tags">${p.tags.map(t=>`<span class="tag-pill">${esc(t)}</span>`).join('')}</div>`:''}
-        <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><strong class="price">${money(Number(p.specialPrice??p.price)||0)}</strong>${Number(p.originalPrice??p.oldPrice)>Number(p.specialPrice??p.price)?`<del style="color:var(--ink-soft);">${money(Number(p.originalPrice??p.oldPrice))}</del>`:''}</div><p style="font-size:13px;color:var(--ink-soft);">Delivery: ${Number(p.deliveryCharges)||0?money(Number(p.deliveryCharges)): 'FREE'} · Stock: ${Math.max(0,Number(p.stock)||0)}</p><div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:10px;"><button class="btn" style="justify-content:center;font-size:15px;padding:14px;" onclick="openOrderModal('${p.id}')">Buy Now</button><button type="button" class="share-btn" onclick="shareProduct('${p.id}')" aria-label="Share this product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share</button></div>
+        <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><strong class="price">${money(Number(p.specialPrice??p.price)||0)}</strong>${Number(p.originalPrice??p.oldPrice)>Number(p.specialPrice??p.price)?`<del style="color:var(--ink-soft);">${money(Number(p.originalPrice??p.oldPrice))}</del>`:''}</div><p style="font-size:13px;color:var(--ink-soft);">Delivery: ${Number(p.deliveryCharges)||0?money(Number(p.deliveryCharges)): 'FREE'} · Stock: ${Math.max(0,Number(p.stock)||0)}</p><div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:10px;"><button class="btn" style="justify-content:center;font-size:15px;padding:14px;" onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">Buy Now</button><button type="button" class="share-btn" onclick="shareProduct('${p.id}')" aria-label="Share this product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share</button></div>
         ${cat?`<p style="font-size:12.5px;color:var(--ink-soft);margin-top:14px;">Category: <a href="#/category/${esc(cat.slug)}" style="color:var(--primary);">${esc(cat.name)}</a></p>`:''}
       </div>
     </div>
@@ -1979,14 +2055,26 @@ function renderAdminView(){
 }
 
 /* ---------- Dashboard ---------- */
+const ORDER_ALERT_DISMISS_KEY='StoreX.dismissed.order.request.alerts.v1';
+function getDismissedOrderAlerts(){try{const v=JSON.parse(localStorage.getItem(ORDER_ALERT_DISMISS_KEY)||'[]');return Array.isArray(v)?v.map(String):[];}catch(e){return [];}}
+function dismissOrderRequestAlert(id){
+  const key=String(id||''); if(!key)return;
+  const list=getDismissedOrderAlerts();
+  if(!list.includes(key)){list.push(key);try{localStorage.setItem(ORDER_ALERT_DISMISS_KEY,JSON.stringify(list));}catch(e){}}
+  closeModal();
+  toast('Request removed from dashboard alerts.');
+  render();
+}
+function isOrderRequestAlert(o){const st=String(o?.status||'').toLowerCase();return st==='return_requested'||!!o?.return_requested_at||st==='cancelled';}
 function adminDashboard(){
-  const returnRequests = ORDERS.filter(o=>String(o.status||'').toLowerCase()==='return_requested' || o.return_requested_at).sort((a,b)=>new Date(b.return_requested_at||b.updated_at||b.created_at||0)-new Date(a.return_requested_at||a.updated_at||a.created_at||0));
-  const cancellationRequests = ORDERS.filter(o=>String(o.status||'').toLowerCase()==='cancelled' && (o.cancel_reason || o.cancelReason || String(o.status||'').toLowerCase()==='cancelled')).sort((a,b)=>new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
+  const dismissedAlerts = new Set(getDismissedOrderAlerts());
+  const returnRequests = ORDERS.filter(o=>(String(o.status||'').toLowerCase()==='return_requested' || o.return_requested_at) && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.return_requested_at||b.updated_at||b.created_at||0)-new Date(a.return_requested_at||a.updated_at||a.created_at||0));
+  const cancellationRequests = ORDERS.filter(o=>String(o.status||'').toLowerCase()==='cancelled' && (o.cancel_reason || o.cancelReason || String(o.status||'').toLowerCase()==='cancelled') && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
   const published = PRODUCTS.filter(p=>p.status==='published').length;
   const hidden = PRODUCTS.filter(p=>p.status==='hidden').length;
   const activeFS = FLASHSALES.filter(f=>f.status==='active').length;
   const expiredFS = FLASHSALES.filter(f=>f.end && new Date(f.end).getTime()<Date.now()).length;
-  const topClicks = [...PRODUCTS].sort((a,b)=>(b.clicks||0)-(a.clicks||0)).slice(0,5);
+  const topClicks = [...PRODUCTS].map(p=>Object.assign({},p,analyticsCounts(p))).sort((a,b)=>(b.clicks||0)-(a.clicks||0)).slice(0,5);
   return `<div class="admin-topbar"><h1>Dashboard</h1></div>
   <div class="admin-card" style="border:1px solid var(--primary);background:#FFF9F3;margin-bottom:16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
@@ -1996,11 +2084,11 @@ function adminDashboard(){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
       <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;">
         <div style="font-weight:800;margin-bottom:8px;">Return Requests <span class="badge-status ${returnRequests.length?'off':'on'}" style="margin-left:6px;">${returnRequests.length}</span></div>
-        ${returnRequests.length?returnRequests.slice(0,5).map(o=>`<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span><button class="btn small ghost" style="float:right;margin-top:-2px;" onclick="showOrderDetails('${o.id}')">View</button></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No pending return requests.</div>'}
+        ${returnRequests.length?returnRequests.slice(0,5).map(o=>`<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span><span style="float:right;display:flex;gap:5px;margin-top:-2px;"><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">View</button><button class="btn small ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete</button></span></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No pending return requests.</div>'}
       </div>
       <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;">
         <div style="font-weight:800;margin-bottom:8px;">Cancellation Requests <span class="badge-status ${cancellationRequests.length?'off':'on'}" style="margin-left:6px;">${cancellationRequests.length}</span></div>
-        ${cancellationRequests.length?cancellationRequests.slice(0,5).map(o=>`<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span>${(o.cancel_reason||o.cancelReason)?`<br><span style="color:var(--ink-soft);">Reason: ${esc(o.cancel_reason||o.cancelReason)}</span>`:''}<button class="btn small ghost" style="float:right;margin-top:-2px;" onclick="showOrderDetails('${o.id}')">View</button></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No cancellation requests.</div>'}
+        ${cancellationRequests.length?cancellationRequests.slice(0,5).map(o=>`<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span>${(o.cancel_reason||o.cancelReason)?`<br><span style="color:var(--ink-soft);">Reason: ${esc(o.cancel_reason||o.cancelReason)}</span>`:''}<span style="float:right;display:flex;gap:5px;margin-top:-2px;"><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">View</button><button class="btn small ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete</button></span></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No cancellation requests.</div>'}
       </div>
     </div>
   </div>
@@ -2198,16 +2286,16 @@ function saveProductForm(pid, isNew){
 
 
 /* ================= INVOICE ================= */
-const DEFAULT_INVOICE_SETTINGS={id:1,ratio:'A4',width_mm:210,height_mm:297,owner_name:'Asim Ali Asif',thank_you:'Thank you — Shukriya!',logo_url:'https://i.ibb.co/20d0YX78/1789053253807.png'};
+const DEFAULT_INVOICE_SETTINGS={id:1,ratio:'A4',width_mm:210,height_mm:297,owner_name:'Asim Ali Asif',thank_you:'Thanks for the order',logo_url:'https://i.ibb.co/20d0YX78/1789053253807.png'};
 let INVOICE_SETTINGS=Object.assign({},DEFAULT_INVOICE_SETTINGS);
-async function loadInvoiceSettings(){INVOICE_SETTINGS=Object.assign({},DEFAULT_INVOICE_SETTINGS);if(!supabaseClient||!SUPABASE_READY)return INVOICE_SETTINGS;try{const {data,error}=await supabaseClient.from('storex_invoice_settings').select('*').eq('id',1).maybeSingle();if(!error&&data)INVOICE_SETTINGS=Object.assign({},DEFAULT_INVOICE_SETTINGS,data);}catch(e){console.warn('Invoice settings read skipped:',e);}return INVOICE_SETTINGS;}
-async function saveInvoiceSettings(){if(!SUPABASE_ADMIN||!supabaseClient)throw new Error('Admin backend is not connected.');const payload={id:1,ratio:String(INVOICE_SETTINGS.ratio||'A4'),width_mm:Number(INVOICE_SETTINGS.width_mm)||210,height_mm:Number(INVOICE_SETTINGS.height_mm)||297,owner_name:String(INVOICE_SETTINGS.owner_name||'Asim Ali Asif').slice(0,160),thank_you:String(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!').slice(0,300),logo_url:String(INVOICE_SETTINGS.logo_url||'').slice(0,1000)};const {error}=await supabaseClient.from('storex_invoice_settings').upsert(payload,{onConflict:'id'});if(error)throw error;INVOICE_SETTINGS=Object.assign({},INVOICE_SETTINGS,payload);}
+async function loadInvoiceSettings(){INVOICE_SETTINGS=Object.assign({},DEFAULT_INVOICE_SETTINGS);if(!supabaseClient||!SUPABASE_READY)return INVOICE_SETTINGS;try{const {data,error}=await supabaseClient.from('storex_invoice_settings').select('*').eq('id',1).maybeSingle();if(!error&&data){INVOICE_SETTINGS=Object.assign({},DEFAULT_INVOICE_SETTINGS,data);if(/shukriya|thank you for your order/i.test(String(INVOICE_SETTINGS.thank_you||'')))INVOICE_SETTINGS.thank_you='Thanks for the order';}}catch(e){console.warn('Invoice settings read skipped:',e);}return INVOICE_SETTINGS;}
+async function saveInvoiceSettings(){if(!SUPABASE_ADMIN||!supabaseClient)throw new Error('Admin backend is not connected.');const payload={id:1,ratio:String(INVOICE_SETTINGS.ratio||'A4'),width_mm:Number(INVOICE_SETTINGS.width_mm)||210,height_mm:Number(INVOICE_SETTINGS.height_mm)||297,owner_name:String(INVOICE_SETTINGS.owner_name||'Asim Ali Asif').slice(0,160),thank_you:String(INVOICE_SETTINGS.thank_you||'Thanks for the order').slice(0,300),logo_url:String(INVOICE_SETTINGS.logo_url||'').slice(0,1000)};const {error}=await supabaseClient.from('storex_invoice_settings').upsert(payload,{onConflict:'id'});if(error)throw error;INVOICE_SETTINGS=Object.assign({},INVOICE_SETTINGS,payload);}
 function invoicePreset(ratio){const map={A4:[210,297],A5:[148,210],'4:3':[120,90],'3:2':[120,80],'1:1':[100,100],Receipt:[80,200],'5x7':[127,177.8],'5x8':[127,203.2],'6x7':[152.4,177.8],'6x8':[152.4,203.2],'6x9':[152.4,228.6],'7x8':[177.8,203.2],'7x9':[177.8,228.6]};return map[ratio]||[210,297];}
 function invoiceLogoUrl(){const configured=String(INVOICE_SETTINGS.logo_url||'').trim();if(configured)return configured;try{return mediaSrc(SETTINGS&&SETTINGS.logo)||'';}catch(_){return '';}}
-function invoicePrintHTML(o,opts){const w=Math.max(50,Number(opts.width_mm)||210),h=Math.max(50,Number(opts.height_mm)||297),logo=invoiceLogoUrl(),orderNo=esc(o.order_number||String(o.id||'').slice(0,8)),created=o.created_at?new Date(o.created_at).toLocaleString():'',title=esc(o.product_title||'Product'),sku=esc(o.product_sku||''),qty=Number(o.quantity)||0,unit=Number(o.unit_price)||0,original=Number(o.original_price)||0,discount=Number(o.discount_amount)||0,delivery=Number(o.delivery_charges)||0,total=Number(o.total_amount)||0,moneyLocal=v=>{try{return money(v)}catch(_){return Number(v||0).toFixed(2)}},status=esc(formatOrderStatus(o.status)),owner=esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif'),thanks=esc(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!');return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${orderNo}</title><style>@page{size:${w}mm ${h}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}body{font-size:11px;width:${w}mm;height:${h}mm;overflow:hidden}.paper{width:${w}mm;height:${h}mm;padding:6mm;overflow:hidden;break-after:avoid;page-break-after:avoid}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1.5px solid #111;padding-bottom:9px;margin-bottom:11px}.logo{max-width:42%;max-height:28mm;object-fit:contain}.brand{font-size:17px;font-weight:800}.invoice-title{text-align:right}.invoice-title h1{font-size:22px;margin:0 0 3px}.muted{color:#666}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.box{border:1px solid #ddd;border-radius:5px;padding:8px}.box b{display:block;margin-bottom:3px}.items{width:100%;border-collapse:collapse;margin-top:8px}.items th,.items td{border-bottom:1px solid #ddd;padding:7px 4px;text-align:left;vertical-align:top}.items th{font-size:10px;text-transform:uppercase}.num{text-align:right!important}.totals{margin-left:auto;width:min(100%,260px);margin-top:9px}.totals div{display:flex;justify-content:space-between;padding:4px 0}.totals .grand{border-top:1.5px solid #111;margin-top:4px;padding-top:7px;font-size:14px;font-weight:800}.footer{margin-top:18px;text-align:center;border-top:1px solid #ddd;padding-top:10px}.owner{font-weight:800;margin-bottom:4px}.thanks{font-size:11px}.small{font-size:9.5px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>ORDER</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number to track your order or request a return.</div></div></div></body></html>`;}
-async function openInvoiceEditor(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o){toast('Order not found.');return;}await loadInvoiceSettings();const preset=invoicePreset(INVOICE_SETTINGS.ratio);showModal(`<h2>Invoice</h2><p style="margin-top:0;color:var(--ink-soft);">Choose the invoice ratio/size and edit the owner text. Then select <b>Save as PDF</b> in the browser print dialog.</p><div class="invoice-admin-grid"><div class="field"><label>Invoice ratio / size</label><select id="invoice-ratio" onchange="invoiceRatioChanged()"><option value="A4">A4 Portrait</option><option value="A5">A5 Portrait</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="1:1">1:1</option><option value="Receipt">80mm Receipt</option><option value="5x7">5 × 7 in</option><option value="5x8">5 × 8 in</option><option value="6x7">6 × 7 in</option><option value="6x8">6 × 8 in</option><option value="6x9">6 × 9 in</option><option value="7x8">7 × 8 in</option><option value="7x9">7 × 9 in</option><option value="Custom">Custom</option></select></div><div class="field"><label>Owner name</label><input id="invoice-owner" value="${esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif')}"></div><div class="field"><label>Width (mm)</label><input id="invoice-width" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.width_mm)||preset[0]}"></div><div class="field"><label>Height (mm)</label><input id="invoice-height" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.height_mm)||preset[1]}"></div><div class="field full"><label>Thank-you text</label><input id="invoice-thanks" value="${esc(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!')}"></div></div><div class="invoice-preview"><div class="invoice-mini-paper"><div class="invoice-mini-head"><div>${invoiceLogoUrl()?`<img class="invoice-mini-logo" src="${esc(invoiceLogoUrl())}">`:`<b>${esc(SETTINGS?.siteName||'StoreX')}</b>`}</div><div><b>INVOICE</b><br>${esc(o.order_number||'')}</div></div><b>${esc(o.product_title||'Product')}</b><div style="margin-top:5px">${esc(o.customer_name||'')} · Qty ${Number(o.quantity)||0}</div><div style="margin-top:8px;text-align:right;font-weight:800">Total: ${money(o.total_amount)}</div></div></div><p class="invoice-print-note">The PDF is generated in the browser, so invoice files do not need to be stored in Supabase.</p><div class="modal-close-row"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Save settings &amp; Print / PDF</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`);const sel=document.getElementById('invoice-ratio');if(sel)sel.value=INVOICE_SETTINGS.ratio||'A4';}
+function invoicePrintHTML(o,opts){const w=Math.max(50,Number(opts.width_mm)||210),h=Math.max(50,Number(opts.height_mm)||297),logo=invoiceLogoUrl(),orderNo=esc(o.order_number||String(o.id||'').slice(0,8)),created=o.created_at?new Date(o.created_at).toLocaleString():'',title=esc(o.product_title||'Product'),sku=esc(o.product_sku||''),qty=Number(o.quantity)||0,unit=Number(o.unit_price)||0,original=Number(o.original_price)||0,discount=Number(o.discount_amount)||0,delivery=Number(o.delivery_charges)||0,total=Number(o.total_amount)||0,moneyLocal=v=>{try{return money(v)}catch(_){return Number(v||0).toFixed(2)}},status=esc(formatOrderStatus(o.status)),owner=esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif'),thanks=esc(INVOICE_SETTINGS.thank_you||'Thanks for the order');return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${orderNo}</title><style>@page{size:${w}mm ${h}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}body{font-size:11px;width:${w}mm;height:${h}mm;overflow:hidden}.paper{width:${w}mm;height:${h}mm;padding:6mm;overflow:hidden;break-after:avoid;page-break-after:avoid}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1.5px solid #111;padding-bottom:9px;margin-bottom:11px}.logo{max-width:42%;max-height:28mm;object-fit:contain}.brand{font-size:17px;font-weight:800}.invoice-title{text-align:right}.invoice-title h1{font-size:22px;margin:0 0 3px}.muted{color:#666}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.box{border:1px solid #ddd;border-radius:5px;padding:8px}.box b{display:block;margin-bottom:3px}.items{width:100%;border-collapse:collapse;margin-top:8px}.items th,.items td{border-bottom:1px solid #ddd;padding:7px 4px;text-align:left;vertical-align:top}.items th{font-size:10px;text-transform:uppercase}.num{text-align:right!important}.totals{margin-left:auto;width:min(100%,260px);margin-top:9px}.totals div{display:flex;justify-content:space-between;padding:4px 0}.totals .grand{border-top:1.5px solid #111;margin-top:4px;padding-top:7px;font-size:14px;font-weight:800}.footer{margin-top:18px;text-align:center;border-top:1px solid #ddd;padding-top:10px}.owner{font-weight:800;margin-bottom:4px}.thanks{font-size:11px}.small{font-size:9.5px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>ORDER</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number to track your order or request a return.</div></div></div></body></html>`;}
+async function openInvoiceEditor(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o){toast('Order not found.');return;}await loadInvoiceSettings();const preset=invoicePreset(INVOICE_SETTINGS.ratio);showModal(`<h2>Invoice</h2><p style="margin-top:0;color:var(--ink-soft);">Choose the invoice ratio/size and edit the owner text. Then select <b>Save as PDF</b> in the browser print dialog.</p><div class="invoice-admin-grid"><div class="field"><label>Invoice ratio / size</label><select id="invoice-ratio" onchange="invoiceRatioChanged()"><option value="A4">A4 Portrait</option><option value="A5">A5 Portrait</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="1:1">1:1</option><option value="Receipt">80mm Receipt</option><option value="5x7">5 × 7 in</option><option value="5x8">5 × 8 in</option><option value="6x7">6 × 7 in</option><option value="6x8">6 × 8 in</option><option value="6x9">6 × 9 in</option><option value="7x8">7 × 8 in</option><option value="7x9">7 × 9 in</option><option value="Custom">Custom</option></select></div><div class="field"><label>Owner name</label><input id="invoice-owner" value="${esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif')}"></div><div class="field"><label>Width (mm)</label><input id="invoice-width" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.width_mm)||preset[0]}"></div><div class="field"><label>Height (mm)</label><input id="invoice-height" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.height_mm)||preset[1]}"></div><div class="field full"><label>Thank-you text</label><input id="invoice-thanks" value="${esc(INVOICE_SETTINGS.thank_you||'Thanks for the order')}"></div></div><div class="invoice-preview"><div class="invoice-mini-paper"><div class="invoice-mini-head"><div>${invoiceLogoUrl()?`<img class="invoice-mini-logo" src="${esc(invoiceLogoUrl())}">`:`<b>${esc(SETTINGS?.siteName||'StoreX')}</b>`}</div><div><b>INVOICE</b><br>${esc(o.order_number||'')}</div></div><b>${esc(o.product_title||'Product')}</b><div style="margin-top:5px">${esc(o.customer_name||'')} · Qty ${Number(o.quantity)||0}</div><div style="margin-top:8px;text-align:right;font-weight:800">Total: ${money(o.total_amount)}</div></div></div><p class="invoice-print-note">The PDF is generated in the browser, so invoice files do not need to be stored in Supabase.</p><div class="modal-close-row"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Save settings &amp; Print / PDF</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`);const sel=document.getElementById('invoice-ratio');if(sel)sel.value=INVOICE_SETTINGS.ratio||'A4';}
 function invoiceRatioChanged(){const ratio=document.getElementById('invoice-ratio')?.value;if(!ratio)return;const [w,h]=invoicePreset(ratio);if(ratio!=='Custom'){const wi=document.getElementById('invoice-width'),he=document.getElementById('invoice-height');if(wi)wi.value=w;if(he)he.value=h;}}
-async function saveAndPrintInvoice(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o)return;const ratio=document.getElementById('invoice-ratio')?.value||'A4',preset=invoicePreset(ratio);INVOICE_SETTINGS.ratio=ratio;INVOICE_SETTINGS.width_mm=Math.max(50,Number(document.getElementById('invoice-width')?.value)||preset[0]);INVOICE_SETTINGS.height_mm=Math.max(50,Number(document.getElementById('invoice-height')?.value)||preset[1]);INVOICE_SETTINGS.owner_name=String(document.getElementById('invoice-owner')?.value||'Asim Ali Asif').trim();INVOICE_SETTINGS.thank_you=String(document.getElementById('invoice-thanks')?.value||'Thank you — Shukriya!').trim();try{await saveInvoiceSettings();}catch(e){toast('Invoice settings could not be saved to backend: '+(e.message||'Unknown error'));}const win=window.open('','_blank','width=900,height=900');if(!win){toast('Please allow pop-ups to generate the PDF invoice.');return;}win.document.open();win.document.write(invoicePrintHTML(o,INVOICE_SETTINGS));win.document.close();win.onload=()=>setTimeout(()=>win.print(),250);}
+async function saveAndPrintInvoice(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o)return;const ratio=document.getElementById('invoice-ratio')?.value||'A4',preset=invoicePreset(ratio);INVOICE_SETTINGS.ratio=ratio;INVOICE_SETTINGS.width_mm=Math.max(50,Number(document.getElementById('invoice-width')?.value)||preset[0]);INVOICE_SETTINGS.height_mm=Math.max(50,Number(document.getElementById('invoice-height')?.value)||preset[1]);INVOICE_SETTINGS.owner_name=String(document.getElementById('invoice-owner')?.value||'Asim Ali Asif').trim();INVOICE_SETTINGS.thank_you=String(document.getElementById('invoice-thanks')?.value||'Thanks for the order').trim();try{await saveInvoiceSettings();}catch(e){toast('Invoice settings could not be saved to backend: '+(e.message||'Unknown error'));}const win=window.open('','_blank','width=900,height=900');if(!win){toast('Please allow pop-ups to generate the PDF invoice.');return;}win.document.open();win.document.write(invoicePrintHTML(o,INVOICE_SETTINGS));win.document.close();win.onload=()=>setTimeout(()=>win.print(),250);}
 /* ---------- Orders ---------- */
 function adminOrderActions(o){
   const s=String(o.status||'pending').toLowerCase();
@@ -2265,7 +2353,7 @@ function openInvoicePreview(id){
   });
 }
 
-function showOrderDetails(id){ const o=ORDERS.find(x=>String(x.id)===String(id)); if(!o)return; loadInvoiceSettings().then(()=>showModal(`<h2>Order Details</h2><div style="display:grid;gap:7px;font-size:13px"><b>Order: ${esc(o.order_number||o.id||'')}</b><b>${esc(o.product_title||'')}</b><span>Name: ${esc(o.customer_name||'')}</span><span>Phone: ${esc(o.customer_phone||'')}</span><span>Email: ${esc(o.customer_email||'')}</span><span>City: ${esc(o.city||'')}</span><span>Full delivery address: ${esc(o.customer_address||'')}</span><span>Quantity: ${Number(o.quantity)||0}</span><span>Delivery: ${money(o.delivery_charges)}</span><span>Total: <b>${money(o.total_amount)}</b></span><span>Status: ${formatOrderStatus(o.status)}</span>${o.return_reason?`<span>Return reason: ${esc(o.return_reason)}</span>`:''}${o.return_requested_at?`<span>Return requested: ${esc(new Date(o.return_requested_at).toLocaleString())}</span>`:''}</div><div class="invoice-detail-export"><h3 style="margin:0 0 8px">Invoice</h3><div class="invoice-detail-preview">${invoicePreviewBody(o)}</div><div class="invoice-detail-actions"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Export PDF</button><button class="btn ghost" onclick="exportInvoiceImage('${o.id}')">Export Image (PNG)</button><button class="btn ghost" onclick="openInvoiceEditor('${o.id}')">Edit Invoice</button></div></div><div class="modal-close-row">${adminOrderActions(o)}<button class="btn ghost" onclick="closeModal()">Close</button></div>`)); }
+function showOrderDetails(id){ const o=ORDERS.find(x=>String(x.id)===String(id)); if(!o)return; loadInvoiceSettings().then(()=>showModal(`<h2>Order Details</h2><div style="display:grid;gap:7px;font-size:13px"><b>Order: ${esc(o.order_number||o.id||'')}</b><b>${esc(o.product_title||'')}</b><span>Name: ${esc(o.customer_name||'')}</span><span>Phone: ${esc(o.customer_phone||'')}</span><span>Email: ${esc(o.customer_email||'')}</span><span>City: ${esc(o.city||'')}</span><span>Full delivery address: ${esc(o.customer_address||'')}</span><span>Quantity: ${Number(o.quantity)||0}</span><span>Delivery: ${money(o.delivery_charges)}</span><span>Total: <b>${money(o.total_amount)}</b></span><span>Status: ${formatOrderStatus(o.status)}</span>${isOrderRequestAlert(o)?`<div style="margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#FFF9F3;"><b>Request alert</b><div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">Remove this request from the Dashboard alerts after you have reviewed it.</div></div>`:''}${o.return_reason?`<span>Return reason: ${esc(o.return_reason)}</span>`:''}${o.return_requested_at?`<span>Return requested: ${esc(new Date(o.return_requested_at).toLocaleString())}</span>`:''}</div><div class="invoice-detail-export"><h3 style="margin:0 0 8px">Invoice</h3><div class="invoice-detail-preview">${invoicePreviewBody(o)}</div><div class="invoice-detail-actions"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Export PDF</button><button class="btn ghost" onclick="exportInvoiceImage('${o.id}')">Export Image (PNG)</button><button class="btn ghost" onclick="openInvoiceEditor('${o.id}')">Edit Invoice</button></div></div><div class="modal-close-row">${adminOrderActions(o)}${isOrderRequestAlert(o)?`<button class="btn ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete Request Alert</button>`:''}<button class="btn ghost" onclick="closeModal()">Close</button></div>`)); }
 async function updateOrderStatus(id,status){ if(!SUPABASE_ADMIN||!supabaseClient)return; try{ const allowed=['pending','confirmed','ready_to_ship','shipped','delivered','cancelled','return_requested','returned']; if(!allowed.includes(status))throw new Error('Invalid order status.'); const {error}=await supabaseClient.from('storex_orders').update({status,updated_at:new Date().toISOString()}).eq('id',id); if(error)throw error; const o=ORDERS.find(x=>String(x.id)===String(id)); if(o)o.status=status; closeModal(); await loadOrders(); render(); toast('Order status updated: '+formatOrderStatus(status)); }catch(e){toast('Order update failed: '+(e.message||'Unknown error'));} }
 
 /* ---------- Categories ---------- */
