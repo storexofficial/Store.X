@@ -169,7 +169,7 @@ img{max-width:100%;display:block;}
 .trending-searches{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;}
 .trending-searches button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 11px;font-size:12px;color:var(--ink);}
 .trending-searches button:hover{border-color:var(--primary);color:var(--primary);}
-:root{--cat-media-height:130px;--product-media-ratio:1/1;--flash-media-height:360px;--promo-media-height:260px;}
+:root{--cat-media-height:130px;--cat-media-ratio:3/2;--product-media-ratio:1/1;--flash-media-height:360px;--promo-media-height:260px;}
 .cat-icon{height:var(--cat-media-height) !important;max-height:none;}
 .card-img{aspect-ratio:var(--product-media-ratio) !important;}
 .flash{min-height:var(--flash-media-height);height:var(--flash-media-height);}
@@ -203,7 +203,7 @@ img{max-width:100%;display:block;}
 .main-nav{display:flex;gap:22px;align-items:center;white-space:nowrap;}
 .main-nav a{font-size:14px;font-weight:600;padding:6px 2px;border-bottom:2px solid transparent;}
 .main-nav a:hover{border-color:var(--primary);}
-.mobile-toggle{display:inline-flex;background:none;border:none;padding:8px;color:var(--header-text);align-items:center;justify-content:center;order:4}.mobile-search-toggle{display:none;background:none;border:none;padding:8px;color:var(--header-text);}
+.mobile-toggle{display:inline-flex;background:none;border:none;padding:8px;color:var(--header-text);align-items:center;justify-content:center;order:4;min-width:44px;min-height:44px;position:relative;z-index:50;touch-action:manipulation;-webkit-tap-highlight-color:transparent;visibility:visible!important;cursor:pointer}.mobile-search-toggle{display:none;background:none;border:none;padding:8px;color:var(--header-text);}
 .mobile-toggle svg,.mobile-search-toggle svg{width:24px;height:24px;}
 .mobile-drawer{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;}
 .mobile-drawer.open{display:block;}
@@ -450,6 +450,11 @@ img{max-width:100%;display:block;}
   .admin-main{padding:70px 16px 26px;}
 }
 
+/* StoreX category media: fixed 3:2 ratio on desktop, tablet and mobile */
+.cat-icon{height:auto !important;min-height:0 !important;aspect-ratio:3/2 !important;}
+.cat-icon img{width:100%;height:100%;object-fit:cover;}
+@media(max-width:480px){.cat-icon{height:auto !important;min-height:0 !important;aspect-ratio:3/2 !important;}}
+
 /* StoreX unified media + navigation fixes */
 html{scroll-behavior:auto;}
 .card-img,.cat-icon,.pd-main-img,.spotlight-img{width:100%;}
@@ -482,6 +487,16 @@ html{scroll-behavior:auto;}
 }
 </script>
 
+<script id="StoreXRealtimeReloadGuard">
+(function(){
+  "use strict";
+  var last=0;
+  window.StoreXRealtimeReload=function(){
+    var now=Date.now(); if(now-last<1200)return; last=now;
+    setTimeout(function(){ location.reload(); },150);
+  };
+})();
+</script>
 </head>
 
 <!--
@@ -492,6 +507,14 @@ website hosting (not inside the HTML):
   /sitemap.xml -> Generate a sitemap containing your real public URLs.
 -->
 
+<script id="StoreXInstantCache">
+(function(){
+  try{
+    var raw=localStorage.getItem("StoreX.customer.snapshot.v5");
+    if(raw){ var item=JSON.parse(raw); if(item&&item.data) window.StoreXWarmSnapshot=item.data; }
+  }catch(e){}
+})();
+</script>
 <body>
 <div id="StoreX-loading" aria-live="polite" role="status">
   <div class="StoreX-loading-demo">
@@ -811,7 +834,7 @@ const DEFAULT_SETTINGS = {
 
 function buildDemoConfig(){
   const media=[
-    {id:'media-logo',name:'Demo logo',dataUrl:'https://i.ibb.co/20d0YX78/1789053253807.png'},
+    {id:'media-logo',name:'Store Logo',dataUrl:'https://i.ibb.co/20d0YX78/1789053253807.png'},
     {id:'media-hero',name:'Hero demo',dataUrl:'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1600&q=78'},
     {id:'media-cat-1',name:'Mobiles',dataUrl:'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=700&q=72'},
     {id:'media-cat-2',name:'Fashion',dataUrl:'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=700&q=72'},
@@ -830,7 +853,7 @@ function buildDemoConfig(){
   ];
   const product=(id,title,desc,price,oldPrice,discount,cat,img,flags={})=>({
     id,title,shortTitle:title,shortDesc:desc,fullDesc:desc+'. Demo listing — replace this with your real product details.',
-    images:[img],mainImage:img,category:cat,tags:title.toLowerCase().split(' ').concat(['demo','deal']),
+    images:[img],mainImage:img,category:cat,tags:title.toLowerCase().split(' ').concat(['Store','deal']),
     price,oldPrice,originalPrice:oldPrice,specialPrice:price,stock:20,deliveryCharges:200,discount,badge:discount?'-'+discount+'%':'',promotion:{freeDelivery:false,freeDeliveryQty:0,percentOff:0,percentOffQty:0,buyQty:0,freeQty:0},sku:'DEMO-'+id,status:'published',featured:!!flags.featured,trending:!!flags.trending,
     newArrival:!!flags.newArrival,bestSeller:!!flags.bestSeller,order:flags.order||1,
     seo:{slug:slugify(title),title:title+' | StoreX',description:desc,keywords:title.toLowerCase()},clicks:0,views:0
@@ -961,7 +984,7 @@ function showOrderInvoice(order,p,qty,customer){
   const orderNo=order&&order.order_number ? order.order_number : (order&&order.id ? String(order.id) : 'Pending');
   const created=order&&order.created_at ? new Date(order.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK');
   showModal(`<div class="order-invoice" style="background:#fff;border-radius:14px;padding:22px;max-width:620px;margin:auto;box-shadow:0 12px 40px rgba(0,0,0,.12);">
-    <div style="text-align:center;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">${storexLogoHtml()}<div style="margin-top:12px;font-size:22px;font-weight:800;">INVOICE</div><div style="margin-top:5px;font-size:13px;color:var(--ink-soft);">Thank you for your order.</div></div>
+    <div style="text-align:center;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">${storexLogoHtml()}<div style="margin-top:12px;font-size:22px;font-weight:800;">ORDER</div><div style="margin-top:5px;font-size:13px;color:var(--ink-soft);">Thank you for your order.</div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;font-size:13px;"><div><b>Order Number</b><br>${esc(orderNo)}</div><div><b>Order Date</b><br>${esc(created)}</div><div><b>Status</b><br>Pending</div><div><b>Customer</b><br>${esc(customer.name)}</div></div>
     <div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;"><b>Order Details</b><div style="margin-top:9px;font-size:13px;"><div style="display:flex;justify-content:space-between;gap:10px;"><span>${esc(p.title)}</span><span>Qty: ${qty}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Unit price</span><span>${money(total.unitPrice)}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Delivery</span><span>${total.delivery?money(total.delivery):'FREE'}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:16px;font-weight:800;border-top:1px solid var(--line);padding-top:9px;"><span>Total</span><span>${money(total.total)}</span></div></div></div>
     <div style="display:grid;gap:5px;font-size:13px;margin-bottom:16px;"><b>Delivery Details</b><span>Name: ${esc(customer.name)}</span><span>Phone: ${esc(customer.phone)}</span>${customer.email?`<span>Email: ${esc(customer.email)}</span>`:''}<span>City: ${esc(customer.city)}</span><span>Address: ${esc(customer.address)}</span></div>
@@ -1361,7 +1384,7 @@ function renderHeader(){
   const logo = SETTINGS.logo ? `<img src="${mediaSrc(SETTINGS.logo)}" alt="${esc(SETTINGS.siteName)} logo" style="width:${SETTINGS.logoWidth}px;height:auto;max-height:56px;">` : `<span class="logo-fallback">${esc(SETTINGS.siteName)}</span>`;
   const navLinks = SETTINGS.nav.slice(0,3).map(n=>`<a href="${esc(n.url)}" ${n.newTab?'target="_blank" rel="noopener"':''}>${esc(n.label)}</a>`).join('');
   return `<header id="site-header"><div class="container header-row">
-    <div class="logo-wrap"><a href="${esc(SETTINGS.logoLink||'#/')}">${logo}</a></div>
+    <div class="logo-wrap" aria-label="StoreX logo">${logo}</div>
     <button class="mobile-toggle" onclick="MOBILE_DRAWER_OPEN=true;render();" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
     <div class="search-wrap"><form class="search-form ${MOBILE_SEARCH_OPEN?'mobile-open':''}" onsubmit="event.preventDefault();performSearchQuery(this.q.value);" autocomplete="off">
       <input name="q" type="search" placeholder="Search products..." aria-label="Search products" onfocus="openSearchSuggestions(this)" oninput="openSearchSuggestions(this)">
@@ -1574,7 +1597,7 @@ function initFlashCarousels(){
 function renderCategoriesSection(sec){
   if(!CATEGORIES.filter(c=>c.status!=='hidden').length){
     return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Shop by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div></div>
-    <div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">\u{1F4C2}</div><h3>No categories available</h3><p>Add categories from the admin panel.</p></div></section>`;
+    <div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">\u{1F4C2}</div><div style="font-size:14px;font-weight:700;color:var(--ink-soft);padding:12px 0;">Categories are loading.</div></div></section>`;
   }
   const selectedIds=Array.isArray(SETTINGS.homeCategoryIds)?SETTINGS.homeCategoryIds:[];
    const visibleCats=CATEGORIES.filter(c=>c.status!=='hidden');
@@ -1621,7 +1644,7 @@ function renderCollectionSection(sec){
   let list = filteredProducts(cfg.filter).slice(0, cfg.count||6);
   if(!list.length){
     return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title)}</h2><p>${esc(sec.subtitle||'')}</p></div></div>
-    <div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">\u{1F6CD}</div><h3>No products found</h3><p>Add products from the admin panel and mark them for this collection.</p></div></section>`;
+    <div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">\u{1F6CD}</div><div style="font-size:14px;font-weight:700;color:var(--ink-soft);padding:12px 0;">Products are loading.</div></div></section>`;
   }
   const cols = [2,3,4].includes(Number(cfg.columns)) ? Number(cfg.columns) : 3;
   return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title)}</h2><p>${esc(sec.subtitle||'')}</p></div><a href="#/category/all">View all</a></div>
@@ -1957,12 +1980,30 @@ function renderAdminView(){
 
 /* ---------- Dashboard ---------- */
 function adminDashboard(){
+  const returnRequests = ORDERS.filter(o=>String(o.status||'').toLowerCase()==='return_requested' || o.return_requested_at).sort((a,b)=>new Date(b.return_requested_at||b.updated_at||b.created_at||0)-new Date(a.return_requested_at||a.updated_at||a.created_at||0));
+  const cancellationRequests = ORDERS.filter(o=>String(o.status||'').toLowerCase()==='cancelled' && (o.cancel_reason || o.cancelReason || String(o.status||'').toLowerCase()==='cancelled')).sort((a,b)=>new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
   const published = PRODUCTS.filter(p=>p.status==='published').length;
   const hidden = PRODUCTS.filter(p=>p.status==='hidden').length;
   const activeFS = FLASHSALES.filter(f=>f.status==='active').length;
   const expiredFS = FLASHSALES.filter(f=>f.end && new Date(f.end).getTime()<Date.now()).length;
   const topClicks = [...PRODUCTS].sort((a,b)=>(b.clicks||0)-(a.clicks||0)).slice(0,5);
   return `<div class="admin-topbar"><h1>Dashboard</h1></div>
+  <div class="admin-card" style="border:1px solid var(--primary);background:#FFF9F3;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <div><h3 style="margin:0;">Order Requests & Alerts</h3><p style="margin:4px 0 0;color:var(--ink-soft);font-size:13px;">New return and cancellation activity is shown here first.</p></div>
+      <button class="btn small ghost" onclick="setAdminView('orders')">Open Orders</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
+      <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;">
+        <div style="font-weight:800;margin-bottom:8px;">Return Requests <span class="badge-status ${returnRequests.length?'off':'on'}" style="margin-left:6px;">${returnRequests.length}</span></div>
+        ${returnRequests.length?returnRequests.slice(0,5).map(o=>`<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span><button class="btn small ghost" style="float:right;margin-top:-2px;" onclick="showOrderDetails('${o.id}')">View</button></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No pending return requests.</div>'}
+      </div>
+      <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;">
+        <div style="font-weight:800;margin-bottom:8px;">Cancellation Requests <span class="badge-status ${cancellationRequests.length?'off':'on'}" style="margin-left:6px;">${cancellationRequests.length}</span></div>
+        ${cancellationRequests.length?cancellationRequests.slice(0,5).map(o=>`<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span>${(o.cancel_reason||o.cancelReason)?`<br><span style="color:var(--ink-soft);">Reason: ${esc(o.cancel_reason||o.cancelReason)}</span>`:''}<button class="btn small ghost" style="float:right;margin-top:-2px;" onclick="showOrderDetails('${o.id}')">View</button></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No cancellation requests.</div>'}
+      </div>
+    </div>
+  </div>
   <div class="stat-grid">
     <div class="stat-box"><b>${PRODUCTS.length}</b><span>Total products</span></div>
     <div class="stat-box"><b>${published}</b><span>Published</span></div>
@@ -2160,13 +2201,13 @@ function saveProductForm(pid, isNew){
 const DEFAULT_INVOICE_SETTINGS={id:1,ratio:'A4',width_mm:210,height_mm:297,owner_name:'Asim Ali Asif',thank_you:'Thank you — Shukriya!',logo_url:'https://i.ibb.co/20d0YX78/1789053253807.png'};
 let INVOICE_SETTINGS=Object.assign({},DEFAULT_INVOICE_SETTINGS);
 async function loadInvoiceSettings(){INVOICE_SETTINGS=Object.assign({},DEFAULT_INVOICE_SETTINGS);if(!supabaseClient||!SUPABASE_READY)return INVOICE_SETTINGS;try{const {data,error}=await supabaseClient.from('storex_invoice_settings').select('*').eq('id',1).maybeSingle();if(!error&&data)INVOICE_SETTINGS=Object.assign({},DEFAULT_INVOICE_SETTINGS,data);}catch(e){console.warn('Invoice settings read skipped:',e);}return INVOICE_SETTINGS;}
-async function saveInvoiceSettings(){if(!SUPABASE_ADMIN||!supabaseClient)throw new Error('Admin backend is not connected.');const payload={id:1,ratio:String(INVOICE_SETTINGS.ratio||'A4'),width_mm:Number(INVOICE_SETTINGS.width_mm)||210,height_mm:Number(INVOICE_SETTINGS.height_mm)||297,owner_name:String(INVOICE_SETTINGS.owner_name||'Asim Ali, Asif').slice(0,160),thank_you:String(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!').slice(0,300),logo_url:String(INVOICE_SETTINGS.logo_url||'').slice(0,1000)};const {error}=await supabaseClient.from('storex_invoice_settings').upsert(payload,{onConflict:'id'});if(error)throw error;INVOICE_SETTINGS=Object.assign({},INVOICE_SETTINGS,payload);}
-function invoicePreset(ratio){const map={A4:[210,297],A5:[148,210],'4:3':[120,90],'3:2':[120,80],'1:1':[100,100],Receipt:[80,200]};return map[ratio]||[210,297];}
+async function saveInvoiceSettings(){if(!SUPABASE_ADMIN||!supabaseClient)throw new Error('Admin backend is not connected.');const payload={id:1,ratio:String(INVOICE_SETTINGS.ratio||'A4'),width_mm:Number(INVOICE_SETTINGS.width_mm)||210,height_mm:Number(INVOICE_SETTINGS.height_mm)||297,owner_name:String(INVOICE_SETTINGS.owner_name||'Asim Ali Asif').slice(0,160),thank_you:String(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!').slice(0,300),logo_url:String(INVOICE_SETTINGS.logo_url||'').slice(0,1000)};const {error}=await supabaseClient.from('storex_invoice_settings').upsert(payload,{onConflict:'id'});if(error)throw error;INVOICE_SETTINGS=Object.assign({},INVOICE_SETTINGS,payload);}
+function invoicePreset(ratio){const map={A4:[210,297],A5:[148,210],'4:3':[120,90],'3:2':[120,80],'1:1':[100,100],Receipt:[80,200],'5x7':[127,177.8],'5x8':[127,203.2],'6x7':[152.4,177.8],'6x8':[152.4,203.2],'6x9':[152.4,228.6],'7x8':[177.8,203.2],'7x9':[177.8,228.6]};return map[ratio]||[210,297];}
 function invoiceLogoUrl(){const configured=String(INVOICE_SETTINGS.logo_url||'').trim();if(configured)return configured;try{return mediaSrc(SETTINGS&&SETTINGS.logo)||'';}catch(_){return '';}}
-function invoicePrintHTML(o,opts){const w=Math.max(50,Number(opts.width_mm)||210),h=Math.max(50,Number(opts.height_mm)||297),logo=invoiceLogoUrl(),orderNo=esc(o.order_number||String(o.id||'').slice(0,8)),created=o.created_at?new Date(o.created_at).toLocaleString():'',title=esc(o.product_title||'Product'),sku=esc(o.product_sku||''),qty=Number(o.quantity)||0,unit=Number(o.unit_price)||0,original=Number(o.original_price)||0,discount=Number(o.discount_amount)||0,delivery=Number(o.delivery_charges)||0,total=Number(o.total_amount)||0,moneyLocal=v=>{try{return money(v)}catch(_){return Number(v||0).toFixed(2)}},status=esc(formatOrderStatus(o.status)),owner=esc(INVOICE_SETTINGS.owner_name||'Asim Ali, Asif'),thanks=esc(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!');return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${orderNo}</title><style>@page{size:${w}mm ${h}mm;margin:7mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}body{font-size:11px}.paper{width:100%;min-height:calc(${h}mm - 14mm);padding:1mm}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1.5px solid #111;padding-bottom:9px;margin-bottom:11px}.logo{max-width:42%;max-height:28mm;object-fit:contain}.brand{font-size:17px;font-weight:800}.invoice-title{text-align:right}.invoice-title h1{font-size:22px;margin:0 0 3px}.muted{color:#666}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.box{border:1px solid #ddd;border-radius:5px;padding:8px}.box b{display:block;margin-bottom:3px}.items{width:100%;border-collapse:collapse;margin-top:8px}.items th,.items td{border-bottom:1px solid #ddd;padding:7px 4px;text-align:left;vertical-align:top}.items th{font-size:10px;text-transform:uppercase}.num{text-align:right!important}.totals{margin-left:auto;width:min(100%,260px);margin-top:9px}.totals div{display:flex;justify-content:space-between;padding:4px 0}.totals .grand{border-top:1.5px solid #111;margin-top:4px;padding-top:7px;font-size:14px;font-weight:800}.footer{margin-top:18px;text-align:center;border-top:1px solid #ddd;padding-top:10px}.owner{font-weight:800;margin-bottom:4px}.thanks{font-size:11px}.small{font-size:9.5px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>INVOICE</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number for tracking.</div></div></div></body></html>`;}
-async function openInvoiceEditor(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o){toast('Order not found.');return;}await loadInvoiceSettings();const preset=invoicePreset(INVOICE_SETTINGS.ratio);showModal(`<h2>Invoice</h2><p style="margin-top:0;color:var(--ink-soft);">Choose the invoice ratio/size and edit the owner text. Then select <b>Save as PDF</b> in the browser print dialog.</p><div class="invoice-admin-grid"><div class="field"><label>Invoice ratio / size</label><select id="invoice-ratio" onchange="invoiceRatioChanged()"><option value="A4">A4 Portrait</option><option value="A5">A5 Portrait</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="1:1">1:1</option><option value="Receipt">80mm Receipt</option><option value="Custom">Custom</option></select></div><div class="field"><label>Owner name</label><input id="invoice-owner" value="${esc(INVOICE_SETTINGS.owner_name||'Asim Ali, Asif')}"></div><div class="field"><label>Width (mm)</label><input id="invoice-width" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.width_mm)||preset[0]}"></div><div class="field"><label>Height (mm)</label><input id="invoice-height" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.height_mm)||preset[1]}"></div><div class="field full"><label>Thank-you text</label><input id="invoice-thanks" value="${esc(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!')}"></div></div><div class="invoice-preview"><div class="invoice-mini-paper"><div class="invoice-mini-head"><div>${invoiceLogoUrl()?`<img class="invoice-mini-logo" src="${esc(invoiceLogoUrl())}">`:`<b>${esc(SETTINGS?.siteName||'StoreX')}</b>`}</div><div><b>INVOICE</b><br>${esc(o.order_number||'')}</div></div><b>${esc(o.product_title||'Product')}</b><div style="margin-top:5px">${esc(o.customer_name||'')} · Qty ${Number(o.quantity)||0}</div><div style="margin-top:8px;text-align:right;font-weight:800">Total: ${money(o.total_amount)}</div></div></div><p class="invoice-print-note">The PDF is generated in the browser, so invoice files do not need to be stored in Supabase.</p><div class="modal-close-row"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Save settings &amp; Print / PDF</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`);const sel=document.getElementById('invoice-ratio');if(sel)sel.value=INVOICE_SETTINGS.ratio||'A4';}
+function invoicePrintHTML(o,opts){const w=Math.max(50,Number(opts.width_mm)||210),h=Math.max(50,Number(opts.height_mm)||297),logo=invoiceLogoUrl(),orderNo=esc(o.order_number||String(o.id||'').slice(0,8)),created=o.created_at?new Date(o.created_at).toLocaleString():'',title=esc(o.product_title||'Product'),sku=esc(o.product_sku||''),qty=Number(o.quantity)||0,unit=Number(o.unit_price)||0,original=Number(o.original_price)||0,discount=Number(o.discount_amount)||0,delivery=Number(o.delivery_charges)||0,total=Number(o.total_amount)||0,moneyLocal=v=>{try{return money(v)}catch(_){return Number(v||0).toFixed(2)}},status=esc(formatOrderStatus(o.status)),owner=esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif'),thanks=esc(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!');return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${orderNo}</title><style>@page{size:${w}mm ${h}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}body{font-size:11px;width:${w}mm;height:${h}mm;overflow:hidden}.paper{width:${w}mm;height:${h}mm;padding:6mm;overflow:hidden;break-after:avoid;page-break-after:avoid}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1.5px solid #111;padding-bottom:9px;margin-bottom:11px}.logo{max-width:42%;max-height:28mm;object-fit:contain}.brand{font-size:17px;font-weight:800}.invoice-title{text-align:right}.invoice-title h1{font-size:22px;margin:0 0 3px}.muted{color:#666}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.box{border:1px solid #ddd;border-radius:5px;padding:8px}.box b{display:block;margin-bottom:3px}.items{width:100%;border-collapse:collapse;margin-top:8px}.items th,.items td{border-bottom:1px solid #ddd;padding:7px 4px;text-align:left;vertical-align:top}.items th{font-size:10px;text-transform:uppercase}.num{text-align:right!important}.totals{margin-left:auto;width:min(100%,260px);margin-top:9px}.totals div{display:flex;justify-content:space-between;padding:4px 0}.totals .grand{border-top:1.5px solid #111;margin-top:4px;padding-top:7px;font-size:14px;font-weight:800}.footer{margin-top:18px;text-align:center;border-top:1px solid #ddd;padding-top:10px}.owner{font-weight:800;margin-bottom:4px}.thanks{font-size:11px}.small{font-size:9.5px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>ORDER</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number to track your order or request a return.</div></div></div></body></html>`;}
+async function openInvoiceEditor(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o){toast('Order not found.');return;}await loadInvoiceSettings();const preset=invoicePreset(INVOICE_SETTINGS.ratio);showModal(`<h2>Invoice</h2><p style="margin-top:0;color:var(--ink-soft);">Choose the invoice ratio/size and edit the owner text. Then select <b>Save as PDF</b> in the browser print dialog.</p><div class="invoice-admin-grid"><div class="field"><label>Invoice ratio / size</label><select id="invoice-ratio" onchange="invoiceRatioChanged()"><option value="A4">A4 Portrait</option><option value="A5">A5 Portrait</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="1:1">1:1</option><option value="Receipt">80mm Receipt</option><option value="5x7">5 × 7 in</option><option value="5x8">5 × 8 in</option><option value="6x7">6 × 7 in</option><option value="6x8">6 × 8 in</option><option value="6x9">6 × 9 in</option><option value="7x8">7 × 8 in</option><option value="7x9">7 × 9 in</option><option value="Custom">Custom</option></select></div><div class="field"><label>Owner name</label><input id="invoice-owner" value="${esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif')}"></div><div class="field"><label>Width (mm)</label><input id="invoice-width" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.width_mm)||preset[0]}"></div><div class="field"><label>Height (mm)</label><input id="invoice-height" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.height_mm)||preset[1]}"></div><div class="field full"><label>Thank-you text</label><input id="invoice-thanks" value="${esc(INVOICE_SETTINGS.thank_you||'Thank you — Shukriya!')}"></div></div><div class="invoice-preview"><div class="invoice-mini-paper"><div class="invoice-mini-head"><div>${invoiceLogoUrl()?`<img class="invoice-mini-logo" src="${esc(invoiceLogoUrl())}">`:`<b>${esc(SETTINGS?.siteName||'StoreX')}</b>`}</div><div><b>INVOICE</b><br>${esc(o.order_number||'')}</div></div><b>${esc(o.product_title||'Product')}</b><div style="margin-top:5px">${esc(o.customer_name||'')} · Qty ${Number(o.quantity)||0}</div><div style="margin-top:8px;text-align:right;font-weight:800">Total: ${money(o.total_amount)}</div></div></div><p class="invoice-print-note">The PDF is generated in the browser, so invoice files do not need to be stored in Supabase.</p><div class="modal-close-row"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Save settings &amp; Print / PDF</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`);const sel=document.getElementById('invoice-ratio');if(sel)sel.value=INVOICE_SETTINGS.ratio||'A4';}
 function invoiceRatioChanged(){const ratio=document.getElementById('invoice-ratio')?.value;if(!ratio)return;const [w,h]=invoicePreset(ratio);if(ratio!=='Custom'){const wi=document.getElementById('invoice-width'),he=document.getElementById('invoice-height');if(wi)wi.value=w;if(he)he.value=h;}}
-async function saveAndPrintInvoice(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o)return;const ratio=document.getElementById('invoice-ratio')?.value||'A4',preset=invoicePreset(ratio);INVOICE_SETTINGS.ratio=ratio;INVOICE_SETTINGS.width_mm=Math.max(50,Number(document.getElementById('invoice-width')?.value)||preset[0]);INVOICE_SETTINGS.height_mm=Math.max(50,Number(document.getElementById('invoice-height')?.value)||preset[1]);INVOICE_SETTINGS.owner_name=String(document.getElementById('invoice-owner')?.value||'Asim Ali, Asif').trim();INVOICE_SETTINGS.thank_you=String(document.getElementById('invoice-thanks')?.value||'Thank you — Shukriya!').trim();try{await saveInvoiceSettings();}catch(e){toast('Invoice settings could not be saved to backend: '+(e.message||'Unknown error'));}const win=window.open('','_blank','width=900,height=900');if(!win){toast('Please allow pop-ups to generate the PDF invoice.');return;}win.document.open();win.document.write(invoicePrintHTML(o,INVOICE_SETTINGS));win.document.close();win.onload=()=>setTimeout(()=>win.print(),250);}
+async function saveAndPrintInvoice(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o)return;const ratio=document.getElementById('invoice-ratio')?.value||'A4',preset=invoicePreset(ratio);INVOICE_SETTINGS.ratio=ratio;INVOICE_SETTINGS.width_mm=Math.max(50,Number(document.getElementById('invoice-width')?.value)||preset[0]);INVOICE_SETTINGS.height_mm=Math.max(50,Number(document.getElementById('invoice-height')?.value)||preset[1]);INVOICE_SETTINGS.owner_name=String(document.getElementById('invoice-owner')?.value||'Asim Ali Asif').trim();INVOICE_SETTINGS.thank_you=String(document.getElementById('invoice-thanks')?.value||'Thank you — Shukriya!').trim();try{await saveInvoiceSettings();}catch(e){toast('Invoice settings could not be saved to backend: '+(e.message||'Unknown error'));}const win=window.open('','_blank','width=900,height=900');if(!win){toast('Please allow pop-ups to generate the PDF invoice.');return;}win.document.open();win.document.write(invoicePrintHTML(o,INVOICE_SETTINGS));win.document.close();win.onload=()=>setTimeout(()=>win.print(),250);}
 /* ---------- Orders ---------- */
 function adminOrderActions(o){
   const s=String(o.status||'pending').toLowerCase();
