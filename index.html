@@ -43,6 +43,33 @@
 })();
 </script>
 
+
+<script>
+/* ================= StoreX PERFORMANCE ENGINE ================= */
+window.StoreXPerf=window.StoreXPerf||{};
+StoreXPerf.compressImageForWeb=async function(file){
+  if(!file||!file.type||!file.type.startsWith('image/')) return file;
+  if(file.type==='image/svg+xml'||file.type==='image/gif') return file;
+  const MAX_DIM=2400, QUALITY=.92;
+  try{
+    const bitmap=await createImageBitmap(file);
+    const scale=Math.min(1,MAX_DIM/Math.max(bitmap.width,bitmap.height));
+    const w=Math.max(1,Math.round(bitmap.width*scale)),h=Math.max(1,Math.round(bitmap.height*scale));
+    const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext('2d',{alpha:true,desynchronized:true}); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+    ctx.drawImage(bitmap,0,0,w,h); bitmap.close();
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',QUALITY));
+    if(!blob||blob.size>=file.size*.98) return file;
+    return new File([blob],(file.name||'image').replace(/\.[^.]+$/i,'.webp'),{type:'image/webp',lastModified:Date.now()});
+  }catch(e){console.warn('Image optimization skipped:',e);return file;}
+};
+StoreXPerf.fastPublicState=async function(){
+  if(!supabaseClient||!SUPABASE_READY) return null;
+  try{ const {data,error}=await supabaseClient.rpc('storex_public_state'); if(error) throw error; return data&&typeof data==='object'?data:null; }
+  catch(e){console.warn('Fast public state RPC unavailable; using existing reads:',e);return null;}
+};
+</script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="google-site-verification" content="WUxkcFCLbPaCLZE-jpALSdJ6fkcY30Ak4EnuW7x_ihY">
@@ -447,6 +474,19 @@ img{max-width:100%;display:block;}
 .daraz-promo-image{width:76px !important;height:58px !important;flex:0 0 76px !important;}
 @media(max-width:720px){.flash{height:auto !important;min-height:0 !important;}.flash-visual{height:auto !important;min-height:0 !important;aspect-ratio:var(--flash-media-ratio) !important;}.promo-banner{height:auto !important;min-height:0 !important;aspect-ratio:var(--promo-media-ratio) !important;}}
 @media(max-width:480px){.cat-icon{height:auto !important;aspect-ratio:var(--cat-media-ratio) !important;}.daraz-promo-image{width:76px !important;height:58px !important;flex-basis:76px !important;}}
+
+/* ================= StoreX PERFORMANCE + MEDIA OPTIMIZATION ================= */
+img{image-rendering:auto;}
+img[loading="lazy"]{content-visibility:auto;}
+.card-img,.spotlight-card .spotlight-img,.pd-main-img{contain:layout paint;}
+.hero,.promo-banner{contain:paint;}
+.flash{grid-template-columns:1fr 1fr;min-height:0 !important;height:auto !important;}
+.flash-visual{width:100%;aspect-ratio:2/1 !important;min-height:0 !important;height:auto !important;background:#fff;display:block;position:relative;overflow:hidden;}
+.flash-visual-slide{position:absolute !important;inset:0 !important;width:100%;height:100%;display:none;opacity:1 !important;background:#fff;}
+.flash-visual-slide.active{display:block;}
+.flash-visual-slide img,.flash-visual>img{width:100% !important;height:100% !important;object-fit:contain !important;object-position:center !important;background:#fff;display:block;}
+@media(max-width:720px){.flash{grid-template-columns:1fr 1fr !important;}.flash-visual{aspect-ratio:2/1 !important;order:initial !important;}.flash-info{min-width:0;}}
+@media(max-width:560px){.flash{grid-template-columns:1fr !important;}.flash-visual{aspect-ratio:2/1 !important;order:-1 !important;}}
 </style>
 
 <script type="application/ld+json" id="StoreX-schema">
@@ -729,16 +769,10 @@ async function uploadImageToSupabase(file){
   if(!SUPABASE_READY || !supabaseClient) throw new Error('Supabase is not connected.');
   if(!SUPABASE_ADMIN) throw new Error('Admin login is required to upload images.');
   if(!file || !file.type.startsWith('image/')) throw new Error('Please select an image file.');
-
-  // Upload the original image exactly as selected. No client-side resizing,
-  // WebP conversion, compression, or optimization is performed.
-  const safeName=(file.name||'image').replace(/[^A-Za-z0-9._-]+/g,'-');
+  const optimized=await StoreXPerf.compressImageForWeb(file);
+  const safeName=(optimized.name||file.name||'image').replace(/[^A-Za-z0-9._-]+/g,'-');
   const path='uploads/'+Date.now().toString(36)+'-'+uid()+'-'+safeName;
-  const {error}=await supabaseClient.storage.from(SUPABASE_BUCKET).upload(path,file,{
-    contentType:file.type || 'application/octet-stream',
-    upsert:false,
-    cacheControl:'31536000'
-  });
+  const {error}=await supabaseClient.storage.from(SUPABASE_BUCKET).upload(path,optimized,{contentType:optimized.type||file.type||'application/octet-stream',upsert:false,cacheControl:'31536000'});
   if(error) throw error;
   const {data}=supabaseClient.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
   if(!data?.publicUrl) throw new Error('Supabase did not return a public image URL.');
@@ -935,15 +969,21 @@ async function boot(){
   // Supabase/network work is background work and never blocks the customer screen.
   try{ await initSupabase(); loadProductAnalytics(); subscribeProductAnalytics(); }catch(e){ console.error('Supabase initialization failed:',e); return; }
 
-  // Read all authoritative cloud state in parallel.
-  const [settings,products,categories,flashsales,banners,media,pages]=await Promise.all([
-    loadKey(KEYS.settings,fallback.settings),
-    loadKey(KEYS.products,[]), loadKey(KEYS.categories,[]), loadKey(KEYS.flashsales,[]),
-    loadKey(KEYS.banners,[]), loadKey(KEYS.media,[]), loadKey(KEYS.pages,[])
-  ]);
+  // One public-state RPC is preferred: one round-trip instead of seven.
+  const FAST_STATE=await StoreXPerf.fastPublicState();
+  let settings,products,categories,flashsales,banners,media,pages;
+  if(FAST_STATE){
+    settings=FAST_STATE.settings||fallback.settings; products=FAST_STATE.products||[]; categories=FAST_STATE.categories||[];
+    flashsales=FAST_STATE.flashsales||[]; banners=FAST_STATE.banners||[]; media=FAST_STATE.media||[]; pages=FAST_STATE.pages||[];
+  }else{
+    [settings,products,categories,flashsales,banners,media,pages]=await Promise.all([
+      loadKey(KEYS.settings,fallback.settings),loadKey(KEYS.products,[]),loadKey(KEYS.categories,[]),loadKey(KEYS.flashsales,[]),
+      loadKey(KEYS.banners,[]),loadKey(KEYS.media,[]),loadKey(KEYS.pages,[])
+    ]);
+  }
   SETTINGS=Object.assign({},DEFAULT_SETTINGS,settings||{}, {
     hero:Object.assign({},DEFAULT_SETTINGS.hero,(settings&&settings.hero)||{}),
-    footer:Object.assign({},DEFAULT_SETTINGS.footer,(settings&&settings.footer)||{}, {social:Object.assign({},DEFAULT_SETTINGS.footer.social,(settings&&settings.footer&&settings.footer.social)||{})}),
+    footer:Object.assign({},DEFAULT_SETTINGS.footer,(settings&&settings.footer)||{},{social:Object.assign({},DEFAULT_SETTINGS.footer.social,(settings&&settings.footer&&settings.footer.social)||{})}),
     search:Object.assign({},DEFAULT_SETTINGS.search,(settings&&settings.search)||{}),
     darazPromo:Object.assign({},DEFAULT_SETTINGS.darazPromo,(settings&&settings.darazPromo)||{}),
     mediaSizing:Object.assign({},DEFAULT_SETTINGS.mediaSizing,(settings&&settings.mediaSizing)||{})
@@ -1415,10 +1455,9 @@ function flashImages(f){
   return [f.banner, f.banner2, f.banner3].filter(Boolean).map(mediaSrc).filter(Boolean);
 }
 function flashVisualHtml(images){
-  if(!images.length) return `<div class="flash-visual"></div>`;
-  if(images.length===1) return `<div class="flash-visual" data-lazy-bg="${esc(images[0])}"></div>`;
-  return `<div class="flash-visual flash-visual-auto" data-images='${esc(JSON.stringify(images))}'>
-    ${images.map((src,i)=>`<div class="flash-visual-slide ${i===0?'active':''}" data-lazy-bg="${esc(src)}"></div>`).join('')}
+  if(!images.length) return `<div class="flash-visual" aria-hidden="true"></div>`;
+  return `<div class="flash-visual ${images.length>1?'flash-visual-auto':''}">
+    ${images.map((src,i)=>`<div class="flash-visual-slide ${i===0?'active':''}"><img src="${esc(src)}" alt="Flash Sale" loading="${i===0?'eager':'lazy'}" decoding="async" fetchpriority="${i===0?'high':'low'}"></div>`).join('')}
   </div>`;
 }
 let FLASH_VISUAL_TIMERS = [];
