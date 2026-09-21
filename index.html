@@ -607,6 +607,7 @@ website hosting (not inside the HTML):
   }catch(e){}
 })();
 </script>
+<!-- StoreX enhancement: site analytics requires the companion Supabase migration file supplied with this build. -->
 <body>
 <div id="StoreX-loading" aria-live="polite" role="status">
   <div class="StoreX-loading-demo">
@@ -657,6 +658,62 @@ website hosting (not inside the HTML):
    ============================================================ */
 
 // ---------- Runtime/UI state ----------
+
+/* ---------- Website analytics: page views / visitor sessions ---------- */
+let SITE_ANALYTICS_SESSION='';
+let SITE_ANALYTICS_LAST_TOKEN='';
+function getSiteAnalyticsSession(){
+  try{ let v=sessionStorage.getItem('StoreX.siteAnalyticsSession.v1'); if(!v){v=uid();sessionStorage.setItem('StoreX.siteAnalyticsSession.v1',v);} return v; }catch(_){ return uid(); }
+}
+async function trackSitePageView(){
+  const path=route(); if(path.startsWith('/admin-of-storex')) return;
+  const token=getSiteAnalyticsSession()+'|'+path;
+  if(SITE_ANALYTICS_LAST_TOKEN===token)return;
+  SITE_ANALYTICS_LAST_TOKEN=token;
+  if(!supabaseClient||!SUPABASE_READY)return;
+  try{
+    await supabaseClient.from('storex_site_analytics').insert({session_id:getSiteAnalyticsSession(),path,viewed_at:new Date().toISOString()});
+  }catch(e){ console.warn('Site analytics event skipped:',e); }
+}
+async function fetchSiteAnalytics(start,end){
+  if(!supabaseClient||!SUPABASE_READY)return [];
+  const rows=[]; let from=0,step=1000;
+  while(true){
+    const {data,error}=await supabaseClient.from('storex_site_analytics').select('session_id,path,viewed_at').gte('viewed_at',start.toISOString()).lt('viewed_at',end.toISOString()).order('viewed_at',{ascending:true}).range(from,from+step-1);
+    if(error)throw error; const batch=data||[]; rows.push(...batch); if(batch.length<step)break; from+=step; if(from>100000)break;
+  }
+  return rows;
+}
+function analyticsRange(period,startDate,endDate){
+  const now=new Date(); now.setHours(23,59,59,999);
+  if(period==='yesterday'){const e=new Date(now);e.setDate(e.getDate()-1);const s=new Date(e);s.setHours(0,0,0,0);return [s,new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0)];}
+  if(period==='7d'){const s=new Date(now);s.setDate(s.getDate()-6);s.setHours(0,0,0,0);return [s,new Date(now.getTime()+1)];}
+  if(period==='30d'){const s=new Date(now);s.setDate(s.getDate()-29);s.setHours(0,0,0,0);return [s,new Date(now.getTime()+1)];}
+  if(period==='specific'&&startDate){const s=new Date(startDate+'T00:00:00');const e=new Date((endDate||startDate)+'T00:00:00');e.setDate(e.getDate()+1);return [s,e];}
+  if(period==='all'){return [new Date('2020-01-01T00:00:00'),new Date(now.getTime()+1)];}
+  const s=new Date(now);s.setHours(0,0,0,0);return [s,new Date(now.getTime()+1)];
+}
+async function loadAnalyticsDashboard(){
+  const period=document.getElementById('analytics-period')?.value||'today';
+  const start=document.getElementById('analytics-start')?.value||'';
+  const end=document.getElementById('analytics-end')?.value||'';
+  const [a,b]=analyticsRange(period,start,end);
+  try{
+    const rows=await fetchSiteAnalytics(a,b);
+    const visitors=new Set(rows.map(r=>String(r.session_id||''))).size;
+    const views=rows.length;
+    const byDay={}; rows.forEach(r=>{const d=new Date(r.viewed_at).toLocaleDateString('en-CA');byDay[d]=(byDay[d]||0)+1;});
+    const orders=ORDERS.filter(o=>{const t=new Date(o.created_at||0);return t>=a&&t<b;});
+    const shipped=orders.filter(o=>['shipped','delivered'].includes(String(o.status||'').toLowerCase()) && String(o.status||'').toLowerCase()!=='returned');
+    const returned=orders.filter(o=>String(o.status||'').toLowerCase()==='returned');
+    const root=document.getElementById('analytics-results'); if(!root)return;
+    root.innerHTML=`<div class="admin-card" style="margin-top:12px;"><div class="admin-stats-grid"><div class="admin-stat"><b>${views.toLocaleString()}</b><span>Page views</span></div><div class="admin-stat"><b>${visitors.toLocaleString()}</b><span>Visitors</span></div><div class="admin-stat"><b>${orders.length.toLocaleString()}</b><span>Orders</span></div><div class="admin-stat"><b>${shipped.length.toLocaleString()}</b><span>Shipped / delivered</span></div><div class="admin-stat"><b>${returned.length.toLocaleString()}</b><span>Returned</span></div></div><h3 style="margin:18px 0 8px;">Daily breakdown</h3><div style="overflow:auto;"><table class="admin-table"><thead><tr><th>Date</th><th>Views</th></tr></thead><tbody>${Object.keys(byDay).sort().reverse().map(d=>`<tr><td>${esc(d)}</td><td>${byDay[d]}</td></tr>`).join('')||'<tr><td colspan="2">No website views recorded for this period.</td></tr>'}</tbody></table></div></div>`;
+  }catch(e){const root=document.getElementById('analytics-results');if(root)root.innerHTML=`<div class="admin-card"><b>Analytics data is not available yet.</b><p style="color:var(--ink-soft);">Run the supplied Supabase analytics migration once, then refresh this section.</p></div>`;}
+}
+function adminAnalytics(){
+  setTimeout(loadAnalyticsDashboard,0);
+  return `<div class="admin-topbar"><h1>Website Analytics</h1><button class="btn small ghost" onclick="loadAnalyticsDashboard()">Refresh</button></div><div class="admin-card"><div class="form-grid" style="align-items:end;"><div class="field"><label>Period</label><select id="analytics-period" onchange="loadAnalyticsDashboard()"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="all">All time</option><option value="specific">Specific period</option></select></div><div class="field"><label>Start date</label><input id="analytics-start" type="date" onchange="if(document.getElementById('analytics-period').value==='specific')loadAnalyticsDashboard();"></div><div class="field"><label>End date</label><input id="analytics-end" type="date" onchange="if(document.getElementById('analytics-period').value==='specific')loadAnalyticsDashboard();"></div></div><p style="font-size:12px;color:var(--ink-soft);margin:10px 0 0;">Website views are counted as page-view events; visitors are unique browser sessions recorded by the storefront.</p></div><div id="analytics-results"><div class="admin-card"><div class="empty-state">Loading analytics…</div></div></div>`;
+}
 
 /* ---------- Product analytics: one event per real product view / Buy Now click ---------- */
 let PRODUCT_ANALYTICS = Object.create(null);
@@ -790,12 +847,12 @@ function subscribeRealtime(){
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'storex_orders'},payload=>{
         if(!SUPABASE_ADMIN) return;
         const row=payload.new;
-        if(row && row.id){ ORDERS=[row,...ORDERS.filter(x=>String(x.id)!==String(row.id))]; if(route().includes('/admin-of-storex') && ADMIN_VIEW==='orders') render(); }
+        if(row && row.id){ ORDERS=[row,...ORDERS.filter(x=>String(x.id)!==String(row.id))]; if(route().includes('/admin-of-storex') && (ADMIN_VIEW==='orders'||ADMIN_VIEW==='dashboard')) render(); }
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'storex_orders'},payload=>{
         if(!SUPABASE_ADMIN) return;
         const row=payload.new;
-        if(row && row.id){ ORDERS=ORDERS.map(x=>String(x.id)===String(row.id)?row:x); if(route().includes('/admin-of-storex') && ADMIN_VIEW==='orders') render(); }
+        if(row && row.id){ ORDERS=ORDERS.map(x=>String(x.id)===String(row.id)?row:x); if(route().includes('/admin-of-storex') && (ADMIN_VIEW==='orders'||ADMIN_VIEW==='dashboard')) render(); }
       })
       .subscribe();
     loadProductAnalytics();
@@ -1054,20 +1111,32 @@ async function loadOrders(){
     if(Array.isArray(data)) ORDERS=data.map(o=>Object.assign({city:''},o));
   }catch(e){ console.warn('StoreX orders read skipped:',e); }
 }
-async function submitStoreOrder(productId, qty, customer){
+async function submitStoreOrder(productId, qty, customer, couponCode=''){
   const p=PRODUCTS.find(x=>x.id===productId);
   if(!p) throw new Error('Product not found.');
   const stock=Math.max(0,Number(p.stock)||0);
   const quantity=Math.max(1,Math.min(Number(qty)||1,stock||Number(qty)||1));
-  const calc=calculateOrder(p,quantity);
   if(stock>0 && quantity>stock) throw new Error('Requested quantity is greater than available stock.');
+  const calc=calculateOrder(p,quantity);
+  let couponDiscount=0, freeShipping=false, coupon=null;
+  if(couponCode){
+    const lines=[{line:{qty:quantity},info:{p,unit:calc.unitPrice}}];
+    const subtotal=calc.unitPrice*quantity;
+    const v=await validateCoupon(couponCode,lines,subtotal);
+    if(!v.ok) throw new Error(v.message);
+    coupon=v.coupon;
+    const cc=computeCouponDiscount(coupon,lines,subtotal); couponDiscount=cc.discount; freeShipping=cc.freeShipping;
+  }
+  const delivery=freeShipping?0:calc.delivery;
+  const total=Math.max(0,calc.unitPrice*quantity-calc.promotionDiscount-couponDiscount)+delivery;
   if(!supabaseClient || !SUPABASE_READY) throw new Error('Order service is temporarily unavailable.');
   const orderNumber='SX-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,8).toUpperCase();
-  const payload={order_number:orderNumber,product_id:p.id,product_title:p.title,product_sku:p.sku||null,quantity,unit_price:calc.unitPrice,original_price:calc.originalPrice,special_price:calc.specialPrice,discount_percent:calc.discountPercent,delivery_charges:calc.delivery,discount_amount:calc.discountAmount,total_amount:calc.total,customer_name:customer.name,customer_phone:customer.phone,customer_email:customer.email||null,city:customer.city,customer_address:customer.address,status:'pending',promotion:calc.promotion||null};
-  /* Public visitors may INSERT orders but may not SELECT the orders table. */
+  const payload={order_number:orderNumber,product_id:p.id,product_title:p.title,product_sku:p.sku||null,quantity,unit_price:calc.unitPrice,original_price:calc.originalPrice,special_price:calc.specialPrice,discount_percent:calc.discountPercent,delivery_charges:delivery,discount_amount:Math.round((calc.discountAmount+couponDiscount)*100)/100,total_amount:Math.round(total*100)/100,customer_name:customer.name,customer_phone:customer.phone,customer_email:customer.email||null,city:customer.city,customer_address:customer.address,status:'pending',promotion:coupon?coupon.code:(calc.promotion||null)};
   const {error}=await supabaseClient.from('storex_orders').insert(payload);
   if(error) throw error;
-  return {order_number:orderNumber,created_at:new Date().toISOString()};
+  if(coupon){try{await supabaseClient.from('storex_coupon_usage').insert({coupon_code:coupon.code,customer_phone:customer.phone,customer_email:customer.email||null,order_number:orderNumber});}catch(e){console.warn('Coupon usage log skipped:',e);}}
+  p.stock=Math.max(0,(Number(p.stock)||0)-quantity);
+  return {order_number:orderNumber,created_at:new Date().toISOString(),couponCode:coupon?.code||'',couponDiscount,delivery,total};
 }
 function calculateOrder(p,quantity){
   const original=Number(p.originalPrice ?? p.oldPrice ?? p.price)||0;
@@ -1087,13 +1156,14 @@ function calculateOrder(p,quantity){
     bonus=Math.floor(quantity/Number(promo.buyQty))*Number(promo.freeQty); promoText=(promoText?promoText+' + ':'')+'Buy '+promo.buyQty+' Get '+promo.freeQty+' Free';
   }
   const subtotal=Math.max(0,unit*quantity-promoDiscount);
-  return {originalPrice:original,specialPrice:special,unitPrice:unit,discountAmount:Math.round((discountAmount+promoDiscount)*100)/100,discountPercent,promotion:promoText||null,bonusQuantity:bonus,delivery,total:Math.round((subtotal+delivery)*100)/100};
+  return {originalPrice:original,specialPrice:special,unitPrice:unit,discountAmount:Math.round((discountAmount+promoDiscount)*100)/100,promotionDiscount:promoDiscount,discountPercent,promotion:promoText||null,bonusQuantity:bonus,delivery,total:Math.round((subtotal+delivery)*100)/100};
 }
 function openOrderModal(productId){
   const p=PRODUCTS.find(x=>x.id===productId); if(!p)return;
   const stock=Math.max(0,Number(p.stock)||0); if(stock<=0){toast('This product is out of stock.');return;}
+  window.__directOrderCoupon=null;
   const calc=calculateOrder(p,1);
-  showModal(`<h2>Place Order</h2><p style="margin-top:0;color:var(--ink-soft);">${esc(p.title)}</p>
+  showModal(`<h2>Buy Now</h2><p style="margin-top:0;color:var(--ink-soft);">${esc(p.title)}</p>
     <form id="order-form" onsubmit="event.preventDefault();submitOrderForm('${p.id}');">
       <div class="form-grid">
         <div class="field full"><label>Quantity *</label><input id="order-qty" type="number" name="quantity" min="1" max="${stock}" value="1" oninput="updateOrderTotal('${p.id}')" required></div>
@@ -1103,31 +1173,71 @@ function openOrderModal(productId){
         <div class="field full"><label>City *</label><input required name="city" autocomplete="address-level2" placeholder="e.g. Lahore"></div>
         <div class="field full"><label>Full delivery address *</label><textarea required name="address" autocomplete="street-address" placeholder="House/Flat, Street, Area, Block/Road, Landmark, etc."></textarea></div>
       </div>
-      <div id="order-summary" class="admin-card" style="margin-top:12px;background:#FAF9F7;"><b>Order summary</b><div style="margin-top:8px;display:grid;gap:4px;font-size:13px;"><span>Price: <strong id="order-price">${money(calc.unitPrice)}</strong></span><span>Delivery: <strong id="order-delivery">${calc.delivery?money(calc.delivery):'FREE'}</strong></span><span>Total: <strong id="order-total">${money(calc.total)}</strong></span><span style="color:var(--ink-soft);">Stock available: ${stock}</span></div></div>
-      <div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button id="order-submit-btn" type="submit" class="btn">Submit Order</button></div>
+      <div class="admin-card" style="margin-top:12px;background:#FAF9F7;">
+        <b>Apply Coupon</b>
+        <div class="coupon-row" style="margin-top:8px;"><input id="order-coupon-input" type="text" placeholder="Enter coupon code" aria-label="Coupon code"><button type="button" class="btn small" onclick="applyCouponFromOrder('${p.id}')">Apply</button></div>
+        <div id="order-coupon-msg" class="coupon-msg"></div>
+      </div>
+      <div id="order-summary" class="admin-card" style="margin-top:12px;background:#FAF9F7;"><b>Order summary</b><div style="margin-top:8px;display:grid;gap:4px;font-size:13px;"><span>Price: <strong id="order-price">${money(calc.unitPrice)} × 1</strong></span><span>Delivery: <strong id="order-delivery">${calc.delivery?money(calc.delivery):'FREE'}</strong></span><span>Coupon: <strong id="order-coupon-discount">—</strong></span><span>Total: <strong id="order-total">${money(calc.total)}</strong></span><span style="color:var(--ink-soft);">Stock available: ${stock}</span></div></div>
+      <div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button id="order-submit-btn" type="submit" class="btn">Review Order</button></div>
     </form>`);
 }
+function directOrderLines(productId,qty){
+  const p=PRODUCTS.find(x=>x.id===productId); if(!p)return [];
+  return [{line:{productId:p.id,qty},info:{p,unit:Number(p.specialPrice??p.price)||0,stock:Math.max(0,Number(p.stock)||0)}}];
+}
+async function applyCouponFromOrder(productId){
+  const input=document.getElementById('order-coupon-input'),msg=document.getElementById('order-coupon-msg');
+  const p=PRODUCTS.find(x=>x.id===productId); if(!p||!input)return;
+  const qty=Math.max(1,Math.min(Number(document.getElementById('order-qty')?.value)||1,Math.max(1,Number(p.stock)||1)));
+  const lines=directOrderLines(productId,qty),subtotal=lines[0].info.unit*qty;
+  const result=await validateCoupon(input.value,lines,subtotal);
+  if(!result.ok){window.__directOrderCoupon=null;if(msg){msg.textContent=result.message;msg.className='coupon-msg err';}updateOrderTotal(productId);return;}
+  window.__directOrderCoupon={code:result.coupon.code};
+  if(msg){msg.textContent='Coupon applied successfully.';msg.className='coupon-msg ok';}
+  updateOrderTotal(productId);
+}
 function updateOrderTotal(productId){
-  const p=PRODUCTS.find(x=>x.id===productId), q=Math.max(1,Number(document.getElementById('order-qty')?.value)||1), stock=Math.max(1,Number(p?.stock)||1); const calc=calculateOrder(p,Math.min(q,stock));
-  const a=document.getElementById('order-price'),b=document.getElementById('order-delivery'),c=document.getElementById('order-total'); if(a)a.textContent=money(calc.unitPrice)+' × '+Math.min(q,stock); if(b)b.textContent=calc.delivery?money(calc.delivery):'FREE'; if(c)c.textContent=money(calc.total);
+  const p=PRODUCTS.find(x=>x.id===productId), q=Math.max(1,Number(document.getElementById('order-qty')?.value)||1), stock=Math.max(1,Number(p?.stock)||1); if(!p)return;
+  const qty=Math.min(q,stock), base=calculateOrder(p,qty);
+  let couponDiscount=0, freeShipping=false, coupon=null;
+  if(window.__directOrderCoupon){coupon=COUPONS.find(c=>String(c.code||'').toUpperCase()===String(window.__directOrderCoupon.code||'').toUpperCase());if(coupon){const result=computeCouponDiscount(coupon,[{line:{qty},info:{p,unit:base.unitPrice}}],base.unitPrice*qty);couponDiscount=result.discount;freeShipping=result.freeShipping;}}
+  const delivery=freeShipping?0:base.delivery;
+  const total=Math.max(0,base.unitPrice*qty-base.discountAmount-couponDiscount)+delivery;
+  const a=document.getElementById('order-price'),b=document.getElementById('order-delivery'),c=document.getElementById('order-total'),d=document.getElementById('order-coupon-discount');
+  if(a)a.textContent=money(base.unitPrice)+' × '+qty;
+  if(b)b.textContent=delivery?money(delivery):'FREE';
+  if(d)d.textContent=couponDiscount?'-'+money(couponDiscount):(coupon?'Applied':'—');
+  if(c)c.textContent=money(total);
 }
 async function submitOrderForm(productId){
-  const form=document.getElementById('order-form'); if(!form)return; const btn=document.getElementById('order-submit-btn'); const fd=new FormData(form); const p=PRODUCTS.find(x=>x.id===productId); if(!p)return;
+  const form=document.getElementById('order-form'); if(!form)return; const fd=new FormData(form); const p=PRODUCTS.find(x=>x.id===productId); if(!p)return;
   const stock=Math.max(0,Number(p.stock)||0), qty=Number(fd.get('quantity'))||1; if(qty<1||qty>stock){toast('Quantity must be between 1 and available stock.');return;}
   const customer={name:String(fd.get('name')||'').trim(),phone:String(fd.get('phone')||'').trim(),email:String(fd.get('email')||'').trim(),city:String(fd.get('city')||'').trim(),address:String(fd.get('address')||'').trim()};
   if(!customer.name||!customer.phone||!customer.city||!customer.address){toast('Please complete all required fields.');return;}
-  if(btn){btn.disabled=true;btn.textContent='Submitting...';}
-  try{
-    const result=await submitStoreOrder(productId,qty,customer);
-    closeModal();
-    showOrderInvoice(result,p,qty,customer);
-  }catch(e){console.error(e);toast('Order failed: '+(e.message||'Please try again'));if(btn){btn.disabled=false;btn.textContent='Submit Order';}}
+  let couponCode=window.__directOrderCoupon?.code||'';
+  if(couponCode){const lines=directOrderLines(productId,qty),subtotal=lines[0].info.unit*qty;const v=await validateCoupon(couponCode,lines,subtotal);if(!v.ok){toast(v.message);return;}}
+  window.__directOrderDraft={productId,qty,customer,couponCode};
+  const base=calculateOrder(p,qty);
+  let couponDiscount=0,freeShipping=false,coupon=null;
+  if(couponCode){coupon=COUPONS.find(c=>String(c.code||'').toUpperCase()===couponCode.toUpperCase());if(coupon){const cc=computeCouponDiscount(coupon,[{line:{qty},info:{p,unit:base.unitPrice}}],base.unitPrice*qty);couponDiscount=cc.discount;freeShipping=cc.freeShipping;}}
+  const delivery=freeShipping?0:base.delivery,total=Math.max(0,base.unitPrice*qty-base.discountAmount-couponDiscount)+delivery;
+  showModal(`<h2>Confirm Order</h2><p style="margin-top:0;color:var(--ink-soft);">Please review your order before confirming.</p><div class="admin-card" style="background:#FAF9F7;"><div class="summary-row"><span>Product</span><strong>${esc(p.title)}</strong></div><div class="summary-row"><span>Quantity</span><span>${qty}</span></div><div class="summary-row"><span>Products total</span><span>${money(base.unitPrice*qty)}</span></div>${couponDiscount?`<div class="summary-row"><span>Coupon (${esc(couponCode)})</span><span>-${money(couponDiscount)}</span></div>`:''}<div class="summary-row"><span>Delivery</span><span>${delivery?money(delivery):'FREE'}</span></div><div class="summary-row total"><span>Total amount</span><span>${money(total)}</span></div></div><div style="margin-top:12px;font-size:13px;display:grid;gap:5px;"><b>Delivery details</b><span>${esc(customer.name)} · ${esc(customer.phone)}</span><span>${esc(customer.city)}</span><span>${esc(customer.address)}</span></div><div class="modal-close-row"><button class="btn ghost" onclick="openOrderModal('${p.id}')">Back</button><button class="btn" onclick="confirmDirectOrder()">Confirm Order</button></div>`);
+}
+async function confirmDirectOrder(){
+  const draft=window.__directOrderDraft; if(!draft)return;
+  try{const p=PRODUCTS.find(x=>x.id===draft.productId);const result=await submitStoreOrder(draft.productId,draft.qty,draft.customer,draft.couponCode);closeModal();showOrderInvoice(result,p,draft.qty,draft.customer,draft.couponCode);window.__directOrderDraft=null;}
+  catch(e){console.error(e);toast('Order failed: '+(e.message||'Please try again'));}
 }
 function storexLogoHtml(){
   return SETTINGS.logo ? `<img src="${mediaSrc(SETTINGS.logo)}" alt="${esc(SETTINGS.siteName||'StoreX')} logo" style="max-width:180px;max-height:58px;object-fit:contain;display:block;margin:0 auto;">` : `<div style="font-size:30px;font-weight:900;letter-spacing:-1.5px;color:#111;line-height:1;">${esc(SETTINGS.siteName||'Store.X')}</div>`;
 }
-function showOrderInvoice(order,p,qty,customer){
-  const total=calculateOrder(p,qty);
+function showOrderInvoice(order,p,qty,customer,couponCode=''){
+  const base=calculateOrder(p,qty);
+  const coupon= couponCode ? COUPONS.find(c=>String(c.code||'').toUpperCase()===String(couponCode).toUpperCase()) : null;
+  const cc=coupon?computeCouponDiscount(coupon,[{line:{qty},info:{p,unit:base.unitPrice}}],base.unitPrice*qty):{discount:0,freeShipping:false};
+  const delivery=cc.freeShipping?0:base.delivery;
+  const total={unitPrice:base.unitPrice,delivery,total:Math.max(0,base.unitPrice*qty-base.promotionDiscount-cc.discount)+delivery};
   const orderNo=order&&order.order_number ? order.order_number : (order&&order.id ? String(order.id) : 'Pending');
   const created=order&&order.created_at ? new Date(order.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK');
   showModal(`<div class="order-invoice" style="background:#fff;border-radius:14px;padding:22px;max-width:620px;margin:auto;box-shadow:0 12px 40px rgba(0,0,0,.12);">
@@ -1194,6 +1304,7 @@ async function submitReturnRequest(orderNumber){
     const {data,error}=await supabaseClient.rpc('storex_request_order_return',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone,p_reason:reason});
     if(error)throw error;
     if(!data||data.success!==true)throw new Error(data?.message||'Return request could not be submitted.');
+    try{ await supabaseClient.rpc('storex_mark_customer_return_request',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone}); }catch(_){}
     closeModal(); toast('Return request submitted successfully.'); await trackOrder();
   }catch(e){toast(e.message||'Return request failed.');}
 }
@@ -1205,6 +1316,7 @@ async function cancelTrackedOrder(orderNumber){
     const {data,error}=await supabaseClient.rpc('storex_cancel_customer_order',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone});
     if(error)throw error;
     if(!data||data.success!==true) throw new Error(data?.message||'This order cannot be cancelled at its current status.');
+    try{ await supabaseClient.rpc('storex_mark_customer_cancellation',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone}); }catch(_){}
     toast('Order cancelled successfully.');
     await trackOrder();
   }catch(e){toast(e.message||'Order cancellation failed.');}
@@ -1455,6 +1567,7 @@ function render(){
     else { body = renderNotFound(); }
     app.innerHTML = renderHeader() + '<main>'+body+'</main>' + renderFooter() + renderMobileDrawer();
     wireStorefrontEvents();
+    trackSitePageView();
     startCountdowns();
     initHeroSlider();
     initFlashCarousels();
@@ -1823,7 +1936,7 @@ function renderCollectionSection(sec){
   }
   const cols = [2,3,4].includes(Number(cfg.columns)) ? Number(cfg.columns) : 3;
   return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title)}</h2><p>${esc(sec.subtitle||'')}</p></div><a href="#/category/all">View all</a></div>
-  <div class="grid cols-${cols}">${list.map(renderProductCard).join('')}</div></section>`;
+  <div class="grid cols-${cols}">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div></section>`;
 }
 
 function renderCategoryShowcaseSection(sec){
@@ -1834,7 +1947,7 @@ function renderCategoryShowcaseSection(sec){
     if(!list.length) return '';
     return `<div class="cat-showcase-group">
       <div class="cat-showcase-head"><h3>${esc(c.name)}</h3><a href="#/category/${esc(c.slug)}">See all</a></div>
-      <div class="grid cols-3">${list.map(renderProductCard).join('')}</div>
+      <div class="grid cols-3">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div>
     </div>`;
   }).filter(Boolean).join('');
   if(!groups){
@@ -1869,10 +1982,11 @@ function renderBannerSection(sec){
 }
 
 /* ================= PRODUCT CARD ================= */
-function renderProductCard(p){
+function renderProductCard(p, options={}){
   const img=p.mainImage?mediaSrc(p.mainImage):(p.images&&p.images[0]?mediaSrc(p.images[0]):'');
   const original=Number(p.originalPrice??p.oldPrice??p.price)||0, special=Number(p.specialPrice??p.price)||original, pct=original>special?Math.round((original-special)/original*100):0, stock=Math.max(0,Number(p.stock)||0);
-  return `<div class="card">${wishlistHeartHtml(p.id)}<a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-img">${img?`<img src="${img}" alt="${esc(p.title)}" loading="lazy" decoding="async">`:''}</a><div class="card-body"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-title">${esc(p.shortTitle||p.title)}</a>${p.shortDesc?`<div class="card-desc">${esc(p.shortDesc)}</div>`:''}<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;"><strong class="price">${money(special)}</strong>${original>special?`<del style="font-size:12px;color:var(--ink-soft);">${money(original)}</del><span class="badge-status on">-${pct}%</span>`:''}</div></div><div class="card-actions-row">${stock>0?`<button class="card-cta ghost" aria-label="Add ${esc(p.title)} to cart" onclick="event.preventDefault();addToCart('${p.id}',1)">+ Cart</button>`:''}<button class="card-cta" ${stock<=0?'disabled':''} onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">${stock<=0?'Out of stock':'Buy Now'}</button></div></div>`;
+  const actions=options.home ? '' : `<div class="card-actions-row">${stock>0?`<button class="card-cta ghost" aria-label="Add ${esc(p.title)} to cart" onclick="event.preventDefault();addToCart('${p.id}',1)">+ Cart</button>`:''}<button class="card-cta" ${stock<=0?'disabled':''} onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">${stock<=0?'Out of stock':'Buy Now'}</button></div>`;
+  return `<div class="card">${wishlistHeartHtml(p.id)}<a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-img">${img?`<img src="${img}" alt="${esc(p.title)}" loading="lazy" decoding="async">`:''}</a><div class="card-body"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-title">${esc(p.shortTitle||p.title)}</a>${p.shortDesc?`<div class="card-desc">${esc(p.shortDesc)}</div>`:''}<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;"><strong class="price">${money(special)}</strong>${original>special?`<del style="font-size:12px;color:var(--ink-soft);">${money(original)}</del><span class="badge-status on">-${pct}%</span>`:''}</div></div>${actions}</div>`;
 }
 
 /* ================= PRODUCT DETAIL ================= */
@@ -1910,7 +2024,7 @@ function renderProductPage(key){
       <div>
         <h1 class="pd-title">${esc(p.title)}</h1>
         <div class="pd-desc">${esc(p.fullDesc||p.shortDesc||'')}</div>
-        ${p.tags&&p.tags.length?`<div class="pd-tags">${p.tags.map(t=>`<span class="tag-pill">${esc(t)}</span>`).join('')}</div>`:''}
+        ${p.tags&&p.tags.length?`<div class="pd-tags">${p.tags.map(t=>`<span class="tag-pill">${esc(t)}</span>`).join('')}</div>`:''}${p.promotion&&p.promotion.title?`<div class="product-promotion-title" style="margin:12px 0;padding:11px 14px;border-radius:10px;background:linear-gradient(135deg,#fff3e8,#fff9f3);border:1px solid #ffd6b5;color:var(--primary-dark);font-weight:800;">🔥 ${esc(p.promotion.title)}</div>`:''}
         <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><strong class="price">${money(Number(p.specialPrice??p.price)||0)}</strong>${Number(p.originalPrice??p.oldPrice)>Number(p.specialPrice??p.price)?`<del style="color:var(--ink-soft);">${money(Number(p.originalPrice??p.oldPrice))}</del>`:''}</div><p style="font-size:13px;color:var(--ink-soft);">Delivery: ${Number(p.deliveryCharges)||0?money(Number(p.deliveryCharges)): 'FREE'} · Stock: ${stock>0?stock+' available':'Out of stock'}</p>
         ${stock>0?`<div style="display:flex;align-items:center;gap:12px;margin:6px 0 10px;"><span style="font-size:13px;font-weight:700;">Quantity</span><div class="qty-stepper" id="pd-qty-stepper"><button type="button" aria-label="Decrease quantity" onclick="pdChangeQty(-1,${stock})">−</button><span id="pd-qty">1</span><button type="button" aria-label="Increase quantity" onclick="pdChangeQty(1,${stock})">+</button></div></div>`:''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;">
@@ -2130,6 +2244,7 @@ function renderAdminSidebar(){
     ${item('products','Products')}
     ${item('categories','Categories')}
     ${item('orders','Orders')}
+    ${item('analytics','Analytics')}
     ${item('coupons','Coupons')}
     <div class="group-label">Marketing</div>
     ${item('flashsales','Flash Sales')}
@@ -2151,6 +2266,7 @@ function renderAdminView(){
   switch(ADMIN_VIEW){
     case 'products': return adminProducts();
     case 'orders': return adminOrders();
+    case 'analytics': return adminAnalytics();
     case 'coupons': return adminCoupons();
     case 'categories': return adminCategories();
     case 'flashsales': return adminFlashSales();
@@ -2176,17 +2292,24 @@ function dismissOrderRequestAlert(id){
   toast('Request removed from dashboard alerts.');
   render();
 }
-function isOrderRequestAlert(o){const st=String(o?.status||'').toLowerCase();return st==='return_requested'||!!o?.return_requested_at||st==='cancelled';}
+function isCustomerCancellation(o){return !!(o?.customer_cancelled_at || o?.cancelled_by==='customer' || o?.cancel_source==='customer' || o?.customer_cancel_request_at || o?.cancel_reason || o?.cancelReason);}
+function isCustomerReturnRequest(o){return !!(o?.return_source==='customer' || o?.customer_return_request_at || o?.return_requested_at);}
+function isOrderRequestAlert(o){return isCustomerReturnRequest(o)||isCustomerCancellation(o);}
 function adminDashboard(){
   const dismissedAlerts = new Set(getDismissedOrderAlerts());
   const returnRequests = ORDERS.filter(o=>(String(o.status||'').toLowerCase()==='return_requested' || o.return_requested_at) && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.return_requested_at||b.updated_at||b.created_at||0)-new Date(a.return_requested_at||a.updated_at||a.created_at||0));
-  const cancellationRequests = ORDERS.filter(o=>String(o.status||'').toLowerCase()==='cancelled' && (o.cancel_reason || o.cancelReason || String(o.status||'').toLowerCase()==='cancelled') && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.updated_at||b.created_at||0)-new Date(a.updated_at||a.created_at||0));
+  const cancellationRequests = ORDERS.filter(o=>isCustomerCancellation(o) && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.customer_cancelled_at||b.cancelled_at||b.updated_at||b.created_at||0)-new Date(a.customer_cancelled_at||a.cancelled_at||a.updated_at||a.created_at||0));
+  const latestOrders = [...ORDERS].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,6);
   const published = PRODUCTS.filter(p=>p.status==='published').length;
   const hidden = PRODUCTS.filter(p=>p.status==='hidden').length;
   const activeFS = FLASHSALES.filter(f=>f.status==='active').length;
   const expiredFS = FLASHSALES.filter(f=>f.end && new Date(f.end).getTime()<Date.now()).length;
   const topClicks = [...PRODUCTS].map(p=>Object.assign({},p,analyticsCounts(p))).sort((a,b)=>(b.clicks||0)-(a.clicks||0)).slice(0,5);
   return `<div class="admin-topbar"><h1>Dashboard</h1></div>
+  <div class="admin-card" style="border:1px solid var(--primary);background:#FFF9F3;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;"><div><h3 style="margin:0;">🔔 Latest Orders</h3><p style="margin:4px 0 0;color:var(--ink-soft);font-size:13px;">Newest customer orders appear here as notifications.</p></div><button class="btn small ghost" onclick="setAdminView('orders')">Open Orders</button></div>
+    ${latestOrders.length?latestOrders.map(o=>`<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:12.5px;"><div><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')} × ${Number(o.quantity)||0}</span></div><div style="text-align:right;"><b>${money(o.total_amount)}</b><br><span class="badge-status ${o.status==='confirmed'||o.status==='ready_to_ship'||o.status==='shipped'||o.status==='delivered'?'on':''}">${formatOrderStatus(o.status)}</span></div></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No orders yet.</div>'}
+  </div>
   <div class="admin-card" style="border:1px solid var(--primary);background:#FFF9F3;margin-bottom:16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
       <div><h3 style="margin:0;">Order Requests & Alerts</h3><p style="margin:4px 0 0;color:var(--ink-soft);font-size:13px;">New return and cancellation activity is shown here first.</p></div>
@@ -2310,7 +2433,7 @@ function openProductModal(id){
         <div class="field"><label>Category</label><select name="category"><option value="">\u2014 None \u2014</option>${catOptions}</select></div>
         <div class="field"><label>Tags (comma separated)</label><input type="text" name="tags" value="${esc((p.tags||[]).join(', '))}"></div>
         <div class="field"><label>Badge (e.g. "Hot", "-20%")</label><input type="text" name="badge" value="${esc(p.badge)}"></div>
-        <div class="field"><label>Original price (Rs.) *</label><input required type="number" min="0" step="0.01" name="originalPrice" value="${esc((p.originalPrice??p.oldPrice??p.price??''))}"></div><div class="field"><label>Special / discounted price (Rs.)</label><input type="number" min="0" step="0.01" name="specialPrice" value="${esc((p.specialPrice??p.price??''))}"></div><div class="field"><label>Stock quantity *</label><input required type="number" min="0" step="1" name="stock" value="${esc(p.stock??0)}"></div><div class="field"><label>Delivery charges (Rs.)</label><input type="number" min="0" step="0.01" name="deliveryCharges" value="${esc(p.deliveryCharges??0)}"></div><div class="field full"><label>Promotion</label><div class="form-grid"><div class="field"><label>Free delivery after qty</label><input type="number" min="0" name="freeDeliveryQty" value="${esc(p.promotion?.freeDeliveryQty??0)}"></div><div class="field"><label>Percent off (%)</label><input type="number" min="0" max="100" step="0.01" name="percentOff" value="${esc(p.promotion?.percentOff??0)}"></div><div class="field"><label>Percent off after qty</label><input type="number" min="0" name="percentOffQty" value="${esc(p.promotion?.percentOffQty??0)}"></div><div class="field"><label>Buy quantity</label><input type="number" min="0" name="buyQty" value="${esc(p.promotion?.buyQty??0)}"></div><div class="field"><label>Free quantity</label><input type="number" min="0" name="freeQty" value="${esc(p.promotion?.freeQty??0)}"></div></div></div>
+        <div class="field"><label>Original price (Rs.) *</label><input required type="number" min="0" step="0.01" name="originalPrice" value="${esc((p.originalPrice??p.oldPrice??p.price??''))}"></div><div class="field"><label>Special / discounted price (Rs.)</label><input type="number" min="0" step="0.01" name="specialPrice" value="${esc((p.specialPrice??p.price??''))}"></div><div class="field"><label>Stock quantity *</label><input required type="number" min="0" step="1" name="stock" value="${esc(p.stock??0)}"></div><div class="field"><label>Delivery charges (Rs.)</label><input type="number" min="0" step="0.01" name="deliveryCharges" value="${esc(p.deliveryCharges??0)}"></div><div class="field full"><label>Promotion</label><div class="form-grid"><div class="field full"><label>Promotion title (shown on product page)</label><input type="text" name="promotionTitle" value="${esc(p.promotion?.title??'')}" placeholder="e.g. Buy 2 Get 1 Free / Weekend Offer"></div><div class="field"><label>Free delivery after qty</label><input type="number" min="0" name="freeDeliveryQty" value="${esc(p.promotion?.freeDeliveryQty??0)}"></div><div class="field"><label>Percent off (%)</label><input type="number" min="0" max="100" step="0.01" name="percentOff" value="${esc(p.promotion?.percentOff??0)}"></div><div class="field"><label>Percent off after qty</label><input type="number" min="0" name="percentOffQty" value="${esc(p.promotion?.percentOffQty??0)}"></div><div class="field"><label>Buy quantity</label><input type="number" min="0" name="buyQty" value="${esc(p.promotion?.buyQty??0)}"></div><div class="field"><label>Free quantity</label><input type="number" min="0" name="freeQty" value="${esc(p.promotion?.freeQty??0)}"></div></div></div>
         <div class="field"><label>Status</label><select name="status"><option value="published" ${p.status==='published'?'selected':''}>Published</option><option value="hidden" ${p.status==='hidden'?'selected':''}>Hidden</option></select></div>
         <div class="field"><label>Display order</label><input type="number" name="order" value="${esc(p.order)}"></div>
         <div class="field full">
@@ -2385,7 +2508,7 @@ function saveProductForm(pid, isNew){
     category: fd.get('category'), tags: fd.get('tags').split(',').map(t=>t.trim()).filter(Boolean),
     price:specialPrice, oldPrice:originalPrice, originalPrice, specialPrice, stock, deliveryCharges:Math.max(0,Number(fd.get('deliveryCharges')||0)),
     discount:autoDiscount, badge:autoDiscount?'-'+autoDiscount+'%':fd.get('badge').trim(),
-    promotion:{freeDelivery:Number(fd.get('freeDeliveryQty')||0)>0,freeDeliveryQty:Number(fd.get('freeDeliveryQty')||0),percentOff:Math.max(0,Number(fd.get('percentOff')||0)),percentOffQty:Math.max(0,Number(fd.get('percentOffQty')||0)),buyQty:Math.max(0,Number(fd.get('buyQty')||0)),freeQty:Math.max(0,Number(fd.get('freeQty')||0))},
+    promotion:{title:String(fd.get('promotionTitle')||'').trim(),freeDelivery:Number(fd.get('freeDeliveryQty')||0)>0,freeDeliveryQty:Number(fd.get('freeDeliveryQty')||0),percentOff:Math.max(0,Number(fd.get('percentOff')||0)),percentOffQty:Math.max(0,Number(fd.get('percentOffQty')||0)),buyQty:Math.max(0,Number(fd.get('buyQty')||0)),freeQty:Math.max(0,Number(fd.get('freeQty')||0))},
     status: fd.get('status'), order: Number(fd.get('order'))||0,
     featured: fd.get('featured')==='on', trending: fd.get('trending')==='on', newArrival: fd.get('newArrival')==='on', bestSeller: fd.get('bestSeller')==='on',
     seo: { slug: slugify(fd.get('seoSlug').trim() || title), title: fd.get('seoTitle').trim(), keywords: fd.get('seoKeywords').trim(), description: fd.get('seoDescription').trim() }
@@ -2403,7 +2526,12 @@ async function loadInvoiceSettings(){INVOICE_SETTINGS=Object.assign({},DEFAULT_I
 async function saveInvoiceSettings(){if(!SUPABASE_ADMIN||!supabaseClient)throw new Error('Admin backend is not connected.');const payload={id:1,ratio:String(INVOICE_SETTINGS.ratio||'A4'),width_mm:Number(INVOICE_SETTINGS.width_mm)||210,height_mm:Number(INVOICE_SETTINGS.height_mm)||297,owner_name:String(INVOICE_SETTINGS.owner_name||'Asim Ali Asif').slice(0,160),thank_you:String(INVOICE_SETTINGS.thank_you||'Thanks for the order').slice(0,300),logo_url:String(INVOICE_SETTINGS.logo_url||'').slice(0,1000)};const {error}=await supabaseClient.from('storex_invoice_settings').upsert(payload,{onConflict:'id'});if(error)throw error;INVOICE_SETTINGS=Object.assign({},INVOICE_SETTINGS,payload);}
 function invoicePreset(ratio){const map={A4:[210,297],A5:[148,210],'4:3':[120,90],'3:2':[120,80],'1:1':[100,100],Receipt:[80,200],'5x7':[127,177.8],'5x8':[127,203.2],'6x7':[152.4,177.8],'6x8':[152.4,203.2],'6x9':[152.4,228.6],'7x8':[177.8,203.2],'7x9':[177.8,228.6]};return map[ratio]||[210,297];}
 function invoiceLogoUrl(){const configured=String(INVOICE_SETTINGS.logo_url||'').trim();if(configured)return configured;try{return mediaSrc(SETTINGS&&SETTINGS.logo)||'';}catch(_){return '';}}
-function invoicePrintHTML(o,opts){const w=Math.max(50,Number(opts.width_mm)||210),h=Math.max(50,Number(opts.height_mm)||297),logo=invoiceLogoUrl(),orderNo=esc(o.order_number||String(o.id||'').slice(0,8)),created=o.created_at?new Date(o.created_at).toLocaleString():'',title=esc(o.product_title||'Product'),sku=esc(o.product_sku||''),qty=Number(o.quantity)||0,unit=Number(o.unit_price)||0,original=Number(o.original_price)||0,discount=Number(o.discount_amount)||0,delivery=Number(o.delivery_charges)||0,total=Number(o.total_amount)||0,moneyLocal=v=>{try{return money(v)}catch(_){return Number(v||0).toFixed(2)}},status=esc(formatOrderStatus(o.status)),owner=esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif'),thanks=esc(INVOICE_SETTINGS.thank_you||'Thanks for the order');return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${orderNo}</title><style>@page{size:${w}mm ${h}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}body{font-size:11px;width:${w}mm;height:${h}mm;overflow:hidden}.paper{width:${w}mm;height:${h}mm;padding:6mm;overflow:hidden;break-after:avoid;page-break-after:avoid}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1.5px solid #111;padding-bottom:9px;margin-bottom:11px}.logo{max-width:42%;max-height:28mm;object-fit:contain}.brand{font-size:17px;font-weight:800}.invoice-title{text-align:right}.invoice-title h1{font-size:22px;margin:0 0 3px}.muted{color:#666}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.box{border:1px solid #ddd;border-radius:5px;padding:8px}.box b{display:block;margin-bottom:3px}.items{width:100%;border-collapse:collapse;margin-top:8px}.items th,.items td{border-bottom:1px solid #ddd;padding:7px 4px;text-align:left;vertical-align:top}.items th{font-size:10px;text-transform:uppercase}.num{text-align:right!important}.totals{margin-left:auto;width:min(100%,260px);margin-top:9px}.totals div{display:flex;justify-content:space-between;padding:4px 0}.totals .grand{border-top:1.5px solid #111;margin-top:4px;padding-top:7px;font-size:14px;font-weight:800}.footer{margin-top:18px;text-align:center;border-top:1px solid #ddd;padding-top:10px}.owner{font-weight:800;margin-bottom:4px}.thanks{font-size:11px}.small{font-size:9.5px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>ORDER</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number to track your order or request a return.</div></div></div></body></html>`;}
+function invoicePrintHTML(o,opts){const w=Math.max(50,Number(opts.width_mm)||210),h=Math.max(50,Number(opts.height_mm)||297),logo=invoiceLogoUrl(),orderNo=esc(o.order_number||String(o.id||'').slice(0,8)),created=o.created_at?new Date(o.created_at).toLocaleString():'',title=esc(o.product_title||'Product'),sku=esc(o.product_sku||''),qty=Number(o.quantity)||0,unit=Number(o.unit_price)||0,original=Number(o.original_price)||0,discount=Number(o.discount_amount)||0,delivery=Number(o.delivery_charges)||0,total=Number(o.total_amount)||0,moneyLocal=v=>{try{return money(v)}catch(_){return Number(v||0).toFixed(2)}},status=esc(formatOrderStatus(o.status)),owner=esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif'),thanks=esc(INVOICE_SETTINGS.thank_you||'Thanks for the order');return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${orderNo}</title><style>@page{size:${w}mm ${h}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}body{font-size:11px;width:${w}mm;height:${h}mm;overflow:hidden}.paper{width:${w}mm;height:${h}mm;padding:6mm;overflow:hidden;break-after:avoid;page-break-after:avoid}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1.5px solid #111;padding-bottom:9px;margin-bottom:11px}.logo{max-width:42%;max-height:28mm;object-fit:contain}.brand{font-size:17px;font-weight:800}.invoice-title{text-align:right}.invoice-title h1{font-size:22px;margin:0 0 3px}.muted{color:#666}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.box{border:1px solid #ddd;border-radius:5px;padding:8px}.box b{display:block;margin-bottom:3px}.items{width:100%;border-collapse:collapse;margin-top:8px}.items th,.items td{border-bottom:1px solid #ddd;padding:7px 4px;text-align:left;vertical-align:top}.items th{font-size:10px;text-transform:uppercase}.num{text-align:right!important}.totals{margin-left:auto;width:min(100%,260px);margin-top:9px}.totals div{display:flex;justify-content:space-between;padding:4px 0}.totals .grand{border-top:1.5px solid #111;margin-top:4px;padding-top:7px;font-size:14px;font-weight:800}.footer{margin-top:18px;text-align:center;border-top:1px solid #ddd;padding-top:10px}.owner{font-weight:800;margin-bottom:4px}.thanks{font-size:11px}.small{font-size:9.5px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style>
+<style>
+.admin-stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.admin-stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}.admin-stat b{display:block;font-size:24px;margin-bottom:5px}.admin-stat span{font-size:12px;color:var(--ink-soft)}
+.product-promotion-title{animation:storexPromoIn .35s ease both}@keyframes storexPromoIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+</style>
+</head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>ORDER</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number to track your order or request a return.</div></div></div></body></html>`;}
 async function openInvoiceEditor(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o){toast('Order not found.');return;}await loadInvoiceSettings();const preset=invoicePreset(INVOICE_SETTINGS.ratio);showModal(`<h2>Invoice</h2><p style="margin-top:0;color:var(--ink-soft);">Choose the invoice ratio/size and edit the owner text. Then select <b>Save as PDF</b> in the browser print dialog.</p><div class="invoice-admin-grid"><div class="field"><label>Invoice ratio / size</label><select id="invoice-ratio" onchange="invoiceRatioChanged()"><option value="A4">A4 Portrait</option><option value="A5">A5 Portrait</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="1:1">1:1</option><option value="Receipt">80mm Receipt</option><option value="5x7">5 × 7 in</option><option value="5x8">5 × 8 in</option><option value="6x7">6 × 7 in</option><option value="6x8">6 × 8 in</option><option value="6x9">6 × 9 in</option><option value="7x8">7 × 8 in</option><option value="7x9">7 × 9 in</option><option value="Custom">Custom</option></select></div><div class="field"><label>Owner name</label><input id="invoice-owner" value="${esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif')}"></div><div class="field"><label>Width (mm)</label><input id="invoice-width" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.width_mm)||preset[0]}"></div><div class="field"><label>Height (mm)</label><input id="invoice-height" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.height_mm)||preset[1]}"></div><div class="field full"><label>Thank-you text</label><input id="invoice-thanks" value="${esc(INVOICE_SETTINGS.thank_you||'Thanks for the order')}"></div></div><div class="invoice-preview"><div class="invoice-mini-paper"><div class="invoice-mini-head"><div>${invoiceLogoUrl()?`<img class="invoice-mini-logo" src="${esc(invoiceLogoUrl())}">`:`<b>${esc(SETTINGS?.siteName||'StoreX')}</b>`}</div><div><b>INVOICE</b><br>${esc(o.order_number||'')}</div></div><b>${esc(o.product_title||'Product')}</b><div style="margin-top:5px">${esc(o.customer_name||'')} · Qty ${Number(o.quantity)||0}</div><div style="margin-top:8px;text-align:right;font-weight:800">Total: ${money(o.total_amount)}</div></div></div><p class="invoice-print-note">The PDF is generated in the browser, so invoice files do not need to be stored in Supabase.</p><div class="modal-close-row"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Save settings &amp; Print / PDF</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`);const sel=document.getElementById('invoice-ratio');if(sel)sel.value=INVOICE_SETTINGS.ratio||'A4';}
 function invoiceRatioChanged(){const ratio=document.getElementById('invoice-ratio')?.value;if(!ratio)return;const [w,h]=invoicePreset(ratio);if(ratio!=='Custom'){const wi=document.getElementById('invoice-width'),he=document.getElementById('invoice-height');if(wi)wi.value=w;if(he)he.value=h;}}
 async function saveAndPrintInvoice(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o)return;const ratio=document.getElementById('invoice-ratio')?.value||'A4',preset=invoicePreset(ratio);INVOICE_SETTINGS.ratio=ratio;INVOICE_SETTINGS.width_mm=Math.max(50,Number(document.getElementById('invoice-width')?.value)||preset[0]);INVOICE_SETTINGS.height_mm=Math.max(50,Number(document.getElementById('invoice-height')?.value)||preset[1]);INVOICE_SETTINGS.owner_name=String(document.getElementById('invoice-owner')?.value||'Asim Ali Asif').trim();INVOICE_SETTINGS.thank_you=String(document.getElementById('invoice-thanks')?.value||'Thanks for the order').trim();try{await saveInvoiceSettings();}catch(e){toast('Invoice settings could not be saved to backend: '+(e.message||'Unknown error'));}const win=window.open('','_blank','width=900,height=900');if(!win){toast('Please allow pop-ups to generate the PDF invoice.');return;}win.document.open();win.document.write(invoicePrintHTML(o,INVOICE_SETTINGS));win.document.close();win.onload=()=>setTimeout(()=>win.print(),250);}
@@ -3589,6 +3717,15 @@ async function applyCouponFromCart(){
 }
 function removeCouponFromCart(){ clearAppliedCoupon(); toast('Coupon removed'); render(); }
 
+async function applyCouponFromCheckout(){
+  const input=document.getElementById('checkout-coupon-input'),msg=document.getElementById('checkout-coupon-msg'); if(!input)return;
+  const lines=CART.map(l=>({line:l,info:cartLineProductInfo(l)})).filter(x=>x.info); const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
+  const result=await validateCoupon(input.value,lines,subtotal);
+  if(!result.ok){if(msg){msg.textContent=result.message;msg.className='coupon-msg err';}return;}
+  setAppliedCoupon({code:result.coupon.code}); if(msg){msg.textContent='Coupon applied successfully.';msg.className='coupon-msg ok';} toast('Coupon applied ✓'); render();
+}
+function removeCouponFromCheckout(){clearAppliedCoupon();toast('Coupon removed');render();}
+
 /* ---------- Checkout ---------- */
 let CHECKOUT_SUBMITTING=false;
 function renderCheckoutPage(){
@@ -3616,6 +3753,11 @@ function renderCheckoutPage(){
             <div class="field full"><label>Full Address *</label><textarea required name="address" autocomplete="street-address"></textarea></div>
             <div class="field full"><label>Order Notes (optional)</label><textarea name="notes"></textarea></div>
           </div>
+        </div>
+        <div class="admin-card" style="margin-top:12px;">
+          <h3 style="margin:0 0 8px;">Apply Coupon</h3>
+          <div class="coupon-row"><input id="checkout-coupon-input" type="text" placeholder="Enter coupon code" value="${esc(coupon?coupon.code:'')}"><button type="button" class="btn small" onclick="applyCouponFromCheckout()">${coupon?'Update':'Apply'}</button>${coupon?`<button type="button" class="btn small ghost" onclick="removeCouponFromCheckout()">Remove</button>`:''}</div>
+          <div id="checkout-coupon-msg" class="coupon-msg"></div>
         </div>
         <button id="checkout-submit-btn" type="submit" class="btn" style="width:100%;justify-content:center;margin-top:14px;padding:14px;">Place Order</button>
       </form>
