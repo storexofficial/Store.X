@@ -288,12 +288,13 @@ img{max-width:100%;display:block;}
 @media (max-width:820px){
   .search-wrap{display:contents;}
   .main-nav{display:none;}
-  .mobile-toggle{display:inline-flex;order:1;justify-self:start;}
+  .mobile-toggle{display:inline-flex;order:1;justify-self:start;grid-column:1;grid-row:1;}
   .header-row{grid-template-columns:auto auto 1fr auto;padding:10px 0;}
-  .logo-wrap{order:2;padding-left:4px;}
-  .search-form{display:none;order:4;grid-column:1/-1;margin-top:8px;max-width:none;}
+  .logo-wrap{order:2;padding-left:4px;grid-column:2;grid-row:1;}
+  .header-icons{order:3;grid-column:3;grid-row:1;justify-self:end;}
+  .search-form{display:none;order:4;grid-column:1/-1;grid-row:2;margin-top:8px;max-width:none;}
   .search-form.mobile-open{display:flex;}
-  .mobile-search-toggle{display:inline-flex;order:3;justify-self:end;}
+  .mobile-search-toggle{display:inline-flex;order:4;grid-column:4;grid-row:1;justify-self:end;}
 }
 
 /* ---------- Hero ---------- */
@@ -665,22 +666,34 @@ let SITE_ANALYTICS_LAST_TOKEN='';
 function getSiteAnalyticsSession(){
   try{ let v=sessionStorage.getItem('StoreX.siteAnalyticsSession.v1'); if(!v){v=uid();sessionStorage.setItem('StoreX.siteAnalyticsSession.v1',v);} return v; }catch(_){ return uid(); }
 }
-async function trackSitePageView(){
+async function storexBaseTrackSitePageView(){
   const path=route(); if(path.startsWith('/admin-of-storex')) return;
-  const token=getSiteAnalyticsSession()+'|'+path;
+  const session=getSiteAnalyticsSession();
+  const token=session+'|'+path;
   if(SITE_ANALYTICS_LAST_TOKEN===token)return;
   SITE_ANALYTICS_LAST_TOKEN=token;
   if(!supabaseClient||!SUPABASE_READY)return;
   try{
-    await supabaseClient.from('storex_site_analytics').insert({session_id:getSiteAnalyticsSession(),path,viewed_at:new Date().toISOString()});
+    const modern=await supabaseClient.from('storex_site_analytics').insert({event_type:'page_view',visitor_key:session,page_path:path,session_key:session,event_date:new Date().toISOString().slice(0,10),metadata:{},created_at:new Date().toISOString()});
+    if(modern.error){
+      const legacy=await supabaseClient.from('storex_site_analytics').insert({session_id:session,path,viewed_at:new Date().toISOString()});
+      if(legacy.error)throw legacy.error;
+    }
   }catch(e){ console.warn('Site analytics event skipped:',e); }
 }
 async function fetchSiteAnalytics(start,end){
   if(!supabaseClient||!SUPABASE_READY)return [];
   const rows=[]; let from=0,step=1000;
   while(true){
-    const {data,error}=await supabaseClient.from('storex_site_analytics').select('session_id,path,viewed_at').gte('viewed_at',start.toISOString()).lt('viewed_at',end.toISOString()).order('viewed_at',{ascending:true}).range(from,from+step-1);
-    if(error)throw error; const batch=data||[]; rows.push(...batch); if(batch.length<step)break; from+=step; if(from>100000)break;
+    let data,error;
+    const modern=await supabaseClient.from('storex_site_analytics').select('visitor_key,page_path,session_key,event_date,created_at').eq('event_type','page_view').gte('created_at',start.toISOString()).lt('created_at',end.toISOString()).order('created_at',{ascending:true}).range(from,from+step-1);
+    data=modern.data; error=modern.error;
+    if(error){
+      const legacy=await supabaseClient.from('storex_site_analytics').select('session_id,path,viewed_at').gte('viewed_at',start.toISOString()).lt('viewed_at',end.toISOString()).order('viewed_at',{ascending:true}).range(from,from+step-1);
+      if(legacy.error)throw legacy.error;
+      data=(legacy.data||[]).map(r=>({visitor_key:r.session_id,page_path:r.path,session_key:r.session_id,event_date:String(r.viewed_at||'').slice(0,10),created_at:r.viewed_at}));
+    }else data=(data||[]).map(r=>({visitor_key:r.visitor_key,page_path:r.page_path,session_key:r.session_key,event_date:r.event_date,created_at:r.created_at}));
+    const batch=data||[]; rows.push(...batch); if(batch.length<step)break; from+=step; if(from>100000)break;
   }
   return rows;
 }
@@ -700,9 +713,9 @@ async function loadAnalyticsDashboard(){
   const [a,b]=analyticsRange(period,start,end);
   try{
     const rows=await fetchSiteAnalytics(a,b);
-    const visitors=new Set(rows.map(r=>String(r.session_id||''))).size;
+    const visitors=new Set(rows.map(r=>String(r.visitor_key||r.session_key||'')).filter(Boolean)).size;
     const views=rows.length;
-    const byDay={}; rows.forEach(r=>{const d=new Date(r.viewed_at).toLocaleDateString('en-CA');byDay[d]=(byDay[d]||0)+1;});
+    const byDay={}; rows.forEach(r=>{const d=new Date(r.created_at).toLocaleDateString('en-CA');byDay[d]=(byDay[d]||0)+1;});
     const orders=ORDERS.filter(o=>{const t=new Date(o.created_at||0);return t>=a&&t<b;});
     const shipped=orders.filter(o=>['shipped','delivered'].includes(String(o.status||'').toLowerCase()) && String(o.status||'').toLowerCase()!=='returned');
     const returned=orders.filter(o=>String(o.status||'').toLowerCase()==='returned');
@@ -712,7 +725,8 @@ async function loadAnalyticsDashboard(){
 }
 function adminAnalytics(){
   setTimeout(loadAnalyticsDashboard,0);
-  return `<div class="admin-topbar"><h1>Website Analytics</h1><button class="btn small ghost" onclick="loadAnalyticsDashboard()">Refresh</button></div><div class="admin-card"><div class="form-grid" style="align-items:end;"><div class="field"><label>Period</label><select id="analytics-period" onchange="loadAnalyticsDashboard()"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="all">All time</option><option value="specific">Specific period</option></select></div><div class="field"><label>Start date</label><input id="analytics-start" type="date" onchange="if(document.getElementById('analytics-period').value==='specific')loadAnalyticsDashboard();"></div><div class="field"><label>End date</label><input id="analytics-end" type="date" onchange="if(document.getElementById('analytics-period').value==='specific')loadAnalyticsDashboard();"></div></div><p style="font-size:12px;color:var(--ink-soft);margin:10px 0 0;">Website views are counted as page-view events; visitors are unique browser sessions recorded by the storefront.</p></div><div id="analytics-results"><div class="admin-card"><div class="empty-state">Loading analytics…</div></div></div>`;
+  setTimeout(()=>{if(route().startsWith('/admin-of-storex')&&ADMIN_VIEW==='analytics')loadAnalyticsDashboard();},15000);
+  return `<div class="admin-topbar"><h1>Website Analytics</h1><button class="btn small ghost" onclick="loadAnalyticsDashboard()">Refresh</button></div><div class="admin-card"><div class="form-grid" style="align-items:end;"><div class="field"><label>Period</label><select id="analytics-period" onchange="loadAnalyticsDashboard()"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="all">All time</option><option value="specific">Specific period</option></select></div><div class="field"><label>Start date</label><input id="analytics-start" type="date" onchange="if(document.getElementById('analytics-period').value==='specific')loadAnalyticsDashboard();"></div><div class="field"><label>End date</label><input id="analytics-end" type="date" onchange="if(document.getElementById('analytics-period').value==='specific')loadAnalyticsDashboard();"></div></div><p style="font-size:12px;color:var(--ink-soft);margin:10px 0 0;">Website views are counted as page-view events; visitors are unique browser sessions recorded by the storefront. This dashboard refreshes automatically every 15 seconds.</p></div><div id="analytics-results"><div class="admin-card"><div class="empty-state">Loading analytics…</div></div></div>`;
 }
 
 /* ---------- Product analytics: one event per real product view / Buy Now click ---------- */
@@ -757,7 +771,25 @@ function trackProductViewOnce(productId){
   const token=id+'|'+currentRoute;
   if(!id||LAST_TRACKED_PRODUCT_VIEW===token)return;
   LAST_TRACKED_PRODUCT_VIEW=token;
+  rememberRecentlyViewed(id);
   trackProductEvent(id,'view');
+}
+function getRecentlyViewedIds(){
+  try{const v=JSON.parse(localStorage.getItem(RECENTLY_VIEWED_KEY)||'[]');return Array.isArray(v)?v.map(String).filter(Boolean):[];}catch(_){return [];}
+}
+function rememberRecentlyViewed(productId){
+  const id=String(productId||'').trim(); if(!id)return;
+  try{
+    const ids=getRecentlyViewedIds().filter(x=>x!==id);
+    ids.unshift(id);
+    localStorage.setItem(RECENTLY_VIEWED_KEY,JSON.stringify(ids.slice(0,20)));
+  }catch(_){ }
+}
+function recentlyViewedProducts(count=6){
+  const ids=getRecentlyViewedIds();
+  const out=[];
+  ids.forEach(id=>{const p=PRODUCTS.find(x=>String(x.id)===id && x.status==='published');if(p)out.push(p);});
+  return out.slice(0,Math.max(1,Number(count)||6));
 }
 function trackProductBuyClick(productId){ trackProductEvent(productId,'click'); }
 function subscribeProductAnalytics(){
@@ -779,6 +811,12 @@ let MOBILE_DRAWER_OPEN=false, MOBILE_SEARCH_OPEN=false;
 let ADMIN_UNLOCKED=false, ADMIN_VIEW='dashboard', ADMIN_DRAWER_OPEN=false;
 let PD_ACTIVE_IMG=0, DRAG_IDX=null;
 let HERO_SLIDER_TIMER=null, FLASH_CAROUSEL_TIMERS=[];
+let CUSTOMER_PRODUCT_SORT='default';
+let ADMIN_ORDER_STATUS_FILTER='all';
+let ADMIN_ORDER_STATUS_SORT='newest';
+let ADMIN_PRODUCT_STATUS_FILTER='all';
+let ADMIN_PRODUCT_STATUS_SORT='default';
+const RECENTLY_VIEWED_KEY='StoreX.recentlyViewed.v1';
 
 // ---------- Core utility helpers ----------
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,10); }
@@ -847,7 +885,7 @@ function subscribeRealtime(){
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'storex_orders'},payload=>{
         if(!SUPABASE_ADMIN) return;
         const row=payload.new;
-        if(row && row.id){ ORDERS=[row,...ORDERS.filter(x=>String(x.id)!==String(row.id))]; if(route().includes('/admin-of-storex') && (ADMIN_VIEW==='orders'||ADMIN_VIEW==='dashboard')) render(); }
+        if(row && row.id){ ORDERS=[row,...ORDERS.filter(x=>String(x.id)!==String(row.id))]; if(route().includes('/admin-of-storex') && (ADMIN_VIEW==='orders'||ADMIN_VIEW==='dashboard')){ loadKey(KEYS.products,PRODUCTS).then(v=>{PRODUCTS=v;render();}).catch(()=>render()); } }
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'storex_orders'},payload=>{
         if(!SUPABASE_ADMIN) return;
@@ -1092,7 +1130,8 @@ function buildDemoConfig(){
       {id:'sec-products',type:'productCollection',visible:true,title:'Featured Deals',subtitle:'Hand-picked demo products',config:{filter:'featured',count:6,layout:'grid',columns:3,productId:''}},
       {id:'sec-flash',type:'flashsale',visible:true,title:'Flash Sale',subtitle:'Limited-time demo offers',config:{flashSaleId:'flash-demo'}},
       {id:'sec-banner',type:'banner',visible:true,title:'Promo Banner',subtitle:'',config:{bannerId:'banner-demo'}},
-      {id:'sec-trending',type:'productCollection',visible:true,title:'Trending Now',subtitle:'Popular demo picks',config:{filter:'trending',count:6,layout:'grid',columns:3,productId:''}}
+      {id:'sec-trending',type:'productCollection',visible:true,title:'Trending Now',subtitle:'Popular demo picks',config:{filter:'trending',count:6,layout:'grid',columns:3,productId:''}},
+      {id:'sec-recently-viewed',type:'recentlyViewed',visible:true,title:'Recently Viewed',subtitle:'Products you recently viewed',config:{count:6,layout:'grid',columns:3}}
     ]
   });
   return {settings,products,categories:seedCategories(),flashsales:[flash],banners:[banner],media,pages:seedPages()};
@@ -1131,11 +1170,24 @@ async function submitStoreOrder(productId, qty, customer, couponCode=''){
   const total=Math.max(0,calc.unitPrice*quantity-calc.promotionDiscount-couponDiscount)+delivery;
   if(!supabaseClient || !SUPABASE_READY) throw new Error('Order service is temporarily unavailable.');
   const orderNumber='SX-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,8).toUpperCase();
-  const payload={order_number:orderNumber,product_id:p.id,product_title:p.title,product_sku:p.sku||null,quantity,unit_price:calc.unitPrice,original_price:calc.originalPrice,special_price:calc.specialPrice,discount_percent:calc.discountPercent,delivery_charges:delivery,discount_amount:Math.round((calc.discountAmount+couponDiscount)*100)/100,total_amount:Math.round(total*100)/100,customer_name:customer.name,customer_phone:customer.phone,customer_email:customer.email||null,city:customer.city,customer_address:customer.address,status:'pending',promotion:coupon?coupon.code:(calc.promotion||null)};
-  const {error}=await supabaseClient.from('storex_orders').insert(payload);
-  if(error) throw error;
+  const payload={order_number:orderNumber,product_id:p.id,product_title:p.title,product_sku:p.sku||null,quantity,unit_price:calc.unitPrice,original_price:calc.originalPrice,special_price:calc.specialPrice,discount_percent:calc.discountPercent,delivery_charges:delivery,discount_amount:Math.round((calc.discountAmount+couponDiscount)*100)/100,total_amount:Math.round(total*100)/100,customer_name:customer.name,customer_phone:customer.phone,customer_email:customer.email||null,city:customer.city,customer_address:customer.address,status:'pending',promotion:normalizeOrderPromotion(buildOrderPromotionJson(calc.promotion, coupon?.code||'', calc.promotionDiscount, !!(freeShipping || (calc.delivery===0 && Number(p.deliveryCharges||0)>0))))};
+  let created=false;
+  try{
+    const rpc=await supabaseClient.rpc('storex_create_order_and_decrement_stock',{p_order:payload});
+    if(!rpc.error){created=true;}
+    else if(!String(rpc.error.message||'').toLowerCase().includes('function')) throw rpc.error;
+  }catch(e){
+    if(!String(e?.message||'').toLowerCase().includes('function') && !String(e?.code||'').toLowerCase().includes('pgrst202')) throw e;
+  }
+  if(!created){
+    const {error}=await supabaseClient.from('storex_orders').insert(payload);
+    if(error) throw error;
+    // Optimistic local update for this browser; the companion stock RPC makes the cloud value authoritative.
+    p.stock=Math.max(0,(Number(p.stock)||0)-quantity);
+  }else{
+    p.stock=Math.max(0,(Number(p.stock)||0)-quantity);
+  }
   if(coupon){try{await supabaseClient.from('storex_coupon_usage').insert({coupon_code:coupon.code,customer_phone:customer.phone,customer_email:customer.email||null,order_number:orderNumber});}catch(e){console.warn('Coupon usage log skipped:',e);}}
-  p.stock=Math.max(0,(Number(p.stock)||0)-quantity);
   return {order_number:orderNumber,created_at:new Date().toISOString(),couponCode:coupon?.code||'',couponDiscount,delivery,total};
 }
 function calculateOrder(p,quantity){
@@ -1158,15 +1210,64 @@ function calculateOrder(p,quantity){
   const subtotal=Math.max(0,unit*quantity-promoDiscount);
   return {originalPrice:original,specialPrice:special,unitPrice:unit,discountAmount:Math.round((discountAmount+promoDiscount)*100)/100,promotionDiscount:promoDiscount,discountPercent,promotion:promoText||null,bonusQuantity:bonus,delivery,total:Math.round((subtotal+delivery)*100)/100};
 }
-function openOrderModal(productId){
+
+/* ---------- Product promotion totals for cart/checkout ---------- */
+function computeProductPromotionTotals(lines){
+  let discount=0;
+  let freeShipping=false;
+  const applied=[];
+  for(const x of (lines||[])){
+    if(!x || !x.info || !x.info.p) continue;
+    const qty=Math.max(1,Number(x.line?.qty)||1);
+    const calc=calculateOrder(x.info.p,qty);
+    discount+=Number(calc.promotionDiscount)||0;
+    const configuredDelivery=Math.max(0,Number(x.info.p.deliveryCharges)||0);
+    const promo=x.info.p.promotion||{};
+    if(Boolean(promo.freeDelivery) && Number(promo.freeDeliveryQty)>0 && qty>=Number(promo.freeDeliveryQty) && configuredDelivery>0){
+      freeShipping=true;
+    }
+    if(calc.promotion) applied.push({productId:x.info.p.id,text:calc.promotion,discount:Number(calc.promotionDiscount)||0});
+  }
+  return {discount:Math.round(discount*100)/100,freeShipping,applied};
+}
+function buildOrderPromotionJson(productPromotionText, couponCode, productPromotionDiscount, freeDelivery){
+  const productText=String(productPromotionText||'').trim();
+  const coupon=String(couponCode||'').trim();
+  if(!productText && !coupon && !(Number(productPromotionDiscount)>0) && !freeDelivery) return null;
+  return {
+    product_promotion: productText||null,
+    product_promotion_discount: Math.round((Number(productPromotionDiscount)||0)*100)/100,
+    coupon_code: coupon||null,
+    free_delivery: !!freeDelivery
+  };
+}
+
+/* Keep the checkout payload JSONB-compatible even if an older/local value
+   happens to contain promotion as a plain string. */
+function normalizeOrderPromotion(value){
+  if(value==null || value==='') return null;
+  if(typeof value==='string'){
+    const text=value.trim();
+    if(!text) return null;
+    try{
+      const parsed=JSON.parse(text);
+      return parsed==null?'':parsed;
+    }catch(_){
+      return text;
+    }
+  }
+  return value;
+}
+function openOrderModal(productId, initialQty=1){
   const p=PRODUCTS.find(x=>x.id===productId); if(!p)return;
   const stock=Math.max(0,Number(p.stock)||0); if(stock<=0){toast('This product is out of stock.');return;}
+  const selectedQty=Math.max(1,Math.min(Number(initialQty)||1,stock));
   window.__directOrderCoupon=null;
-  const calc=calculateOrder(p,1);
+  const calc=calculateOrder(p,selectedQty);
   showModal(`<h2>Buy Now</h2><p style="margin-top:0;color:var(--ink-soft);">${esc(p.title)}</p>
     <form id="order-form" onsubmit="event.preventDefault();submitOrderForm('${p.id}');">
       <div class="form-grid">
-        <div class="field full"><label>Quantity *</label><input id="order-qty" type="number" name="quantity" min="1" max="${stock}" value="1" oninput="updateOrderTotal('${p.id}')" required></div>
+        <div class="field full"><label>Quantity *</label><input id="order-qty" type="number" name="quantity" min="1" max="${stock}" value="${selectedQty}" oninput="updateOrderTotal('${p.id}')" required></div>
         <div class="field"><label>Full name *</label><input required name="name" autocomplete="name"></div>
         <div class="field"><label>Phone number *</label><input required type="tel" name="phone" autocomplete="tel"></div>
         <div class="field full"><label>Email (optional)</label><input type="email" name="email" autocomplete="email"></div>
@@ -1178,7 +1279,7 @@ function openOrderModal(productId){
         <div class="coupon-row" style="margin-top:8px;"><input id="order-coupon-input" type="text" placeholder="Enter coupon code" aria-label="Coupon code"><button type="button" class="btn small" onclick="applyCouponFromOrder('${p.id}')">Apply</button></div>
         <div id="order-coupon-msg" class="coupon-msg"></div>
       </div>
-      <div id="order-summary" class="admin-card" style="margin-top:12px;background:#FAF9F7;"><b>Order summary</b><div style="margin-top:8px;display:grid;gap:4px;font-size:13px;"><span>Price: <strong id="order-price">${money(calc.unitPrice)} × 1</strong></span><span>Delivery: <strong id="order-delivery">${calc.delivery?money(calc.delivery):'FREE'}</strong></span><span>Coupon: <strong id="order-coupon-discount">—</strong></span><span>Total: <strong id="order-total">${money(calc.total)}</strong></span><span style="color:var(--ink-soft);">Stock available: ${stock}</span></div></div>
+      <div id="order-summary" class="admin-card" style="margin-top:12px;background:#FAF9F7;"><b>Order summary</b><div style="margin-top:8px;display:grid;gap:4px;font-size:13px;"><span>Price: <strong id="order-price">${money(calc.unitPrice)} × ${selectedQty}</strong></span><span>Delivery: <strong id="order-delivery">${calc.delivery?money(calc.delivery):'FREE'}</strong></span><span>Coupon: <strong id="order-coupon-discount">—</strong></span><span>Total: <strong id="order-total">${money(calc.total)}</strong></span><span style="color:var(--ink-soft);">Stock available: ${stock}</span></div></div>
       <div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button id="order-submit-btn" type="submit" class="btn">Review Order</button></div>
     </form>`);
 }
@@ -1232,19 +1333,20 @@ async function confirmDirectOrder(){
 function storexLogoHtml(){
   return SETTINGS.logo ? `<img src="${mediaSrc(SETTINGS.logo)}" alt="${esc(SETTINGS.siteName||'StoreX')} logo" style="max-width:180px;max-height:58px;object-fit:contain;display:block;margin:0 auto;">` : `<div style="font-size:30px;font-weight:900;letter-spacing:-1.5px;color:#111;line-height:1;">${esc(SETTINGS.siteName||'Store.X')}</div>`;
 }
-function showOrderInvoice(order,p,qty,customer,couponCode=''){
+function storexBaseShowOrderInvoice(order,p,qty,customer,couponCode=''){
   const base=calculateOrder(p,qty);
   const coupon= couponCode ? COUPONS.find(c=>String(c.code||'').toUpperCase()===String(couponCode).toUpperCase()) : null;
   const cc=coupon?computeCouponDiscount(coupon,[{line:{qty},info:{p,unit:base.unitPrice}}],base.unitPrice*qty):{discount:0,freeShipping:false};
   const delivery=cc.freeShipping?0:base.delivery;
-  const total={unitPrice:base.unitPrice,delivery,total:Math.max(0,base.unitPrice*qty-base.promotionDiscount-cc.discount)+delivery};
+  const total={unitPrice:base.unitPrice,delivery,promotionDiscount:base.promotionDiscount,couponDiscount:cc.discount,total:Math.max(0,base.unitPrice*qty-base.promotionDiscount-cc.discount)+delivery};
   const orderNo=order&&order.order_number ? order.order_number : (order&&order.id ? String(order.id) : 'Pending');
   const created=order&&order.created_at ? new Date(order.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK');
   showModal(`<div class="order-invoice" style="background:#fff;border-radius:14px;padding:22px;max-width:620px;margin:auto;box-shadow:0 12px 40px rgba(0,0,0,.12);">
     <div style="text-align:center;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">${storexLogoHtml()}<div style="margin-top:12px;font-size:22px;font-weight:800;">ORDER</div><div style="margin-top:5px;font-size:13px;color:var(--ink-soft);">Thanks for the order</div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;font-size:13px;"><div><b>Order Number</b><br>${esc(orderNo)}</div><div><b>Order Date</b><br>${esc(created)}</div><div><b>Status</b><br>Pending</div><div><b>Customer</b><br>${esc(customer.name)}</div></div>
-    <div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;"><b>Order Details</b><div style="margin-top:9px;font-size:13px;"><div style="display:flex;justify-content:space-between;gap:10px;"><span>${esc(p.title)}</span><span>Qty: ${qty}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Unit price</span><span>${money(total.unitPrice)}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Delivery</span><span>${total.delivery?money(total.delivery):'FREE'}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:16px;font-weight:800;border-top:1px solid var(--line);padding-top:9px;"><span>Total</span><span>${money(total.total)}</span></div></div></div>
-    <div style="display:grid;gap:5px;font-size:13px;margin-bottom:16px;"><b>Delivery Details</b><span>Name: ${esc(customer.name)}</span><span>Phone: ${esc(customer.phone)}</span>${customer.email?`<span>Email: ${esc(customer.email)}</span>`:''}<span>City: ${esc(customer.city)}</span><span>Address: ${esc(customer.address)}</span></div>
+    <div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;"><b>Order Details</b><div style="margin-top:9px;font-size:13px;"><div style="display:flex;justify-content:space-between;gap:10px;"><span>${esc(p.title)}</span><span>Qty: ${qty}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Unit price</span><span>${money(total.unitPrice)}</span></div>${total.promotionDiscount>0?`<div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Product promotion</span><span>-${money(total.promotionDiscount)}</span></div>`:''}${total.couponDiscount>0?`<div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Coupon discount</span><span>-${money(total.couponDiscount)}</span></div>`:''}<div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;"><span>Delivery</span><span>${total.delivery?money(total.delivery):'FREE'}</span></div><div style="display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:16px;font-weight:800;border-top:1px solid var(--line);padding-top:9px;"><span>Total</span><span>${money(total.total)}</span></div></div></div>
+    <div style="display:grid;gap:5px;font-size:13px;margin-bottom:12px;"><b>Delivery Details</b><span>Name: ${esc(customer.name)}</span><span>Phone: ${esc(customer.phone)}</span>${customer.email?`<span>Email: ${esc(customer.email)}</span>`:''}<span>City: ${esc(customer.city)}</span><span>Address: ${esc(customer.address)}</span></div>
+    <div style="margin:0 0 16px;padding:12px 14px;border:1px solid #F57224;border-radius:10px;background:#FFF7F0;font-size:13px;line-height:1.5;"><b>Important — Save your Order Number</b><br>Keep <strong>${esc(orderNo)}</strong> safe. You will need your order number to track your order, request cancellation, or request a return.</div>
     <div style="text-align:center;border-top:1px solid var(--line);padding-top:12px;font-weight:800;">Asim Ali, Asif<div style="font-size:12px;font-weight:500;color:var(--ink-soft);margin-top:4px;">Thanks for the order</div></div>
     <div class="modal-close-row"><button class="btn" onclick="closeModal()">Done</button><button class="btn ghost" onclick="window.print()">Print / Save Invoice</button></div>
   </div>`);
@@ -1267,7 +1369,33 @@ function customerCanRequestReturn(o){
   return (Date.now()-deliveredAt) >= 0 && (Date.now()-deliveredAt) <= 7*86400000;
 }
 function renderTrackOrder(){
-  return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;max-width:760px;"><div class="customer-card"><div class="crumb"><a href="#/">Home</a> / Track Your Order</div><h1>Track Your Order</h1><p style="color:var(--ink-soft);">Enter your order number, full name and phone number to securely view your order status.</p><form id="track-order-form" onsubmit="event.preventDefault();trackOrder();"><div class="form-grid"><div class="field full"><label>Order Number *</label><input name="order_number" required placeholder="e.g. SX-ABC1234567" autocomplete="off"></div><div class="field"><label>Full name *</label><input name="name" required autocomplete="name"></div><div class="field"><label>Phone number *</label><input name="phone" required type="tel" autocomplete="tel"></div></div><div class="form-actions"><button id="track-order-btn" type="submit" class="btn">Track Order</button></div></form></div><div id="track-order-result" style="margin-top:18px;"></div></div>`;
+  return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;max-width:760px;"><div class="customer-card"><div class="crumb"><a href="#/">Home</a> / Track Your Order</div><h1>Track Your Order</h1><p style="color:var(--ink-soft);">Enter your order number, full name and phone number to securely view your order status.</p><form id="track-order-form" onsubmit="event.preventDefault();trackOrder();"><div class="form-grid"><div class="field full"><label>Order Number *</label><input name="order_number" required placeholder="e.g. SX-ABC1234567" autocomplete="off"></div><div class="field"><label>Full name *</label><input name="name" required autocomplete="name"></div><div class="field"><label>Phone number *</label><input name="phone" required type="tel" autocomplete="tel"></div></div><div class="form-actions"><button id="track-order-btn" type="submit" class="btn">Track Order</button></div></form><div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);"><button type="button" class="btn ghost" onclick="showAllCustomerOrdersForm()">Forgot Order ID / See All Orders</button></div></div><div id="track-order-result" style="margin-top:18px;"></div><div id="all-orders-result" style="margin-top:18px;"></div></div>`;
+}
+function showAllCustomerOrdersForm(){
+  const result=document.getElementById('all-orders-result'); if(!result)return;
+  result.innerHTML=`<div class="customer-card" style="border:1px solid var(--line);"><h2 style="margin-top:0;">Forgot Order ID / See All Orders</h2><p style="color:var(--ink-soft);">Enter the same name and phone number used when placing your orders. Your matching order IDs will be shown.</p><form id="all-orders-form" onsubmit="event.preventDefault();findAllCustomerOrders();"><div class="form-grid"><div class="field"><label>Full name *</label><input name="all_name" required autocomplete="name"></div><div class="field"><label>Phone number *</label><input name="all_phone" required type="tel" autocomplete="tel"></div></div><div class="form-actions"><button id="all-orders-btn" type="submit" class="btn">See All Orders</button></div></form><div id="all-orders-list" style="margin-top:16px;"></div></div>`;
+  result.scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function findAllCustomerOrders(){
+  const form=document.getElementById('all-orders-form'), list=document.getElementById('all-orders-list'), btn=document.getElementById('all-orders-btn'); if(!form||!list)return;
+  const fd=new FormData(form), name=String(fd.get('all_name')||'').trim(), phone=String(fd.get('all_phone')||'').trim();
+  if(btn){btn.disabled=true;btn.textContent='Searching...';}
+  list.innerHTML='<div class="help-note">Searching your orders…</div>';
+  try{
+    if(!supabaseClient||!SUPABASE_READY)throw new Error('Order service is temporarily unavailable.');
+    const {data,error}=await supabaseClient.rpc('storex_find_customer_orders',{p_customer_name:name,p_customer_phone:phone});
+    if(error)throw error;
+    const orders=Array.isArray(data)?data:(data?.orders||[]);
+    if(!orders.length){list.innerHTML='<div class="help-note">No orders were found for this name and phone number.</div>';return;}
+    list.innerHTML=`<div style="display:grid;gap:10px;">${orders.map(o=>`<div class="customer-card" style="border:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><div><b>Order ID: ${esc(o.order_number||'')}</b><div style="color:var(--ink-soft);font-size:12px;margin-top:3px;">${o.created_at?new Date(o.created_at).toLocaleString():''}</div></div><span class="badge-status ${['confirmed','ready_to_ship','shipped','delivered'].includes(String(o.status||'').toLowerCase())?'on':''}">${formatOrderStatus(o.status)}</span></div><div style="margin-top:8px;font-size:13px;">${esc(o.product_title||'')} × ${Number(o.quantity)||0} · ${money(o.total_amount)}</div></div>`).join('')}</div>`;
+  }catch(e){list.innerHTML=`<div class="help-note">Could not retrieve orders. ${esc(e.message||'Please try again.')}</div>`;}
+  finally{if(btn){btn.disabled=false;btn.textContent='See All Orders';}}
+}
+function useRecoveredOrderId(orderNumber){
+  const form=document.getElementById('track-order-form'); if(!form)return;
+  const input=form.querySelector('[name=order_number]'); if(input)input.value=orderNumber;
+  const allForm=document.getElementById('all-orders-form'); if(allForm){const name=allForm.querySelector('[name=all_name]')?.value||'',phone=allForm.querySelector('[name=all_phone]')?.value||'';form.querySelector('[name=name]').value=name;form.querySelector('[name=phone]').value=phone;}
+  trackOrder();
 }
 async function trackOrder(){
   const form=document.getElementById('track-order-form'), result=document.getElementById('track-order-result'), btn=document.getElementById('track-order-btn'); if(!form||!result)return;
@@ -1317,6 +1445,7 @@ async function cancelTrackedOrder(orderNumber){
     if(error)throw error;
     if(!data||data.success!==true) throw new Error(data?.message||'This order cannot be cancelled at its current status.');
     try{ await supabaseClient.rpc('storex_mark_customer_cancellation',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone}); }catch(_){}
+    try{ await supabaseClient.rpc('storex_sync_order_stock',{p_order_key:orderNumber,p_new_status:'cancelled'}); }catch(_){}
     toast('Order cancelled successfully.');
     await trackOrder();
   }catch(e){toast(e.message||'Order cancellation failed.');}
@@ -1527,6 +1656,10 @@ function normalizeCloudState(){
   if(!Array.isArray(PAGES)) PAGES=[];
   if(!SETTINGS || typeof SETTINGS!=='object' || Array.isArray(SETTINGS)) SETTINGS={};
   SETTINGS.search=SETTINGS.search&&typeof SETTINGS.search==='object'?SETTINGS.search:{};
+  if(!Array.isArray(SETTINGS.sections)) SETTINGS.sections=[];
+  if(!SETTINGS.sections.some(s=>s&&s.type==='recentlyViewed')){
+    SETTINGS.sections.push({id:'sec-recently-viewed',type:'recentlyViewed',visible:true,title:'Recently Viewed',subtitle:'Products you recently viewed',config:{count:6,layout:'grid',columns:3}});
+  }
 }
 function hideStoreXLoader(){ const el=document.getElementById('StoreX-loading'); if(el) el.classList.add('is-hidden'); }
 function safeRenderFallback(message){
@@ -1731,6 +1864,7 @@ function renderSection(sec){
     case 'categories': return renderCategoriesSection(sec);
     case 'productCollection': return renderCollectionSection(sec);
     case 'categoryShowcase': return renderCategoryShowcaseSection(sec);
+    case 'recentlyViewed': return renderRecentlyViewedSection(sec);
     case 'banner': return renderBannerSection(sec);
         case 'customHtml': return `<section class="section container">${sec.config&&sec.config.html||''}</section>`;
     default: return '';
@@ -1909,6 +2043,13 @@ function filteredProducts(filter){
   else if(filter==='bestSeller') list = list.filter(p=>p.bestSeller);
   return list.sort((a,b)=>(a.order||0)-(b.order||0));
 }
+function renderRecentlyViewedSection(sec){
+  const cfg=sec.config||{count:6,layout:'grid',columns:3};
+  const list=recentlyViewedProducts(cfg.count||6);
+  if(!list.length)return '';
+  const cols=[2,3,4].includes(Number(cfg.columns))?Number(cfg.columns):3;
+  return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Recently Viewed')}</h2><p>${esc(sec.subtitle||'Products you recently viewed')}</p></div><a href="#/category/all">View all</a></div><div class="grid cols-${cols}">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div></section>`;
+}
 
 function renderCollectionSection(sec){
   const cfg = sec.config||{filter:'all',count:6,layout:'grid',columns:3};
@@ -1925,7 +2066,7 @@ function renderCollectionSection(sec){
       <div class="spotlight-body">
         <a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}"><h3>${esc(p.shortTitle||p.title)}</h3></a>
         ${p.shortDesc?`<p style="color:var(--ink-soft);margin:0;">${esc(p.shortDesc)}</p>`:''}
-        <button class="btn" style="margin-top:6px;width:fit-content;" onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">Buy Now</button>
+        <button class="btn" style="margin-top:6px;width:fit-content;" onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}', Number(document.getElementById('pd-qty')?document.getElementById('pd-qty').textContent:1))">Buy Now</button>
       </div>
     </div></section>`;
   }
@@ -1985,7 +2126,7 @@ function renderBannerSection(sec){
 function renderProductCard(p, options={}){
   const img=p.mainImage?mediaSrc(p.mainImage):(p.images&&p.images[0]?mediaSrc(p.images[0]):'');
   const original=Number(p.originalPrice??p.oldPrice??p.price)||0, special=Number(p.specialPrice??p.price)||original, pct=original>special?Math.round((original-special)/original*100):0, stock=Math.max(0,Number(p.stock)||0);
-  const actions=options.home ? '' : `<div class="card-actions-row">${stock>0?`<button class="card-cta ghost" aria-label="Add ${esc(p.title)} to cart" onclick="event.preventDefault();addToCart('${p.id}',1)">+ Cart</button>`:''}<button class="card-cta" ${stock<=0?'disabled':''} onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">${stock<=0?'Out of stock':'Buy Now'}</button></div>`;
+  const actions=(options.home || options.hideActions) ? '' : `<div class="card-actions-row">${stock>0?`<button class="card-cta ghost" aria-label="Add ${esc(p.title)} to cart" onclick="event.preventDefault();addToCart('${p.id}',1)">+ Cart</button>`:''}<button class="card-cta" ${stock<=0?'disabled':''} onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">${stock<=0?'Out of stock':'Buy Now'}</button></div>`;
   return `<div class="card">${wishlistHeartHtml(p.id)}<a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-img">${img?`<img src="${img}" alt="${esc(p.title)}" loading="lazy" decoding="async">`:''}</a><div class="card-body"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-title">${esc(p.shortTitle||p.title)}</a>${p.shortDesc?`<div class="card-desc">${esc(p.shortDesc)}</div>`:''}<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;"><strong class="price">${money(special)}</strong>${original>special?`<del style="font-size:12px;color:var(--ink-soft);">${money(original)}</del><span class="badge-status on">-${pct}%</span>`:''}</div></div>${actions}</div>`;
 }
 
@@ -2001,7 +2142,7 @@ function shareFlashSale(slug){const f=FLASHSALES.find(x=>String(x.slug)===String
 function shareStorefront(){return shareUrl(makeShareUrl('site',''),SETTINGS?.siteName||'StoreX','Discover products and deals on '+(SETTINGS?.siteName||'StoreX')+'.');}
 function renderPageLoading(message='Please wait, the product is loading.'){return `<div class="page-loading"><div class="page-loading-card"><div class="page-loading-spinner" aria-hidden="true"></div><h2>Please wait</h2><p>${esc(message)}</p></div></div>`;}
 
-function renderProductPage(key){
+function storexBaseRenderProductPage(key){
   const p = PRODUCTS.find(x=> (x.seo&&x.seo.slug)===key || x.id===key);
   if(!p || p.status!=='published') return renderNotFound('Product not found', 'This product may have been removed or is no longer available.');
   // View counters are session-only here. Do not call saveKey() while rendering
@@ -2025,10 +2166,9 @@ function renderProductPage(key){
         <h1 class="pd-title">${esc(p.title)}</h1>
         <div class="pd-desc">${esc(p.fullDesc||p.shortDesc||'')}</div>
         ${p.tags&&p.tags.length?`<div class="pd-tags">${p.tags.map(t=>`<span class="tag-pill">${esc(t)}</span>`).join('')}</div>`:''}${p.promotion&&p.promotion.title?`<div class="product-promotion-title" style="margin:12px 0;padding:11px 14px;border-radius:10px;background:linear-gradient(135deg,#fff3e8,#fff9f3);border:1px solid #ffd6b5;color:var(--primary-dark);font-weight:800;">🔥 ${esc(p.promotion.title)}</div>`:''}
-        <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><strong class="price">${money(Number(p.specialPrice??p.price)||0)}</strong>${Number(p.originalPrice??p.oldPrice)>Number(p.specialPrice??p.price)?`<del style="color:var(--ink-soft);">${money(Number(p.originalPrice??p.oldPrice))}</del>`:''}</div><p style="font-size:13px;color:var(--ink-soft);">Delivery: ${Number(p.deliveryCharges)||0?money(Number(p.deliveryCharges)): 'FREE'} · Stock: ${stock>0?stock+' available':'Out of stock'}</p>
-        ${stock>0?`<div style="display:flex;align-items:center;gap:12px;margin:6px 0 10px;"><span style="font-size:13px;font-weight:700;">Quantity</span><div class="qty-stepper" id="pd-qty-stepper"><button type="button" aria-label="Decrease quantity" onclick="pdChangeQty(-1,${stock})">−</button><span id="pd-qty">1</span><button type="button" aria-label="Increase quantity" onclick="pdChangeQty(1,${stock})">+</button></div></div>`:''}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;">
-          <button class="btn" style="justify-content:center;font-size:15px;padding:14px;" ${stock<=0?'disabled':''} onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">Buy Now</button>
+        <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><strong class="price">${money(Number(p.specialPrice??p.price)||0)}</strong>${Number(p.originalPrice??p.oldPrice)>Number(p.specialPrice??p.price)?`<del style="color:var(--ink-soft);">${money(Number(p.originalPrice??p.oldPrice))}</del>`:''}</div><p id="pd-delivery-info" style="font-size:13px;color:var(--ink-soft);">Delivery: ${Number(p.deliveryCharges)||0?money(Number(p.deliveryCharges)): 'FREE'} · Stock: ${stock>0?stock+' available':'Out of stock'}</p>
+        ${stock>0?`<div style="display:flex;align-items:center;gap:12px;margin:6px 0 8px;"><span style="font-size:13px;font-weight:700;">Quantity</span><div class="qty-stepper" id="pd-qty-stepper"><button type="button" aria-label="Decrease quantity" onclick="pdChangeQty(-1,${stock},'${esc(p.id)}')">−</button><span id="pd-qty">1</span><button type="button" aria-label="Increase quantity" onclick="pdChangeQty(1,${stock},'${esc(p.id)}')">+</button></div></div><div style="font-size:13px;color:var(--ink-soft);margin:0 0 4px;">Products total: <strong id="pd-total-price" data-unit-price="${Number(p.specialPrice??p.price)||0}">${money(Number(p.specialPrice??p.price)||0)}</strong></div><div id="pd-promo-status" style="font-size:12.5px;color:var(--primary-dark);font-weight:700;margin:0 0 10px;">${(()=>{const c=calculateOrder(p,1);const parts=[];if(c.promotionDiscount>0)parts.push((Number(p.promotion?.percentOff)||0)+'% off — '+money(c.promotionDiscount)+' saved');if(c.delivery===0&&Number(p.deliveryCharges||0)>0&&p.promotion?.freeDelivery)parts.push('Delivery is FREE');if(c.bonusQuantity>0)parts.push('Buy '+(p.promotion?.buyQty||'')+' Get '+(p.promotion?.freeQty||'')+' Free');return parts.length?'Promotion applied: '+parts.join(' • '):'';})()}</div>`:''}        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;">
+          <button class="btn" style="justify-content:center;font-size:15px;padding:14px;" ${stock<=0?'disabled':''} onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}', Number(document.getElementById('pd-qty')?document.getElementById('pd-qty').textContent:1))">Buy Now</button>
           <button class="card-cta ghost" style="justify-content:center;font-size:15px;padding:14px;border-radius:8px;" ${stock<=0?'disabled':''} onclick="addToCart('${p.id}', Number(document.getElementById('pd-qty')?document.getElementById('pd-qty').textContent:1))">Add to Cart</button>
         </div>
         <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
@@ -2043,28 +2183,36 @@ function renderProductPage(key){
 }
 
 /* ================= CATEGORY PAGE ================= */
-function renderCategoryPage(slug){
+function storexBaseSortCustomerProducts(list){
+  const arr=[...list];
+  const stockFirst=(a,b)=>(Math.max(0,Number(b.stock)||0)>0?1:0)-(Math.max(0,Number(a.stock)||0)>0?1:0);
+  switch(CUSTOMER_PRODUCT_SORT){
+    case 'price-low': return arr.sort((a,b)=>(Number(a.specialPrice??a.price)||0)-(Number(b.specialPrice??b.price)||0));
+    case 'price-high': return arr.sort((a,b)=>(Number(b.specialPrice??b.price)||0)-(Number(a.specialPrice??a.price)||0));
+    case 'newest': return arr.sort((a,b)=>Number(b.created_at?new Date(b.created_at).getTime():b.order||0)-Number(a.created_at?new Date(a.created_at).getTime():a.order||0));
+    case 'discount': return arr.sort((a,b)=>{const da=Number(a.discount)||0,db=Number(b.discount)||0;return db-da;});
+    case 'name': return arr.sort((a,b)=>String(a.title||'').localeCompare(String(b.title||'')));
+    default: return arr.sort((a,b)=>stockFirst(a,b)||(a.order||0)-(b.order||0));
+  }
+}
+function setCustomerProductSort(value){CUSTOMER_PRODUCT_SORT=String(value||'default');render();}
+function storexBaseRenderCategoryPage(slug){
   let list, title, desc;
   if(slug==='all'){
-    // Keep in-stock products first and move all out-of-stock products to the bottom.
-    list = PRODUCTS.filter(p=>p.status==='published').sort((a,b)=>{
-      const ao=Math.max(0,Number(a.stock)||0)<=0?1:0;
-      const bo=Math.max(0,Number(b.stock)||0)<=0?1:0;
-      return ao-bo || (a.order||0)-(b.order||0);
-    });
+    list = sortCustomerProducts(PRODUCTS.filter(p=>p.status==='published'));
     title='All Products'; desc='Browse our full catalog';
   }
   else{
     const cat = CATEGORIES.find(c=>c.slug===slug);
     if(!cat) return renderNotFound('Category not found','This category may have been removed.');
-    list = PRODUCTS.filter(p=>p.status==='published' && p.category===cat.id);
+    list = sortCustomerProducts(PRODUCTS.filter(p=>p.status==='published' && p.category===cat.id));
     title = cat.name; desc = cat.description||'';
     applySEO(cat.seo, cat.name, cat.description);
   }
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / ${esc(title)}</div>
-    <div class="section-head"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div></div>
-    ${list.length? `<div class="grid">${list.map(renderProductCard).join('')}</div>` :
+    <div class="section-head" style="align-items:end;gap:12px;"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div><div class="field" style="min-width:190px;margin:0;"><label style="font-size:12px;">Sort products</label><select onchange="setCustomerProductSort(this.value)"><option value="default" ${CUSTOMER_PRODUCT_SORT==='default'?'selected':''}>Recommended</option><option value="newest" ${CUSTOMER_PRODUCT_SORT==='newest'?'selected':''}>Newest</option><option value="price-low" ${CUSTOMER_PRODUCT_SORT==='price-low'?'selected':''}>Price: Low to High</option><option value="price-high" ${CUSTOMER_PRODUCT_SORT==='price-high'?'selected':''}>Price: High to Low</option><option value="discount" ${CUSTOMER_PRODUCT_SORT==='discount'?'selected':''}>Biggest Discount</option><option value="name" ${CUSTOMER_PRODUCT_SORT==='name'?'selected':''}>Name A–Z</option></select></div></div>
+    ${list.length? `<div class="grid">${list.map(p=>renderProductCard(p, slug==='all'?{hideActions:true}:{})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F50D}</div><h3>No products found</h3><p>There's nothing here yet \u2014 check back soon.</p></div>`}
   </div>`;
 }
@@ -2126,7 +2274,7 @@ function renderSearchPage(q){
     (p.fullDesc||'').toLowerCase().includes(query) ||
     (p.tags||[]).some(t=>t.toLowerCase().includes(query))
   ));
-  return `<div class="container" style="padding:30px 20px;">
+  return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="section-head"><div><h2>Search results for "${esc(q)}"</h2><p>${list.length} product${list.length!==1?'s':''} found</p></div></div>
     ${list.length? `<div class="grid">${list.map(renderProductCard).join('')}</div>` : `<div class="empty-state"><div class="icon">\u{1F614}</div><h3>No results found</h3><p>Try a different search term.</p></div>`}
   </div>`;
@@ -2235,7 +2383,7 @@ function renderAdminLogin(){
 
 function setAdminView(v){ ADMIN_VIEW=v; ADMIN_DRAWER_OPEN=false; render(); }
 
-function renderAdminSidebar(){
+function storexBaseRenderAdminSidebar(){
   const item = (v,label)=>`<button class="navlink ${ADMIN_VIEW===v?'active':''}" onclick="setAdminView('${v}')">${label}</button>`;
   return `<div class="admin-sidebar ${ADMIN_DRAWER_OPEN?'open':''}">
     <div class="brand">Store<span class="x">.X</span> admin</div><div class="help-note" style="margin:8px 0 12px;font-size:11px;">☁ Supabase cloud sync enabled</div>
@@ -2262,7 +2410,7 @@ function renderAdminSidebar(){
   </div>`;
 }
 
-function renderAdminView(){
+function storexBaseRenderAdminView(){
   switch(ADMIN_VIEW){
     case 'products': return adminProducts();
     case 'orders': return adminOrders();
@@ -2381,29 +2529,22 @@ function adminImageControls(label,current,onSelectJs,previewId,extraNote=''){
 
 /* ---------- Products ---------- */
 function adminProducts(){
+  let list=PRODUCTS.filter(p=>ADMIN_PRODUCT_STATUS_FILTER==='all'||String(p.status||'')===ADMIN_PRODUCT_STATUS_FILTER);
+  if(ADMIN_PRODUCT_STATUS_SORT==='status') list.sort((a,b)=>String(a.status||'').localeCompare(String(b.status||''))||String(a.title||'').localeCompare(String(b.title||'')));
+  else if(ADMIN_PRODUCT_STATUS_SORT==='stock-low') list.sort((a,b)=>(Number(a.stock)||0)-(Number(b.stock)||0));
+  else if(ADMIN_PRODUCT_STATUS_SORT==='stock-high') list.sort((a,b)=>(Number(b.stock)||0)-(Number(a.stock)||0));
+  else list.sort((a,b)=>(a.order||0)-(b.order||0));
   return `<div class="admin-topbar"><h1>Products</h1><button class="btn" onclick="openProductModal()">+ Add Product</button></div>
-  <div class="admin-card">
-  ${PRODUCTS.length? `<table class="admin-table"><thead><tr><th>Image</th><th>Title</th><th>Category</th><th>Status</th><th>Flags</th><th>Actions</th></tr></thead><tbody>
-    ${PRODUCTS.map(p=>{
+  <div class="admin-card"><div class="form-grid" style="align-items:end;margin-bottom:12px;"><div class="field"><label>Product status</label><select onchange="ADMIN_PRODUCT_STATUS_FILTER=this.value;render()"><option value="all" ${ADMIN_PRODUCT_STATUS_FILTER==='all'?'selected':''}>All products</option><option value="published" ${ADMIN_PRODUCT_STATUS_FILTER==='published'?'selected':''}>Published</option><option value="hidden" ${ADMIN_PRODUCT_STATUS_FILTER==='hidden'?'selected':''}>Hidden</option></select></div><div class="field"><label>Sort products</label><select onchange="ADMIN_PRODUCT_STATUS_SORT=this.value;render()"><option value="default" ${ADMIN_PRODUCT_STATUS_SORT==='default'?'selected':''}>Default order</option><option value="status" ${ADMIN_PRODUCT_STATUS_SORT==='status'?'selected':''}>Status</option><option value="stock-low" ${ADMIN_PRODUCT_STATUS_SORT==='stock-low'?'selected':''}>Stock: Low to High</option><option value="stock-high" ${ADMIN_PRODUCT_STATUS_SORT==='stock-high'?'selected':''}>Stock: High to Low</option></select></div></div>
+  ${list.length? `<table class="admin-table"><thead><tr><th>Image</th><th>Title</th><th>Category</th><th>Status</th><th>Stock</th><th>Flags</th><th>Actions</th></tr></thead><tbody>
+    ${list.map(p=>{
       const cat = CATEGORIES.find(c=>c.id===p.category);
       const flags = ['featured','trending','newArrival','bestSeller'].filter(f=>p[f]).map(f=>({featured:'Featured',trending:'Trending',newArrival:'New',bestSeller:'Best seller'}[f])).join(', ');
-      return `<tr>
-        <td><img src="${mediaSrc(p.mainImage||(p.images&&p.images[0]))||''}" alt=""></td>
-        <td>${esc(p.title)}</td>
-        <td>${cat?esc(cat.name):'\u2014'}</td>
-        <td><span class="badge-status ${p.status==='published'?'on':'off'}">${p.status}</span></td>
-        <td style="font-size:12px;color:var(--ink-soft);">${flags||'\u2014'}</td>
-        <td><div class="row-actions">
-          <button class="btn small ghost" onclick="openProductModal('${p.id}')">Edit</button>
-          <button class="btn small ghost" onclick="duplicateProduct('${p.id}')">Duplicate</button>
-          <button class="btn small danger" onclick="deleteProduct('${p.id}')">Delete</button>
-        </div></td>
-      </tr>`;
+      return `<tr><td><img src="${mediaSrc(p.mainImage||(p.images&&p.images[0]))||''}" alt=""></td><td>${esc(p.title)}</td><td>${cat?esc(cat.name):'—'}</td><td><span class="badge-status ${p.status==='published'?'on':'off'}">${esc(p.status||'')}</span></td><td>${Math.max(0,Number(p.stock)||0)}</td><td style="font-size:12px;color:var(--ink-soft);">${flags||'—'}</td><td><div class="row-actions"><button class="btn small ghost" onclick="openProductModal('${p.id}')">Edit</button><button class="btn small ghost" onclick="duplicateProduct('${p.id}')">Duplicate</button><button class="btn small danger" onclick="deleteProduct('${p.id}')">Delete</button></div></td></tr>`;
     }).join('')}
-  </tbody></table>` : `<div class="empty-state"><div class="icon">\u{1F4E6}</div><h3>No products yet</h3><p>Add your first product to get started.</p></div>`}
+  </tbody></table>` : `<div class="empty-state"><div class="icon">\u{1F4E6}</div><h3>No matching products</h3><p>Change the product status filter.</p></div>`}
   </div>`;
 }
-
 function duplicateProduct(id){
   const p = PRODUCTS.find(x=>x.id===id); if(!p) return;
   const copy = JSON.parse(JSON.stringify(p));
@@ -2531,7 +2672,7 @@ function invoicePrintHTML(o,opts){const w=Math.max(50,Number(opts.width_mm)||210
 .admin-stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.admin-stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}.admin-stat b{display:block;font-size:24px;margin-bottom:5px}.admin-stat span{font-size:12px;color:var(--ink-soft)}
 .product-promotion-title{animation:storexPromoIn .35s ease both}@keyframes storexPromoIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 </style>
-</head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>ORDER</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number to track your order or request a return.</div></div></div></body></html>`;}
+</head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>ORDER</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number to track, cancel, or return your order.</div></div></div></body></html>`;}
 async function openInvoiceEditor(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o){toast('Order not found.');return;}await loadInvoiceSettings();const preset=invoicePreset(INVOICE_SETTINGS.ratio);showModal(`<h2>Invoice</h2><p style="margin-top:0;color:var(--ink-soft);">Choose the invoice ratio/size and edit the owner text. Then select <b>Save as PDF</b> in the browser print dialog.</p><div class="invoice-admin-grid"><div class="field"><label>Invoice ratio / size</label><select id="invoice-ratio" onchange="invoiceRatioChanged()"><option value="A4">A4 Portrait</option><option value="A5">A5 Portrait</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="1:1">1:1</option><option value="Receipt">80mm Receipt</option><option value="5x7">5 × 7 in</option><option value="5x8">5 × 8 in</option><option value="6x7">6 × 7 in</option><option value="6x8">6 × 8 in</option><option value="6x9">6 × 9 in</option><option value="7x8">7 × 8 in</option><option value="7x9">7 × 9 in</option><option value="Custom">Custom</option></select></div><div class="field"><label>Owner name</label><input id="invoice-owner" value="${esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif')}"></div><div class="field"><label>Width (mm)</label><input id="invoice-width" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.width_mm)||preset[0]}"></div><div class="field"><label>Height (mm)</label><input id="invoice-height" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.height_mm)||preset[1]}"></div><div class="field full"><label>Thank-you text</label><input id="invoice-thanks" value="${esc(INVOICE_SETTINGS.thank_you||'Thanks for the order')}"></div></div><div class="invoice-preview"><div class="invoice-mini-paper"><div class="invoice-mini-head"><div>${invoiceLogoUrl()?`<img class="invoice-mini-logo" src="${esc(invoiceLogoUrl())}">`:`<b>${esc(SETTINGS?.siteName||'StoreX')}</b>`}</div><div><b>INVOICE</b><br>${esc(o.order_number||'')}</div></div><b>${esc(o.product_title||'Product')}</b><div style="margin-top:5px">${esc(o.customer_name||'')} · Qty ${Number(o.quantity)||0}</div><div style="margin-top:8px;text-align:right;font-weight:800">Total: ${money(o.total_amount)}</div></div></div><p class="invoice-print-note">The PDF is generated in the browser, so invoice files do not need to be stored in Supabase.</p><div class="modal-close-row"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Save settings &amp; Print / PDF</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`);const sel=document.getElementById('invoice-ratio');if(sel)sel.value=INVOICE_SETTINGS.ratio||'A4';}
 function invoiceRatioChanged(){const ratio=document.getElementById('invoice-ratio')?.value;if(!ratio)return;const [w,h]=invoicePreset(ratio);if(ratio!=='Custom'){const wi=document.getElementById('invoice-width'),he=document.getElementById('invoice-height');if(wi)wi.value=w;if(he)he.value=h;}}
 async function saveAndPrintInvoice(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o)return;const ratio=document.getElementById('invoice-ratio')?.value||'A4',preset=invoicePreset(ratio);INVOICE_SETTINGS.ratio=ratio;INVOICE_SETTINGS.width_mm=Math.max(50,Number(document.getElementById('invoice-width')?.value)||preset[0]);INVOICE_SETTINGS.height_mm=Math.max(50,Number(document.getElementById('invoice-height')?.value)||preset[1]);INVOICE_SETTINGS.owner_name=String(document.getElementById('invoice-owner')?.value||'Asim Ali Asif').trim();INVOICE_SETTINGS.thank_you=String(document.getElementById('invoice-thanks')?.value||'Thanks for the order').trim();try{await saveInvoiceSettings();}catch(e){toast('Invoice settings could not be saved to backend: '+(e.message||'Unknown error'));}const win=window.open('','_blank','width=900,height=900');if(!win){toast('Please allow pop-ups to generate the PDF invoice.');return;}win.document.open();win.document.write(invoicePrintHTML(o,INVOICE_SETTINGS));win.document.close();win.onload=()=>setTimeout(()=>win.print(),250);}
@@ -2549,8 +2690,12 @@ function adminOrderActions(o){
 }
 
 function adminOrders(){
-  if(!ORDERS.length) return `<div class="admin-topbar"><h1>Orders</h1><button class="btn small ghost" onclick="loadOrders().then(render)">Refresh</button></div><div class="admin-card"><div class="empty-state"><div class="icon">📦</div><h3>No orders yet</h3><p>Orders submitted from the customer storefront will appear here.</p></div></div>`;
-  return `<div class="admin-topbar"><h1>Orders</h1><button class="btn small ghost" onclick="loadOrders().then(render)">Refresh</button></div><div class="admin-card"><div style="overflow:auto"><table class="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>City</th><th>Product</th><th>Qty</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody>${ORDERS.map(o=>`<tr><td><b>${esc(o.order_number||String(o.id||'').slice(0,8))}</b><br><small>${o.created_at?new Date(o.created_at).toLocaleString():''}</small></td><td>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}</td><td>${esc(o.city||'')}</td><td>${esc(o.product_title||'')}</td><td>${Number(o.quantity)||0}</td><td>${money(o.total_amount)}</td><td><span class="badge-status ${o.status==='confirmed'||o.status==='ready_to_ship'||o.status==='shipped'||o.status==='delivered'?'on':o.status==='cancelled'||o.status==='returned'?'off':''}">${formatOrderStatus(o.status)}</span></td><td><div class="row-actions"><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">Details</button><button class="btn small ghost" onclick="openInvoiceEditor('${o.id}')">Invoice</button>${adminOrderActions(o)}</div></td></tr>`).join('')}</tbody></table></div></div>`;
+  const statuses=['all','pending','confirmed','ready_to_ship','shipped','delivered','cancelled','return_requested','returned'];
+  let list=ORDERS.filter(o=>ADMIN_ORDER_STATUS_FILTER==='all'||String(o.status||'pending')===ADMIN_ORDER_STATUS_FILTER);
+  if(ADMIN_ORDER_STATUS_SORT==='status') list.sort((a,b)=>String(a.status||'').localeCompare(String(b.status||''))||new Date(b.created_at||0)-new Date(a.created_at||0));
+  else if(ADMIN_ORDER_STATUS_SORT==='oldest') list.sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
+  else list.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+  return `<div class="admin-topbar"><h1>Orders</h1><button class="btn small ghost" onclick="loadOrders().then(render)">Refresh</button></div><div class="admin-card"><div class="form-grid" style="align-items:end;margin-bottom:12px;"><div class="field"><label>Order status</label><select onchange="ADMIN_ORDER_STATUS_FILTER=this.value;render()">${statuses.map(v=>`<option value="${v}" ${ADMIN_ORDER_STATUS_FILTER===v?'selected':''}>${v==='all'?'All statuses':formatOrderStatus(v)}</option>`).join('')}</select></div><div class="field"><label>Sort orders</label><select onchange="ADMIN_ORDER_STATUS_SORT=this.value;render()"><option value="newest" ${ADMIN_ORDER_STATUS_SORT==='newest'?'selected':''}>Newest first</option><option value="oldest" ${ADMIN_ORDER_STATUS_SORT==='oldest'?'selected':''}>Oldest first</option><option value="status" ${ADMIN_ORDER_STATUS_SORT==='status'?'selected':''}>By status</option></select></div></div>${list.length?`<div style="overflow:auto"><table class="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>City</th><th>Product</th><th>Qty</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody>${list.map(o=>`<tr><td><b>${esc(o.order_number||String(o.id||'').slice(0,8))}</b><br><small>${o.created_at?new Date(o.created_at).toLocaleString():''}</small></td><td>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}</td><td>${esc(o.city||'')}</td><td>${esc(o.product_title||'')}</td><td>${Number(o.quantity)||0}</td><td>${money(o.total_amount)}</td><td><span class="badge-status ${o.status==='confirmed'||o.status==='ready_to_ship'||o.status==='shipped'||o.status==='delivered'?'on':o.status==='cancelled'||o.status==='returned'?'off':''}">${formatOrderStatus(o.status)}</span></td><td><div class="row-actions"><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">Details</button><button class="btn small ghost" onclick="openInvoiceEditor('${o.id}')">Invoice</button>${adminOrderActions(o)}</div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><div class="icon">📦</div><h3>No matching orders</h3><p>Change the status filter.</p></div>'}</div>`;
 }
 function invoicePreviewBody(o){
   try{
@@ -2593,7 +2738,7 @@ function openInvoicePreview(id){
 }
 
 function showOrderDetails(id){ const o=ORDERS.find(x=>String(x.id)===String(id)); if(!o)return; loadInvoiceSettings().then(()=>showModal(`<h2>Order Details</h2><div style="display:grid;gap:7px;font-size:13px"><b>Order: ${esc(o.order_number||o.id||'')}</b><b>${esc(o.product_title||'')}</b><span>Name: ${esc(o.customer_name||'')}</span><span>Phone: ${esc(o.customer_phone||'')}</span><span>Email: ${esc(o.customer_email||'')}</span><span>City: ${esc(o.city||'')}</span><span>Full delivery address: ${esc(o.customer_address||'')}</span><span>Quantity: ${Number(o.quantity)||0}</span><span>Delivery: ${money(o.delivery_charges)}</span><span>Total: <b>${money(o.total_amount)}</b></span><span>Status: ${formatOrderStatus(o.status)}</span>${isOrderRequestAlert(o)?`<div style="margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#FFF9F3;"><b>Request alert</b><div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">Remove this request from the Dashboard alerts after you have reviewed it.</div></div>`:''}${o.return_reason?`<span>Return reason: ${esc(o.return_reason)}</span>`:''}${o.return_requested_at?`<span>Return requested: ${esc(new Date(o.return_requested_at).toLocaleString())}</span>`:''}</div><div class="invoice-detail-export"><h3 style="margin:0 0 8px">Invoice</h3><div class="invoice-detail-preview">${invoicePreviewBody(o)}</div><div class="invoice-detail-actions"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Export PDF</button><button class="btn ghost" onclick="exportInvoiceImage('${o.id}')">Export Image (PNG)</button><button class="btn ghost" onclick="openInvoiceEditor('${o.id}')">Edit Invoice</button></div></div><div class="modal-close-row">${adminOrderActions(o)}${isOrderRequestAlert(o)?`<button class="btn ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete Request Alert</button>`:''}<button class="btn ghost" onclick="closeModal()">Close</button></div>`)); }
-async function updateOrderStatus(id,status){ if(!SUPABASE_ADMIN||!supabaseClient)return; try{ const allowed=['pending','confirmed','ready_to_ship','shipped','delivered','cancelled','return_requested','returned']; if(!allowed.includes(status))throw new Error('Invalid order status.'); const {error}=await supabaseClient.from('storex_orders').update({status,updated_at:new Date().toISOString()}).eq('id',id); if(error)throw error; const o=ORDERS.find(x=>String(x.id)===String(id)); if(o)o.status=status; closeModal(); await loadOrders(); render(); toast('Order status updated: '+formatOrderStatus(status)); }catch(e){toast('Order update failed: '+(e.message||'Unknown error'));} }
+async function updateOrderStatus(id,status){ if(!SUPABASE_ADMIN||!supabaseClient)return; try{ const allowed=['pending','confirmed','ready_to_ship','shipped','delivered','cancelled','return_requested','returned']; if(!allowed.includes(status))throw new Error('Invalid order status.'); let rpcError=null; try{ const rpc=await supabaseClient.rpc('storex_sync_order_stock',{p_order_key:String(id),p_new_status:status}); rpcError=rpc.error||null; }catch(e){rpcError=e;} if(rpcError){ const {error}=await supabaseClient.from('storex_orders').update({status,updated_at:new Date().toISOString()}).eq('id',id); if(error)throw error; } const o=ORDERS.find(x=>String(x.id)===String(id)); if(o)o.status=status; closeModal(); await loadOrders(); render(); toast('Order status updated: '+formatOrderStatus(status)); }catch(e){toast('Order update failed: '+(e.message||'Unknown error'));} }
 
 /* ---------- Coupons (Admin) ---------- */
 let ADMIN_COUPONS=[];
@@ -3008,7 +3153,7 @@ function adminHomepage(){
   <div class="admin-card">${items || '<p style="color:var(--ink-soft);font-size:13.5px;">No sections yet.</p>'}</div>`;
 }
 
-function sectionTypeLabel(t){ return {hero:'Hero banner',flashsale:'Flash sale',categories:'Categories',productCollection:'Product collection',categoryShowcase:'Products by category (auto)',banner:'Promotional banner',legacyPromo:'Legacy promo',customHtml:'Custom text/HTML'}[t]||t; }
+function sectionTypeLabel(t){ return {hero:'Hero banner',flashsale:'Flash sale',categories:'Categories',productCollection:'Product collection',categoryShowcase:'Products by category (auto)',recentlyViewed:'Recently viewed products',banner:'Promotional banner',legacyPromo:'Legacy promo',customHtml:'Custom text/HTML'}[t]||t; }
 
 function reorderSection(dropIdx){
   if(DRAG_IDX===null || DRAG_IDX===dropIdx) return;
@@ -3023,7 +3168,7 @@ function removeSection(i){ if(!confirm('Delete this section?')) return; SETTINGS
 function addSectionModal(){
   showModal(`<h2>Add Section</h2>
     <div class="form-grid">
-      ${['hero','flashsale','categories','productCollection','categoryShowcase','banner','customHtml'].map(t=>`<button type="button" class="btn ghost" style="justify-content:flex-start;" onclick="${t==='flashsale'?'addFlashSaleSectionModal()':`addSection('${t}')`}">+ ${sectionTypeLabel(t)}</button>`).join('')}
+      ${['hero','flashsale','categories','productCollection','categoryShowcase','recentlyViewed','banner','customHtml'].map(t=>`<button type="button" class="btn ghost" style="justify-content:flex-start;" onclick="${t==='flashsale'?'addFlashSaleSectionModal()':`addSection('${t}')`}">+ ${sectionTypeLabel(t)}</button>`).join('')}
     </div>
     <div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Close</button></div>`);
 }
@@ -3033,6 +3178,7 @@ function addSection(type){
   if(type==='flashsale') base.config={flashSaleId:''};
   if(type==='productCollection') base.config={filter:'all',count:6,layout:'grid',columns:3,productId:''};
   if(type==='categoryShowcase') base.config={count:3};
+  if(type==='recentlyViewed') base.config={count:6,layout:'grid',columns:3};
   if(type==='banner') base.config={bannerId: BANNERS[0]?BANNERS[0].id:''};
   if(type==='customHtml') base.config={html:'<p>Your custom content here.</p>'};
   SETTINGS.sections.push(base); saveKey(KEYS.settings,SETTINGS); closeModal();
@@ -3102,6 +3248,9 @@ function editSectionModal(i){
     </div>`;
   } else if(s.type==='categoryShowcase'){
     extra = `<div class="field"><label>Products per category</label><input type="number" name="count" value="${(s.config&&s.config.count)||3}"></div>`;
+  } else if(s.type==='recentlyViewed'){
+    const layout=(s.config&&s.config.layout)||'grid';
+    extra = `<div class="field"><label>Number of products</label><input type="number" name="count" min=1 max=20 value="${(s.config&&s.config.count)||6}"></div><div class="field"><label>Columns per row</label><select name="columns"><option value="2" ${Number(s.config?.columns)===2?'selected':''}>2</option><option value="3" ${(!s.config?.columns||Number(s.config?.columns)===3)?'selected':''}>3</option><option value="4" ${Number(s.config?.columns)===4?'selected':''}>4</option></select></div>`;
   } else if(s.type==='banner'){
     extra = `<div class="field full"><label>Which banner</label><select name="bannerId">${BANNERS.map(b=>`<option value="${b.id}" ${s.config.bannerId===b.id?'selected':''}>${esc(b.heading||b.id)}</option>`).join('')||'<option value="">No banners yet</option>'}</select></div>`;
   } else if(s.type==='customHtml'){
@@ -3138,6 +3287,7 @@ function saveSectionForm(i){
   if(s.type==='flashsale'){ s.config = {flashSaleId: fd.get('flashSaleId')||''}; }
   if(s.type==='productCollection'){ s.config = {filter:fd.get('filter'), count:Number(fd.get('count'))||6, layout:fd.get('layout')||'grid', columns:Number(fd.get('columns'))||3, productId:fd.get('productId')||''}; }
   if(s.type==='categoryShowcase'){ s.config = {count:Number(fd.get('count'))||3}; }
+  if(s.type==='recentlyViewed'){ s.config = {count:Number(fd.get('count'))||6,layout:'grid',columns:Number(fd.get('columns'))||3}; }
   if(s.type==='banner'){ s.config = {bannerId: fd.get('bannerId')}; }
   if(s.type==='customHtml'){ s.config = {html: fd.get('html')}; }
   saveKey(KEYS.settings,SETTINGS); closeModal();
@@ -3454,11 +3604,11 @@ let CART=[]; let WISHLIST=[];
 function loadCartFromStorage(){
   try{ const raw=localStorage.getItem(CART_KEY); const v=raw?JSON.parse(raw):[]; CART=Array.isArray(v)?v.filter(x=>x&&x.productId):[]; }catch(e){ CART=[]; }
 }
-function saveCartToStorage(){ try{ localStorage.setItem(CART_KEY, JSON.stringify(CART)); }catch(e){ console.warn('Cart save skipped:',e); } }
+function storexBaseSaveCartToStorage(){ try{ localStorage.setItem(CART_KEY, JSON.stringify(CART)); }catch(e){ console.warn('Cart save skipped:',e); } }
 function loadWishlistFromStorage(){
   try{ const raw=localStorage.getItem(WISHLIST_KEY); const v=raw?JSON.parse(raw):[]; WISHLIST=Array.isArray(v)?v.filter(Boolean).map(String):[]; }catch(e){ WISHLIST=[]; }
 }
-function saveWishlistToStorage(){ try{ localStorage.setItem(WISHLIST_KEY, JSON.stringify(WISHLIST)); }catch(e){ console.warn('Wishlist save skipped:',e); } }
+function storexBaseSaveWishlistToStorage(){ try{ localStorage.setItem(WISHLIST_KEY, JSON.stringify(WISHLIST)); }catch(e){ console.warn('Wishlist save skipped:',e); } }
 loadCartFromStorage();
 loadWishlistFromStorage();
 
@@ -3474,11 +3624,31 @@ function refreshHeaderBadges(){
     if(c){ if(!b){ b=document.createElement('span'); b.className='icon-badge'; wishBtn.appendChild(b);} b.textContent=c; } else if(b){ b.remove(); } }
 }
 
-function pdChangeQty(delta, max){
+function pdChangeQty(delta, max, productId){
   const el=document.getElementById('pd-qty'); if(!el) return;
   let q=(Number(el.textContent)||1)+delta;
   q=Math.max(1,Math.min(q,Math.max(1,Number(max)||1)));
   el.textContent=q;
+  const p=PRODUCTS.find(x=>x.id===productId);
+  const calc=p?calculateOrder(p,q):null;
+  const totalEl=document.getElementById('pd-total-price');
+  if(totalEl){
+    const unit=calc?calc.unitPrice:(Number(totalEl.getAttribute('data-unit-price'))||0);
+    totalEl.textContent=money(calc?Math.max(0,unit*q-calc.promotionDiscount):unit*q);
+  }
+  const deliveryEl=document.getElementById('pd-delivery-info');
+  if(deliveryEl && p){
+    const configuredDelivery=Math.max(0,Number(p.deliveryCharges)||0);
+    deliveryEl.innerHTML='Delivery: '+(calc&&calc.delivery>0?money(calc.delivery):'FREE')+' · Stock: '+(Math.max(0,Number(p.stock)||0)>0?Math.max(0,Number(p.stock)||0)+' available':'Out of stock');
+  }
+  const promoEl=document.getElementById('pd-promo-status');
+  if(promoEl && calc){
+    const parts=[];
+    if(calc.promotionDiscount>0) parts.push((Number(p.promotion?.percentOff)||0)+'% off — '+money(calc.promotionDiscount)+' saved');
+    if(calc.delivery===0 && Number(p.deliveryCharges||0)>0 && p.promotion?.freeDelivery && q>=Number(p.promotion.freeDeliveryQty||1)) parts.push('Delivery is FREE');
+    if(calc.bonusQuantity>0) parts.push('Buy '+(p.promotion?.buyQty||'')+' Get '+(p.promotion?.freeQty||'')+' Free');
+    promoEl.textContent=parts.length?('Promotion applied: '+parts.join(' • ')):'';
+  }
 }
 function findProductForCart(id){ return PRODUCTS.find(p=>p.id===id); }
 function cartLineProductInfo(line){
@@ -3569,10 +3739,11 @@ function renderCartPage(){
     return `${backButtonHtml()}<div class="container" style="padding:10px 20px 40px;"><div class="empty-cart"><div class="icon">🛒</div><h3>Your cart is empty</h3><p>Browse products and add items to your cart.</p><a href="#/category/all" class="btn small" style="margin-top:10px;">Continue Shopping</a></div></div>`;
   }
   const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
+  const productPromo=computeProductPromotionTotals(lines);
   const coupon=getAppliedCoupon();
   const couponCalc=coupon?computeCouponDiscount(coupon,lines,subtotal):{discount:0,freeShipping:false};
-  const delivery=couponCalc.freeShipping?0:Number(SETTINGS?.deliveryCharge||SETTINGS?.defaultDeliveryCharge||0)||defaultDeliveryFee();
-  const total=Math.max(0,subtotal-couponCalc.discount)+delivery;
+  const delivery=(couponCalc.freeShipping||productPromo.freeShipping)?0:Number(SETTINGS?.deliveryCharge||SETTINGS?.defaultDeliveryCharge||0)||defaultDeliveryFee();
+  const total=Math.max(0,subtotal-productPromo.discount-couponCalc.discount)+delivery;
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 40px;">
     <h1 style="margin:6px 0 16px;">Your Cart</h1>
     <div class="cart-page-grid">
@@ -3601,6 +3772,7 @@ function renderCartPage(){
       <div class="summary-card">
         <h3 style="margin:0 0 10px;">Order Summary</h3>
         <div class="summary-row"><span>Subtotal</span><span>${money(subtotal)}</span></div>
+        ${productPromo.discount>0?`<div class="summary-row"><span>Product promotion</span><span>-${money(productPromo.discount)}</span></div>`:''}
         ${couponCalc.discount>0?`<div class="summary-row"><span>Coupon discount</span><span>-${money(couponCalc.discount)}</span></div>`:''}
         <div class="summary-row"><span>Delivery</span><span>${delivery?money(delivery):'FREE'}</span></div>
         <div class="summary-row total"><span>Total</span><span>${money(total)}</span></div>
@@ -3728,17 +3900,18 @@ function removeCouponFromCheckout(){clearAppliedCoupon();toast('Coupon removed')
 
 /* ---------- Checkout ---------- */
 let CHECKOUT_SUBMITTING=false;
-function renderCheckoutPage(){
+function storexBaseRenderCheckoutPage(){
   const lines=CART.map(l=>({line:l,info:cartLineProductInfo(l)})).filter(x=>x.info);
   if(!lines.length){
     return `${backButtonHtml()}<div class="container" style="padding:10px 20px 40px;"><div class="empty-cart"><div class="icon">🧾</div><h3>Your cart is empty</h3><p>Add products to your cart before checking out.</p><a href="#/category/all" class="btn small" style="margin-top:10px;">Continue Shopping</a></div></div>`;
   }
   const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
+  const productPromo=computeProductPromotionTotals(lines);
   const coupon=getAppliedCoupon();
   const couponObj=coupon?COUPONS.find(c=>c.code===coupon.code):null;
   const couponCalc=couponObj?computeCouponDiscount(couponObj,lines,subtotal):{discount:0,freeShipping:false};
-  const delivery=couponCalc.freeShipping?0:defaultDeliveryFee();
-  const total=Math.max(0,subtotal-couponCalc.discount)+delivery;
+  const delivery=(couponCalc.freeShipping||productPromo.freeShipping)?0:defaultDeliveryFee();
+  const total=Math.max(0,subtotal-productPromo.discount-couponCalc.discount)+delivery;
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 40px;max-width:1100px;">
     <h1 style="margin:6px 0 16px;">Checkout</h1>
     <div class="cart-page-grid">
@@ -3765,6 +3938,7 @@ function renderCheckoutPage(){
         <h3 style="margin:0 0 10px;">Order Summary</h3>
         ${lines.map(({line,info})=>`<div class="summary-row"><span>${esc(info.p.shortTitle||info.p.title)} × ${line.qty}</span><span>${money(info.unit*line.qty)}</span></div>`).join('')}
         <div class="summary-row"><span>Subtotal</span><span>${money(subtotal)}</span></div>
+        ${productPromo.discount>0?`<div class="summary-row"><span>Product promotion</span><span>-${money(productPromo.discount)}</span></div>`:''}
         ${couponCalc.discount>0?`<div class="summary-row"><span>Coupon (${esc(coupon.code)})</span><span>-${money(couponCalc.discount)}</span></div>`:''}
         <div class="summary-row"><span>Delivery</span><span>${delivery?money(delivery):'FREE'}</span></div>
         <div class="summary-row total"><span>Total</span><span>${money(total)}</span></div>
@@ -3772,7 +3946,7 @@ function renderCheckoutPage(){
     </div>
   </div>`;
 }
-async function submitCheckout(){
+async function storexBaseSubmitCheckout(){
   if(CHECKOUT_SUBMITTING) return;
   const form=document.getElementById('checkout-form'); if(!form) return;
   const btn=document.getElementById('checkout-submit-btn');
@@ -3791,13 +3965,13 @@ async function submitCheckout(){
     const couponObj=coupon?COUPONS.find(c=>c.code===coupon.code):null;
     let revalidated=null;
     if(couponObj){ revalidated=await validateCoupon(couponObj.code, lines, subtotal); if(!revalidated.ok){ toast(revalidated.message); CHECKOUT_SUBMITTING=false; if(btn){btn.disabled=false;btn.textContent='Place Order';} return; } }
-    const couponCalc=couponObj?computeCouponDiscount(couponObj,lines,subtotal):{discount:0,freeShipping:false};
-    const deliveryTotal=couponCalc.freeShipping?0:defaultDeliveryFee();
+    const productPromo=computeProductPromotionTotals(lines); const couponCalc=couponObj?computeCouponDiscount(couponObj,lines,subtotal):{discount:0,freeShipping:false};
+    const deliveryTotal=(couponCalc.freeShipping||productPromo.freeShipping)?0:defaultDeliveryFee();
     const orderNumber='SX-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,8).toUpperCase();
     const rows=lines.map(({line,info},idx)=>{
       const lineSubtotal=info.unit*line.qty;
       const share=subtotal>0?lineSubtotal/subtotal:0;
-      const lineDiscount=Math.round(couponCalc.discount*share*100)/100;
+      const productCalc=calculateOrder(info.p,line.qty); const lineDiscount=Math.round(((productCalc.promotionDiscount||0)+couponCalc.discount*share)*100)/100;
       const lineDelivery=idx===0?deliveryTotal:0;
       return {
         order_number:orderNumber, product_id:info.p.id, product_title:info.p.title, product_sku:info.p.sku||null,
@@ -3806,7 +3980,7 @@ async function submitCheckout(){
         total_amount:Math.round((lineSubtotal-lineDiscount+lineDelivery)*100)/100,
         customer_name:customer.name, customer_phone:customer.phone, customer_email:customer.email||null,
         city:customer.city, customer_address:customer.address+(customer.notes?(' | Notes: '+customer.notes):''),
-        status:'pending', promotion:couponObj?couponObj.code:null
+        status:'pending', promotion:buildOrderPromotionJson(productCalc.promotion,couponObj?.code||'',productCalc.promotionDiscount,!!(productPromo.freeShipping&&idx===0))
       };
     });
     const {error}=await supabaseClient.from('storex_orders').insert(rows);
@@ -3825,7 +3999,7 @@ async function submitCheckout(){
     CHECKOUT_SUBMITTING=false; if(btn){btn.disabled=false;btn.textContent='Place Order';}
   }
 }
-function showCheckoutInvoice(orderNumber, lines, customer, subtotal, couponCalc, delivery){
+function storexBaseShowCheckoutInvoice(orderNumber, lines, customer, subtotal, couponCalc, delivery){
   const total=Math.max(0,subtotal-couponCalc.discount)+delivery;
   showModal(`<div class="order-invoice" style="background:#fff;border-radius:14px;padding:22px;max-width:620px;margin:auto;">
     <div style="text-align:center;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">${storexLogoHtml()}<div style="margin-top:12px;font-size:22px;font-weight:800;">ORDER PLACED ✓</div></div>
@@ -3834,7 +4008,8 @@ function showCheckoutInvoice(orderNumber, lines, customer, subtotal, couponCalc,
       ${lines.map(({line,info})=>`<div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span>${esc(info.p.title)} × ${line.qty}</span><span>${money(info.unit*line.qty)}</span></div>`).join('')}
       <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-weight:800;"><span>Total</span><span>${money(total)}</span></div>
     </div>
-    <div style="font-size:13px;margin-bottom:16px;"><b>Delivery to</b><br>${esc(customer.name)}, ${esc(customer.phone)}<br>${esc(customer.address)}, ${esc(customer.city)}</div>
+    <div style="font-size:13px;margin-bottom:12px;"><b>Delivery to</b><br>${esc(customer.name)}, ${esc(customer.phone)}<br>${esc(customer.address)}, ${esc(customer.city)}</div>
+    <div style="margin:0 0 16px;padding:12px 14px;border:1px solid #F57224;border-radius:10px;background:#FFF7F0;font-size:13px;line-height:1.5;"><b>Important — Save your Order Number</b><br>Keep <strong>${esc(orderNumber)}</strong> safe. You will need your order number to track your order, request cancellation, or request a return.</div>
     <div class="modal-close-row"><button class="btn" onclick="closeModal()">Done</button><button class="btn ghost" onclick="window.print()">Print / Save</button></div>
   </div>`);
 }
@@ -3899,6 +4074,210 @@ StoreX_RECOVERY_TIMER=setInterval(()=>{ if(!document.hidden) refreshCloudStateAf
     }catch(err){ console.warn('StoreX cross-tab cache sync skipped:',err); }
   });
 })();
+
+
+/* ============================================================
+   StoreX — Guest checkout / previously requested storefront enhancements
+   ============================================================ */
+
+async function loadDashboardVisitorStat(){
+  const root=document.getElementById('dashboard-visitor-stat');if(!root||!SUPABASE_READY)return;
+  try{const now=new Date();const a=new Date(now);a.setHours(0,0,0,0);const b=new Date(now);b.setDate(b.getDate()+1);const rows=await fetchSiteAnalytics(a,b);const visitors=new Set(rows.map(r=>String(r.visitor_key||r.session_key||'')).filter(Boolean)).size;root.innerHTML='<b>'+visitors.toLocaleString()+'</b><span>Visitors today</span>';}catch(e){root.innerHTML='<b>—</b><span>Visitors today</span>';}
+}
+
+/* The customer-account feature has been completely removed. StoreX uses guest checkout. */
+function saveCartToStorage(){storexBaseSaveCartToStorage();}
+function saveWishlistToStorage(){storexBaseSaveWishlistToStorage();}
+function renderAdminView(){return storexBaseRenderAdminView();}
+function renderAdminSidebar(){return storexBaseRenderAdminSidebar();}
+
+/* Customer drawer without Account/Login/Signup entries. */
+function renderMobileDrawer(){
+  if(!MOBILE_DRAWER_OPEN)return '';
+  const fixedLabels=['home','all products','flash sale','wishlist','cart','track your order','all categories'];
+  const configured=Array.isArray(SETTINGS.nav)?SETTINGS.nav.filter(n=>{
+    const label=String(n.label||'').trim().toLowerCase();
+    return label && !['account','login','sign up','signup','sign in',...fixedLabels].includes(label);
+  }):[];
+  const hamburgerPages=PAGES.filter(p=>p.status==='published'&&p.showInHamburger===true).slice(0,12).map(p=>({label:p.title,url:'#/page/'+p.slug}));
+  const built=[
+    {label:'Home',url:'#/'},
+    {label:'All Products',url:'#/category/all'},
+    {label:'Flash Sale',url:'#/flash-sale'},
+    {label:'Wishlist',url:'#/wishlist'},
+    {label:'Cart',url:'#/cart'},
+    {label:'Track Your Order',url:'#/track-order'}
+  ];
+  const cats=CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0));
+  const categoryMenu=cats.length?`<details class="mobile-category-group"><summary>All Categories <span>⌄</span></summary><div>${cats.map(c=>`<a href="#/category/${esc(c.slug)}" onclick="MOBILE_DRAWER_OPEN=false;">${esc(c.name)}</a>`).join('')}</div></details>`:'';
+  const seen=new Set();
+  const makeLinks=items=>items.filter(n=>n&&n.label&&n.url).filter(n=>{const k=String(n.url)+'|'+String(n.label);if(seen.has(k))return false;seen.add(k);return true;}).map(n=>`<a href="${esc(n.url)}" ${n.newTab?'target="_blank" rel="noopener"':''} onclick="MOBILE_DRAWER_OPEN=false;">${esc(n.label)}</a>`).join('');
+  const fixedLinks=makeLinks(built);
+  const bottomLinks=makeLinks([...hamburgerPages,...configured]);
+  return `<div class="mobile-drawer open" onclick="if(event.target===this){MOBILE_DRAWER_OPEN=false;render();}"><div class="mobile-drawer-panel"><button class="mobile-drawer-close" onclick="MOBILE_DRAWER_OPEN=false;render();">&times;</button><div style="clear:both;height:8px;"></div>${fixedLinks}${categoryMenu}${bottomLinks}</div></div>`;
+}
+
+/* Guest checkout only. No account/default-address/login logic remains. */
+function renderCheckoutPage(){return storexBaseRenderCheckoutPage();}
+function showOrderInvoice(order,p,qty,customer,couponCode=''){return storexBaseShowOrderInvoice(order,p,qty,customer,couponCode);}
+function showCheckoutInvoice(orderNumber,lines,customer,subtotal,couponCalc,delivery){return storexBaseShowCheckoutInvoice(orderNumber,lines,customer,subtotal,couponCalc,delivery);}
+
+/* Promotion display and promotion-aware customer sorting. */
+function promotionScore(p){
+  const x=p?.promotion||{};let score=0;
+  if(x.title)score+=10;
+  if(Number(x.percentOff)>0)score+=Number(x.percentOff);
+  if(Number(x.buyQty)>0&&Number(x.freeQty)>0)score+=Number(x.freeQty)*10;
+  if(x.freeDelivery)score+=15;
+  return score;
+}
+function sortCustomerProducts(list){
+  const arr=[...list];
+  const stockFirst=(a,b)=>(Math.max(0,Number(b.stock)||0)>0?1:0)-(Math.max(0,Number(a.stock)||0)>0?1:0);
+  switch(CUSTOMER_PRODUCT_SORT){
+    case 'promotion': return arr.sort((a,b)=>promotionScore(b)-promotionScore(a)||stockFirst(a,b));
+    case 'price-low': return arr.sort((a,b)=>(Number(a.specialPrice??a.price)||0)-(Number(b.specialPrice??b.price)||0));
+    case 'price-high': return arr.sort((a,b)=>(Number(b.specialPrice??b.price)||0)-(Number(a.specialPrice??a.price)||0));
+    case 'newest': return arr.sort((a,b)=>Number(b.created_at?new Date(b.created_at).getTime():b.order||0)-Number(a.created_at?new Date(a.created_at).getTime():a.order||0));
+    case 'discount': return arr.sort((a,b)=>{const da=Number(a.discount)||0,db=Number(b.discount)||0;return db-da;});
+    case 'name': return arr.sort((a,b)=>String(a.title||'').localeCompare(String(b.title||'')));
+    default: return arr.sort((a,b)=>stockFirst(a,b)||(a.order||0)-(b.order||0));
+  }
+}
+function productPromotionHtml(p){
+  if(!p)return '';
+  const x=p.promotion||{};const lines=[];
+  if(x.title)lines.push('🔥 '+x.title);
+  if(x.freeDelivery&&Number(x.freeDeliveryQty)>0)lines.push('Free delivery after '+x.freeDeliveryQty+' item(s)');
+  if(Number(x.percentOff)>0)lines.push(Number(x.percentOff)+'% off after '+(Number(x.percentOffQty)||1)+' item(s)');
+  if(Number(x.buyQty)>0&&Number(x.freeQty)>0)lines.push('Buy '+x.buyQty+' Get '+x.freeQty+' Free');
+  return lines.length?'<b>Promotion</b><div style="margin-top:5px;display:grid;gap:3px;">'+lines.map(x=>'<span>'+esc(x)+'</span>').join('')+'</div>':'';
+}
+function renderProductPage(key){
+  const base=storexBaseRenderProductPage(key);
+  const p=PRODUCTS.find(x=>(x.seo&&x.seo.slug)===key||x.id===key);
+  const promo=productPromotionHtml(p);
+  return promo?base.replace('</div>\n        <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">','</div>\n        <div class="product-promotion-details" style="margin:12px 0;padding:11px 14px;border-radius:10px;background:#FFF8F1;border:1px solid #FFD7B8;">'+promo+'</div>\n        <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'):base;
+}
+function renderCategoryPage(slug){
+  const html=storexBaseRenderCategoryPage(slug);
+  return html.replace('<option value="discount"','<option value="promotion" '+(CUSTOMER_PRODUCT_SORT==='promotion'?'selected':'')+'>Promotion</option><option value="discount"');
+}
+
+/* Replace cart checkout persistence with the atomic multi-product stock RPC. */
+async function submitCheckout(){
+  if(CHECKOUT_SUBMITTING)return;
+  const form=document.getElementById('checkout-form');
+  if(!form)return;
+  const btn=document.getElementById('checkout-submit-btn');
+  const fd=new FormData(form);
+  const customer={
+    name:String(fd.get('name')||'').trim(),
+    phone:String(fd.get('phone')||'').trim(),
+    email:String(fd.get('email')||'').trim(),
+    city:String(fd.get('city')||'').trim(),
+    address:String(fd.get('address')||'').trim(),
+    notes:String(fd.get('notes')||'').trim()
+  };
+  if(!customer.name||!customer.phone||!customer.city||!customer.address){toast('Please complete all required fields.');return;}
+  const lines=CART.map(l=>({line:l,info:cartLineProductInfo(l)})).filter(x=>x.info);
+  if(!lines.length){toast('Your cart is empty.');return;}
+  for(const x of lines){
+    if(x.line.qty>x.info.stock){toast(esc(x.info.p.title)+' — only '+x.info.stock+' left in stock.');return;}
+  }
+  CHECKOUT_SUBMITTING=true;
+  if(btn){btn.disabled=true;btn.textContent='Placing order...';}
+  try{
+    if(!supabaseClient||!SUPABASE_READY)throw new Error('Order service is temporarily unavailable.');
+    const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
+    const productPromo=computeProductPromotionTotals(lines);
+    const coupon=getAppliedCoupon();
+    const couponObj=coupon?COUPONS.find(c=>c.code===coupon.code):null;
+    if(couponObj){
+      const revalidated=await validateCoupon(couponObj.code,lines,subtotal);
+      if(!revalidated.ok){toast(revalidated.message);return;}
+    }
+    const couponCalc=couponObj?computeCouponDiscount(couponObj,lines,subtotal):{discount:0,freeShipping:false};
+    const deliveryTotal=(couponCalc.freeShipping||productPromo.freeShipping)?0:defaultDeliveryFee();
+    const totalDiscount=Math.round((productPromo.discount+couponCalc.discount)*100)/100;
+    const orderNumber='SX-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.random().toString(36).slice(2,8).toUpperCase();
+    const rows=lines.map(({line,info},idx)=>{
+      const lineSubtotal=info.unit*line.qty;
+      const share=subtotal>0?lineSubtotal/subtotal:0;
+      const productCalc=calculateOrder(info.p,line.qty);
+      const productLineDiscount=Math.round((productCalc.promotionDiscount||0)*100)/100;
+      const couponLineDiscount=Math.round(couponCalc.discount*share*100)/100;
+      const lineDiscount=Math.round((productLineDiscount+couponLineDiscount)*100)/100;
+      const lineDelivery=idx===0?deliveryTotal:0;
+      const promotionJson=buildOrderPromotionJson(
+        productCalc.promotion,
+        couponObj?.code||'',
+        productLineDiscount,
+        !!(productPromo.freeShipping && idx===0)
+      );
+      return {
+        order_number:orderNumber,
+        product_id:info.p.id,
+        product_title:info.p.title,
+        product_sku:info.p.sku||null,
+        quantity:line.qty,
+        unit_price:info.unit,
+        original_price:Number(info.p.originalPrice??info.p.oldPrice??info.p.price)||info.unit,
+        special_price:info.unit,
+        discount_percent:0,
+        delivery_charges:lineDelivery,
+        discount_amount:lineDiscount,
+        total_amount:Math.round((lineSubtotal-lineDiscount+lineDelivery)*100)/100,
+        customer_name:customer.name,
+        customer_phone:customer.phone,
+        customer_email:customer.email||null,
+        city:customer.city,
+        customer_address:customer.address+(customer.notes?(' | Notes: '+customer.notes):''),
+        status:'pending',
+        promotion:normalizeOrderPromotion(promotionJson)
+      };
+    });
+    const rpc=await supabaseClient.rpc('storex_create_cart_order_and_decrement_stock',{p_orders:rows});
+    if(rpc.error)throw rpc.error;
+    if(couponObj){
+      try{
+        await supabaseClient.from('storex_coupon_usage').insert({
+          coupon_code:couponObj.code,
+          customer_phone:customer.phone,
+          customer_email:customer.email||null,
+          order_number:orderNumber
+        });
+      }catch(e){console.warn('Coupon usage log skipped:',e);}
+    }
+    lines.forEach(({line,info})=>{
+      const p=PRODUCTS.find(x=>x.id===info.p.id);
+      if(p)p.stock=Math.max(0,(Number(p.stock)||0)-line.qty);
+    });
+    clearCart();
+    clearAppliedCoupon();
+    toast('Order placed successfully ✓');
+    showCheckoutInvoice(
+      orderNumber,
+      lines,
+      customer,
+      subtotal,
+      {discount:totalDiscount,freeShipping:(couponCalc.freeShipping||productPromo.freeShipping)},
+      deliveryTotal
+    );
+    location.hash='#/';
+  }catch(e){
+    console.error(e);
+    toast('Order failed: '+(e.message||'Please try again'));
+  }finally{
+    CHECKOUT_SUBMITTING=false;
+    if(btn){btn.disabled=false;btn.textContent='Place Order';}
+  }
+}
+
+/* Make sure visitor analytics is attempted on every public route after Supabase is ready. */
+async function trackSitePageView(){
+  try{await storexBaseTrackSitePageView();}catch(e){console.warn('Visitor analytics failed:',e);}
+}
 
 /* ================= INIT ================= */
 window.addEventListener('error', function(e){
