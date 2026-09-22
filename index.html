@@ -1294,7 +1294,7 @@ async function applyCouponFromOrder(productId){
   const lines=directOrderLines(productId,qty),subtotal=lines[0].info.unit*qty;
   const result=await validateCoupon(input.value,lines,subtotal);
   if(!result.ok){window.__directOrderCoupon=null;if(msg){msg.textContent=result.message;msg.className='coupon-msg err';}updateOrderTotal(productId);return;}
-  window.__directOrderCoupon={code:result.coupon.code};
+  window.__directOrderCoupon={code:normalizeCouponCode(result.coupon.code)};
   if(msg){msg.textContent='Coupon applied successfully.';msg.className='coupon-msg ok';}
   updateOrderTotal(productId);
 }
@@ -1302,7 +1302,7 @@ function updateOrderTotal(productId){
   const p=PRODUCTS.find(x=>x.id===productId), q=Math.max(1,Number(document.getElementById('order-qty')?.value)||1), stock=Math.max(1,Number(p?.stock)||1); if(!p)return;
   const qty=Math.min(q,stock), base=calculateOrder(p,qty);
   let couponDiscount=0, freeShipping=false, coupon=null;
-  if(window.__directOrderCoupon){coupon=COUPONS.find(c=>String(c.code||'').toUpperCase()===String(window.__directOrderCoupon.code||'').toUpperCase());if(coupon){const result=computeCouponDiscount(coupon,[{line:{qty},info:{p,unit:base.unitPrice}}],base.unitPrice*qty);couponDiscount=result.discount;freeShipping=result.freeShipping;}}
+  if(window.__directOrderCoupon){coupon=findLoadedCoupon(window.__directOrderCoupon.code);if(coupon){const result=computeCouponDiscount(coupon,[{line:{qty},info:{p,unit:base.unitPrice}}],base.unitPrice*qty);couponDiscount=result.discount;freeShipping=result.freeShipping;}}
   const delivery=freeShipping?0:base.delivery;
   const total=Math.max(0,base.unitPrice*qty-base.discountAmount-couponDiscount)+delivery;
   const a=document.getElementById('order-price'),b=document.getElementById('order-delivery'),c=document.getElementById('order-total'),d=document.getElementById('order-coupon-discount');
@@ -3811,14 +3811,67 @@ function renderWishlistPage(){
 }
 
 /* ---------- Coupons ---------- */
+/*
+   Coupon reliability fix:
+   - Coupon codes are normalized consistently (trim + uppercase).
+   - Product/category IDs are compared as strings, so numeric/string IDs match.
+   - "all" / "products" / "categories" scope values are normalized.
+   - applicable_ids is accepted whether Supabase returns an array, JSON text,
+     or a JSON object containing an ids array.
+   - Coupon-loading errors are NOT silently converted into "coupon does not exist".
+*/
 let COUPONS=[];
+let COUPON_LOAD_ERROR='';
+
+function normalizeCouponCode(value){
+  return String(value==null?'':value).trim().toUpperCase();
+}
+function normalizeCouponId(value){
+  return String(value==null?'':value).trim();
+}
+function normalizeCouponScope(value){
+  const s=String(value==null?'all':value).trim().toLowerCase();
+  if(s==='products'||s==='product') return 'products';
+  if(s==='categories'||s==='category') return 'categories';
+  return 'all';
+}
+function normalizeCouponIds(value){
+  if(Array.isArray(value)) return value.map(normalizeCouponId).filter(Boolean);
+  if(value==null) return [];
+  if(typeof value==='string'){
+    const raw=value.trim();
+    if(!raw) return [];
+    try{
+      const parsed=JSON.parse(raw);
+      if(Array.isArray(parsed)) return parsed.map(normalizeCouponId).filter(Boolean);
+      if(parsed && Array.isArray(parsed.ids)) return parsed.ids.map(normalizeCouponId).filter(Boolean);
+    }catch(_){}
+    return raw.split(',').map(normalizeCouponId).filter(Boolean);
+  }
+  if(value && typeof value==='object' && Array.isArray(value.ids)){
+    return value.ids.map(normalizeCouponId).filter(Boolean);
+  }
+  return [];
+}
+function findLoadedCoupon(code){
+  const wanted=normalizeCouponCode(code);
+  return COUPONS.find(c=>normalizeCouponCode(c.code)===wanted) || null;
+}
 async function loadCoupons(){
+  COUPON_LOAD_ERROR='';
   if(!supabaseClient||!SUPABASE_READY){ COUPONS=[]; return; }
   try{
-    const {data,error}=await supabaseClient.from('storex_coupons').select('*').eq('active',true);
+    const {data,error}=await supabaseClient
+      .from('storex_coupons')
+      .select('*')
+      .eq('active',true);
     if(error) throw error;
     COUPONS=Array.isArray(data)?data:[];
-  }catch(e){ console.warn('StoreX coupons read skipped:',e); COUPONS=[]; }
+  }catch(e){
+    console.warn('StoreX coupons read failed:',e);
+    COUPONS=[];
+    COUPON_LOAD_ERROR=e?.message||'Unable to read coupons from Supabase.';
+  }
 }
 const APPLIED_COUPON_KEY='StoreX.appliedCoupon.v1';
 function getAppliedCoupon(){
@@ -3828,11 +3881,30 @@ function setAppliedCoupon(c){ try{ sessionStorage.setItem(APPLIED_COUPON_KEY, JS
 function clearAppliedCoupon(){ try{ sessionStorage.removeItem(APPLIED_COUPON_KEY); }catch(e){} }
 
 function couponAppliesToLine(coupon, productId){
-  const scope=coupon.applicable_scope||'all';
+  if(!coupon) return false;
+  const scope=normalizeCouponScope(coupon.applicable_scope);
   if(scope==='all') return true;
-  const ids=Array.isArray(coupon.applicable_ids)?coupon.applicable_ids:[];
-  if(scope==='products') return ids.includes(productId);
-  if(scope==='categories'){ const p=findProductForCart(productId); return p && ids.includes(p.category); }
+
+  const ids=normalizeCouponIds(coupon.applicable_ids);
+  const wantedProductId=normalizeCouponId(productId);
+
+  if(scope==='products'){
+    return ids.includes(wantedProductId);
+  }
+
+  if(scope==='categories'){
+    const p=findProductForCart(productId);
+    if(!p) return false;
+    const categoryCandidates=[
+      p.category,
+      p.categoryId,
+      p.category_id,
+      p.categorySlug,
+      p.category_slug
+    ].map(normalizeCouponId).filter(Boolean);
+    return categoryCandidates.some(categoryId=>ids.includes(categoryId));
+  }
+
   return true;
 }
 function computeCouponDiscount(coupon, lines, subtotal){
@@ -3851,17 +3923,34 @@ function defaultDeliveryFee(){
   return Number.isFinite(v)&&v>0?v:200;
 }
 async function validateCoupon(code, lines, subtotal){
-  code=String(code||'').trim().toUpperCase();
+  code=normalizeCouponCode(code);
   if(!code) return {ok:false,message:'Please enter a coupon code.'};
-  const coupon=COUPONS.find(c=>String(c.code||'').toUpperCase()===code);
+
+  if(COUPON_LOAD_ERROR){
+    return {ok:false,message:'Coupons could not be loaded. Please refresh the page and try again.'};
+  }
+
+  const coupon=findLoadedCoupon(code);
   if(!coupon) return {ok:false,message:'This coupon code does not exist.'};
-  if(!coupon.active) return {ok:false,message:'This coupon is not active.'};
+  if(coupon.active===false) return {ok:false,message:'This coupon is not active.'};
+
   const now=Date.now();
   if(coupon.starts_at && new Date(coupon.starts_at).getTime()>now) return {ok:false,message:'This coupon is not active yet.'};
   if(coupon.ends_at && new Date(coupon.ends_at).getTime()<now) return {ok:false,message:'Coupon has expired.'};
-  if(coupon.min_order && subtotal < Number(coupon.min_order)) return {ok:false,message:'Minimum order value is '+money(coupon.min_order)+'.'};
-  const eligible=lines.some(x=>couponAppliesToLine(coupon,x.info.p.id));
-  if(!eligible) return {ok:false,message:'This coupon is not valid for the selected products.'};
+
+  if(coupon.min_order && subtotal < Number(coupon.min_order)){
+    return {ok:false,message:'Minimum order value is '+money(coupon.min_order)+'.'};
+  }
+
+  const safeLines=Array.isArray(lines)?lines.filter(x=>x&&x.info&&x.info.p):[];
+  const eligible=safeLines.some(x=>couponAppliesToLine(coupon,x.info.p.id));
+  if(!eligible){
+    const scope=normalizeCouponScope(coupon.applicable_scope);
+    if(scope==='all'){
+      return {ok:false,message:'This coupon is configured for all products, but the product data could not be matched. Please refresh the page.'};
+    }
+    return {ok:false,message:'This coupon is not valid for the selected products.'};
+  }
   if(coupon.usage_limit || coupon.per_customer_limit){
     try{
       if(supabaseClient && SUPABASE_READY){
@@ -3882,7 +3971,7 @@ async function applyCouponFromCart(){
   const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
   const result=await validateCoupon(input.value, lines, subtotal);
   if(!result.ok){ if(msg){msg.textContent=result.message;msg.className='coupon-msg err';} return; }
-  setAppliedCoupon({code:result.coupon.code});
+  setAppliedCoupon({code:normalizeCouponCode(result.coupon.code)});
   if(msg){msg.textContent='Coupon applied successfully.';msg.className='coupon-msg ok';}
   toast('Coupon applied ✓');
   render();
@@ -3894,7 +3983,7 @@ async function applyCouponFromCheckout(){
   const lines=CART.map(l=>({line:l,info:cartLineProductInfo(l)})).filter(x=>x.info); const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
   const result=await validateCoupon(input.value,lines,subtotal);
   if(!result.ok){if(msg){msg.textContent=result.message;msg.className='coupon-msg err';}return;}
-  setAppliedCoupon({code:result.coupon.code}); if(msg){msg.textContent='Coupon applied successfully.';msg.className='coupon-msg ok';} toast('Coupon applied ✓'); render();
+  setAppliedCoupon({code:normalizeCouponCode(result.coupon.code)}); if(msg){msg.textContent='Coupon applied successfully.';msg.className='coupon-msg ok';} toast('Coupon applied ✓'); render();
 }
 function removeCouponFromCheckout(){clearAppliedCoupon();toast('Coupon removed');render();}
 
@@ -3908,7 +3997,7 @@ function storexBaseRenderCheckoutPage(){
   const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
   const productPromo=computeProductPromotionTotals(lines);
   const coupon=getAppliedCoupon();
-  const couponObj=coupon?COUPONS.find(c=>c.code===coupon.code):null;
+  const couponObj=coupon?findLoadedCoupon(coupon.code):null;
   const couponCalc=couponObj?computeCouponDiscount(couponObj,lines,subtotal):{discount:0,freeShipping:false};
   const delivery=(couponCalc.freeShipping||productPromo.freeShipping)?0:defaultDeliveryFee();
   const total=Math.max(0,subtotal-productPromo.discount-couponCalc.discount)+delivery;
@@ -3962,7 +4051,7 @@ async function storexBaseSubmitCheckout(){
     if(!supabaseClient||!SUPABASE_READY) throw new Error('Order service is temporarily unavailable.');
     const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
     const coupon=getAppliedCoupon();
-    const couponObj=coupon?COUPONS.find(c=>c.code===coupon.code):null;
+    const couponObj=coupon?findLoadedCoupon(coupon.code):null;
     let revalidated=null;
     if(couponObj){ revalidated=await validateCoupon(couponObj.code, lines, subtotal); if(!revalidated.ok){ toast(revalidated.message); CHECKOUT_SUBMITTING=false; if(btn){btn.disabled=false;btn.textContent='Place Order';} return; } }
     const productPromo=computeProductPromotionTotals(lines); const couponCalc=couponObj?computeCouponDiscount(couponObj,lines,subtotal):{discount:0,freeShipping:false};
@@ -4192,7 +4281,7 @@ async function submitCheckout(){
     const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
     const productPromo=computeProductPromotionTotals(lines);
     const coupon=getAppliedCoupon();
-    const couponObj=coupon?COUPONS.find(c=>c.code===coupon.code):null;
+    const couponObj=coupon?findLoadedCoupon(coupon.code):null;
     if(couponObj){
       const revalidated=await validateCoupon(couponObj.code,lines,subtotal);
       if(!revalidated.ok){toast(revalidated.message);return;}
