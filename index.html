@@ -716,6 +716,17 @@ img[loading="lazy"]{content-visibility:auto;}
   };
 })();
 </script>
+
+<style id="StoreXMediaPickerAndProductCompactFix">
+.thumb-picker .t.sel{border-color:var(--primary)!important;box-shadow:0 0 0 2px rgba(245,114,36,.18);}
+@media (min-width:821px){
+  .grid .card-img,.search-results-grid .card-img{height:100px!important;min-height:100px!important;max-height:100px!important;}
+  .grid .card-body,.search-results-grid .card-body{padding:7px 9px 8px!important;gap:3px!important;}
+  .grid .card-title,.search-results-grid .card-title{font-size:12px!important;min-height:2em!important;}
+  .grid .price,.search-results-grid .price{font-size:14px!important;}
+  .grid .card-cta,.search-results-grid .card-cta{padding:7px!important;font-size:11.5px!important;}
+}
+</style>
 </head>
 
 <!--
@@ -1783,6 +1794,7 @@ function normalizeCloudState(){
   if(!SETTINGS || typeof SETTINGS!=='object' || Array.isArray(SETTINGS)) SETTINGS={};
   SETTINGS.search=SETTINGS.search&&typeof SETTINGS.search==='object'?SETTINGS.search:{};
   if(!Array.isArray(SETTINGS.sections)) SETTINGS.sections=[];
+  SETTINGS.sections.forEach(s=>{if(s&&s.type==='categoryShowcase'){s.config=s.config&&typeof s.config==='object'?s.config:{};if(!('categoryId' in s.config))s.config.categoryId='';if(!s.config.count)s.config.count=3;}});
   if(!SETTINGS.sections.some(s=>s&&s.type==='recentlyViewed')){
     SETTINGS.sections.push({id:'sec-recently-viewed',type:'recentlyViewed',visible:true,title:'Recently Viewed',subtitle:'Products you recently viewed',config:{count:6,layout:'grid',columns:3}});
   }
@@ -2221,21 +2233,19 @@ function renderCollectionSection(sec){
 }
 
 function renderCategoryShowcaseSection(sec){
-  const cfg = sec.config||{count:3};
-  const cats = CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0));
-  const groups = cats.map(c=>{
-    const list = PRODUCTS.filter(p=>p.status==='published' && p.category===c.id && Math.max(0,Number(p.stock)||0)>0).sort((a,b)=>(a.order||0)-(b.order||0)).slice(0, cfg.count||3);
-    if(!list.length) return '';
+  const cfg=sec.config||{count:3,categoryId:''};
+  let cats=CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0));
+  if(cfg.categoryId) cats=cats.filter(c=>c.id===cfg.categoryId);
+  const groups=cats.map(c=>{
+    const list=PRODUCTS.filter(p=>p.status==='published'&&p.category===c.id&&Math.max(0,Number(p.stock)||0)>0).sort((a,b)=>(a.order||0)-(b.order||0)).slice(0,Math.max(1,Number(cfg.count)||3));
+    if(!list.length)return '';
     return `<div class="cat-showcase-group">
-      <div class="cat-showcase-head"><h3>${esc(c.name)}</h3><a href="#/category/${esc(c.slug)}">See all</a></div>
+      <div class="cat-showcase-head"><h3>${esc(c.name)}</h3><a href="#/category/${esc(c.slug||slugify(c.name))}">View All</a></div>
       <div class="grid cols-3">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div>
     </div>`;
   }).filter(Boolean).join('');
-  if(!groups){
-    return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Shop by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div></div>
-    <div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">\u{1F4C2}</div><h3>No products in any category yet</h3></div></section>`;
-  }
-  return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Shop by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div></div>${groups}</section>`;
+  if(!groups)return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Products by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div>${cfg.categoryId?`<a href="#/category/${esc((CATEGORIES.find(c=>c.id===cfg.categoryId)||{}).slug||'')}">View Category</a>`:''}</div><div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">📂</div><h3>No products in the selected category yet</h3></div></section>`;
+  return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Products by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div>${cfg.categoryId?`<a href="#/category/${esc((CATEGORIES.find(c=>c.id===cfg.categoryId)||{}).slug||'')}">View All</a>`:''}</div>${groups}</section>`;
 }
 
 function safeRichHtml(html){
@@ -2654,34 +2664,66 @@ function adminDashboard(){
 
 /* ---------- Reusable admin image picker ---------- */
 let MEDIA_PICKER_CALLBACK=null;
-function openMediaPicker(callback){
+let MEDIA_PICKER_MULTIPLE=false;
+let MEDIA_PICKER_SELECTED=[];
+function closeMediaPicker(){
+  const el=document.getElementById('media-picker-overlay');
+  if(el)el.remove();
+  MEDIA_PICKER_CALLBACK=null;
+  MEDIA_PICKER_MULTIPLE=false;
+  MEDIA_PICKER_SELECTED=[];
+}
+function openMediaPicker(callback, options={}){
   MEDIA_PICKER_CALLBACK=callback;
+  MEDIA_PICKER_MULTIPLE=!!options.multiple;
+  MEDIA_PICKER_SELECTED=[];
   const pickerId='media-device-input-'+uid();
-  showModal(`<h2>Select image from Media Library</h2>
-    <p style="font-size:12.5px;color:var(--ink-soft);">Choose an existing image or upload a new image from your phone/computer. Uploading will keep this picker open and apply the selected image to the current field.</p>
+  const el=document.createElement('div');
+  el.id='media-picker-overlay';
+  el.className='modal-overlay';
+  el.style.zIndex='120';
+  el.innerHTML=`<div class="modal-box">
+    <h2>Select image from Media Library</h2>
+    <p style="font-size:12.5px;color:var(--ink-soft);">${MEDIA_PICKER_MULTIPLE?'Select one or more images, then click Done.':'Choose an existing image or upload a new image. Your current form will stay open.'}</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;">
       <label class="btn small media-upload-button">Upload from device
-        <input id="${pickerId}" type="file" accept="image/*" onchange="handleMediaPickerFile(this)">
+        <input id="${pickerId}" type="file" accept="image/*" ${MEDIA_PICKER_MULTIPLE?'multiple':''} onchange="handleMediaPickerFile(this)">
       </label>
     </div>
     <div id="media-picker-status" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;"></div>
-    ${MEDIA.length?`<div class="thumb-picker" style="gap:12px;">${MEDIA.map(m=>`<button type="button" class="t" style="width:90px;height:90px;padding:0;background:#fff;" onclick="selectMediaForField('${m.id}')"><img src="${mediaSrc(m.id)}" alt=""></button>`).join('')}</div>`:'<div class="empty-state"><div class="icon">🖼️</div><h3>No media yet</h3><p>Upload an image from your device or add an image URL first.</p></div>'}
-    <div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal();MEDIA_PICKER_CALLBACK=null;">Cancel</button></div>`);
+    ${MEDIA.length?`<div class="thumb-picker" style="gap:12px;">${MEDIA.map(m=>`<button type="button" class="t ${MEDIA_PICKER_SELECTED.includes(m.id)?'sel':''}" id="media-pick-${m.id}" style="width:90px;height:90px;padding:0;background:#fff;" onclick="selectMediaForField('${m.id}')"><img src="${mediaSrc(m.id)}" alt=""></button>`).join('')}</div>`:'<div class="empty-state"><div class="icon">🖼️</div><h3>No media yet</h3><p>Upload an image from your device or add an image URL first.</p></div>'}
+    <div class="modal-close-row">
+      <button type="button" class="btn ghost" onclick="closeMediaPicker()">Cancel</button>
+      ${MEDIA_PICKER_MULTIPLE?'<button type="button" class="btn" onclick="finishMediaPicker()">Done / Select</button>':''}
+    </div>
+  </div>`;
+  document.body.appendChild(el);
 }
 async function handleMediaPickerFile(input){
-  const file=input?.files?.[0];
-  if(!file)return;
+  const files=Array.from(input?.files||[]);
+  if(!files.length)return;
   const status=document.getElementById('media-picker-status');
-  if(status)status.textContent='Uploading image…';
+  if(status)status.textContent='Uploading image'+(files.length>1?'s':'')+'…';
   input.disabled=true;
   try{
-    const url=await uploadImageToSupabase(file);
-    await rememberMediaUrl(url,file.name||'image');
-    const cb=MEDIA_PICKER_CALLBACK;
-    MEDIA_PICKER_CALLBACK=null;
-    closeModal();
-    if(typeof cb==='function')cb(url);
-    toast('Image selected successfully ✓');
+    const urls=[];
+    for(const file of files){
+      if(!file.type.startsWith('image/'))continue;
+      const url=await uploadImageToSupabase(file);
+      await rememberMediaUrl(url,file.name||'image');
+      urls.push(url);
+    }
+    if(MEDIA_PICKER_MULTIPLE){
+      const cb=MEDIA_PICKER_CALLBACK;
+      if(typeof cb==='function' && urls.length)cb(urls);
+      closeMediaPicker();
+      toast((urls.length||0)+' image'+(urls.length===1?'':'s')+' selected successfully ✓');
+    }else{
+      const cb=MEDIA_PICKER_CALLBACK;
+      closeMediaPicker();
+      if(typeof cb==='function'&&urls[0])cb(urls[0]);
+      toast('Image selected successfully ✓');
+    }
   }catch(e){
     console.error('Media picker upload failed:',e);
     if(status)status.textContent='Upload failed. You can try again.';
@@ -2692,8 +2734,25 @@ async function handleMediaPickerFile(input){
 }
 function selectMediaForField(id){
   const url=mediaSrc(id);
-  const cb=MEDIA_PICKER_CALLBACK; MEDIA_PICKER_CALLBACK=null; closeModal();
+  if(!url)return;
+  if(MEDIA_PICKER_MULTIPLE){
+    const idx=MEDIA_PICKER_SELECTED.indexOf(id);
+    if(idx>=0)MEDIA_PICKER_SELECTED.splice(idx,1); else MEDIA_PICKER_SELECTED.push(id);
+    const btn=document.getElementById('media-pick-'+id);
+    if(btn)btn.classList.toggle('sel',MEDIA_PICKER_SELECTED.includes(id));
+    const status=document.getElementById('media-picker-status');
+    if(status)status.textContent=MEDIA_PICKER_SELECTED.length+' image'+(MEDIA_PICKER_SELECTED.length===1?'':'s')+' selected';
+    return;
+  }
+  const cb=MEDIA_PICKER_CALLBACK;
+  closeMediaPicker();
   if(typeof cb==='function')cb(url);
+}
+function finishMediaPicker(){
+  const urls=MEDIA_PICKER_SELECTED.map(id=>mediaSrc(id)).filter(Boolean);
+  const cb=MEDIA_PICKER_CALLBACK;
+  closeMediaPicker();
+  if(typeof cb==='function')cb(urls);
 }
 function adminImageControls(label,current,onSelectJs,previewId,extraNote=''){
   const safePreview=previewId||('img-prev-'+uid());
@@ -2772,7 +2831,7 @@ function openProductModal(id){
           <div class="upload-box">
             <input type="url" placeholder="Image URL yahan enter karein (https://...)" onchange="if(this.value){ handleImageUrlInput(this, url=>{ addProductImage('${p.id}', url, ${isNew}); this.value=''; }); }">
             
-            <button type="button" class="btn small ghost" style="margin-top:8px;" onclick="openMediaPicker(url=>addProductImage('${p.id}',url,${isNew}))">Choose from Media Library</button>
+            <button type="button" class="btn small ghost" style="margin-top:8px;" onclick="openMediaPicker(urls=>{(Array.isArray(urls)?urls:[urls]).forEach(url=>addProductImage('${p.id}',url,${isNew}))},{multiple:true})">Choose from Media Library</button>
             <div id="product-img-list-${p.id}" class="product-image-editor">
               ${renderProductImageEditor(p,isNew)}
             </div>
@@ -3447,7 +3506,7 @@ function addSection(type){
   const base = {id:uid(),type,visible:true,title:sectionTypeLabel(type),subtitle:''};
   if(type==='flashsale') base.config={flashSaleId:''};
   if(type==='productCollection') base.config={filter:'all',count:6,layout:'grid',columns:3,productId:''};
-  if(type==='categoryShowcase') base.config={count:3};
+  if(type==='categoryShowcase') base.config={count:3,categoryId:''};
   if(type==='recentlyViewed') base.config={count:6,layout:'grid',columns:3};
   if(type==='banner') base.config={bannerId: BANNERS[0]?BANNERS[0].id:''};
   if(type==='customHtml') base.config={html:'<p>Your custom content here.</p>'};
@@ -3517,7 +3576,9 @@ function editSectionModal(i){
       </select>
     </div>`;
   } else if(s.type==='categoryShowcase'){
-    extra = `<div class="field"><label>Products per category</label><input type="number" name="count" value="${(s.config&&s.config.count)||3}"></div>`;
+    const selectedCat=(s.config&&s.config.categoryId)||'';
+    const catOptions=CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0)).map(c=>`<option value="${c.id}" ${selectedCat===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
+    extra = `<div class="field full"><label>Category to show</label><select name="categoryId"><option value="">All categories (automatic)</option>${catOptions}</select></div><div class="field"><label>Products per category</label><input type="number" min=1 max=50 name="count" value="${(s.config&&s.config.count)||3}"></div>`;
   } else if(s.type==='recentlyViewed'){
     const layout=(s.config&&s.config.layout)||'grid';
     extra = `<div class="field"><label>Number of products</label><input type="number" name="count" min=1 max=20 value="${(s.config&&s.config.count)||6}"></div><div class="field"><label>Columns per row</label><select name="columns"><option value="2" ${Number(s.config?.columns)===2?'selected':''}>2</option><option value="3" ${(!s.config?.columns||Number(s.config?.columns)===3)?'selected':''}>3</option><option value="4" ${Number(s.config?.columns)===4?'selected':''}>4</option></select></div>`;
@@ -3556,7 +3617,7 @@ function saveSectionForm(i){
   s.title = fd.get('title'); s.subtitle = fd.get('subtitle');
   if(s.type==='flashsale'){ s.config = {flashSaleId: fd.get('flashSaleId')||''}; }
   if(s.type==='productCollection'){ s.config = {filter:fd.get('filter'), count:Number(fd.get('count'))||6, layout:fd.get('layout')||'grid', columns:Number(fd.get('columns'))||3, productId:fd.get('productId')||''}; }
-  if(s.type==='categoryShowcase'){ s.config = {count:Number(fd.get('count'))||3}; }
+  if(s.type==='categoryShowcase'){ s.config = {count:Number(fd.get('count'))||3,categoryId:fd.get('categoryId')||''}; }
   if(s.type==='recentlyViewed'){ s.config = {count:Number(fd.get('count'))||6,layout:'grid',columns:Number(fd.get('columns'))||3}; }
   if(s.type==='banner'){ s.config = {bannerId: fd.get('bannerId')}; }
   if(s.type==='customHtml'){ s.config = {html: fd.get('html')}; }
@@ -4676,7 +4737,7 @@ boot().catch(function(err){
 
   /* Compact the entire product-card image area on Home / All Products / Search so more
      items are visible per screen and the page is easier to scroll. */
-  .grid .card-img,.search-results-grid .card-img{height:120px!important;min-height:120px!important;max-height:120px!important;aspect-ratio:auto!important;background:#F2F0EB!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;}
+  .grid .card-img,.search-results-grid .card-img{height:100px!important;min-height:100px!important;max-height:100px!important;aspect-ratio:auto!important;background:#F2F0EB!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;}
   .grid .card-img img,.search-results-grid .card-img img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;display:block!important;}
   .grid .card,.search-results-grid .card{min-height:0!important;}
   .grid .card-body{padding:8px 10px 10px!important;gap:4px!important;}
