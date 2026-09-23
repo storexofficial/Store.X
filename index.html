@@ -187,7 +187,7 @@ img{max-width:100%;display:block;}
 .search-wrap{position:relative;flex:1;min-width:0;}
 .search-wrap .search-form{position:relative;}
 .search-wrap .search-form{max-width:none;}
-.search-suggestions{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.12);z-index:90;overflow:hidden;display:none;}
+.search-suggestions{position:absolute;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.12);z-index:10000;overflow:hidden;display:none;}
 .search-suggestions.open{display:block;}
 .search-suggestions-head{padding:9px 12px;font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);}
 .search-suggestion{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:0;background:#fff;padding:10px 12px;text-align:left;font-size:13px;color:var(--ink);}
@@ -555,7 +555,133 @@ img[loading="lazy"]{content-visibility:auto;}
 .flash-info p{margin:0;color:var(--ink-soft) !important;line-height:1.55;}
 .flash-info .countdown{margin-top:4px;}
 @media(max-width:720px){.flash{grid-template-columns:1fr !important;}.flash-visual{aspect-ratio:3/2 !important;order:1 !important;}.flash-info{order:2 !important;padding:16px !important;}.flash-info h3{font-size:21px;}}
+/* StoreX desktop product-card media: compact vertical footprint for easier scrolling. */
+@media (min-width: 901px){
+  .grid > .card .card-img, .grid.cols-2 > .card .card-img, .grid.cols-3 > .card .card-img, .grid.cols-4 > .card .card-img{
+    aspect-ratio: 4 / 3 !important;
+    max-height: 190px !important;
+  }
+  .grid > .card .card-img img, .grid.cols-2 > .card .card-img img, .grid.cols-3 > .card .card-img img, .grid.cols-4 > .card .card-img img{
+    object-fit: contain !important;
+  }
+}
+
 @media(max-width:560px){.flash{grid-template-columns:1fr !important;}.flash-visual{aspect-ratio:3/2 !important;order:1 !important;}.flash-info{order:2 !important;}}
+
+/* ===== StoreX requested UI fixes ===== */
+@media (min-width:821px){
+  .header-row{
+    grid-template-columns:44px minmax(220px,1fr) auto auto;
+    gap:12px;
+  }
+  .mobile-toggle{
+    display:inline-flex !important;
+    grid-column:1;
+    grid-row:1;
+    order:1;
+    width:44px;
+    height:44px;
+    min-width:44px;
+    min-height:44px;
+    font-size:26px;
+    line-height:1;
+    padding:0;
+    justify-self:start;
+  }
+  .header-row .logo-wrap{z-index:3;}
+  .header-row .search-wrap{
+    grid-column:2;
+    grid-row:1;
+    padding-right:300px;
+  }
+  .header-row .header-icons{grid-column:3;grid-row:1;justify-self:end;}
+  .header-row .main-nav{grid-column:4;grid-row:1;justify-self:end;}
+  .card-img{
+    aspect-ratio:4/3 !important;
+  }
+  .card-img img{
+    width:88% !important;
+    height:88% !important;
+    object-fit:contain !important;
+  }
+  .flash{
+    grid-template-columns:minmax(280px,42%) minmax(0,58%) !important;
+    grid-template-rows:1fr !important;
+    min-height:0 !important;
+    height:230px !important;
+    aspect-ratio:auto !important;
+  }
+  .flash-visual{
+    order:2 !important;
+    height:230px !important;
+    aspect-ratio:auto !important;
+  }
+  .flash-info{
+    order:1 !important;
+    height:230px !important;
+    padding:20px 24px !important;
+  }
+  .flash-info h3{font-size:22px !important;}
+  .flash-visual-slide img,.flash-visual>img{
+    width:100% !important;
+    height:100% !important;
+    object-fit:contain !important;
+  }
+}
+@media (max-width:820px){
+  .mobile-toggle{font-size:0;}
+}
+.product-image-editor{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+  gap:10px;
+  margin-top:10px;
+}
+.product-image-item{
+  position:relative;
+  border:1.5px solid var(--line);
+  border-radius:8px;
+  padding:6px;
+  background:#fff;
+}
+.product-image-item.is-main{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary);}
+.product-image-item img{
+  width:100%;
+  aspect-ratio:1/1;
+  object-fit:cover;
+  border-radius:6px;
+  display:block;
+}
+.product-image-item .image-number{
+  display:block;
+  text-align:center;
+  font-size:11px;
+  font-weight:800;
+  margin:4px 0;
+}
+.product-image-item .image-tools{
+  display:flex;
+  gap:4px;
+}
+.product-image-item .image-tools button{
+  flex:1;
+  min-height:30px;
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:5px;
+  font-size:11px;
+  font-weight:700;
+}
+.product-image-item .image-tools button.danger{color:#B3261E;border-color:#E5B8B5;}
+.media-upload-button{position:relative;overflow:hidden;}
+.media-upload-button input{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  opacity:0;
+  cursor:pointer;
+}
 </style>
 
 <script type="application/ld+json" id="StoreX-schema">
@@ -1687,6 +1813,7 @@ function render(){
     if(h==='/' || h===''){ body = renderHome(); }
     else if(h.startsWith('/p/')){ const key=decodeURIComponent(h.split('/p/')[1]||''); body = PRODUCTS.length ? renderProductPage(key) : renderPageLoading('Please wait, the product is loading.'); }
     else if(h.startsWith('/product/')){ const key=decodeURIComponent(h.split('/product/')[1]||''); body = PRODUCTS.length ? renderProductPage(key) : renderPageLoading('Please wait, the product is loading.'); }
+    else if(h==='/all-categories'){ body = renderAllCategoriesPage(); }
     else if(h.startsWith('/category/')){ body = renderCategoryPage(decodeURIComponent(h.split('/category/')[1])); }
     else if(h.startsWith('/f/')){ const slug=decodeURIComponent(h.split('/f/')[1]||''); body = FLASHSALES.length ? renderFlashSalePage(slug) : renderPageLoading('Please wait, the flash sale is loading.'); }
     else if(h.startsWith('/flash-sale/')){ body = FLASHSALES.length ? renderFlashSalePage(decodeURIComponent(h.split('/flash-sale/')[1])) : renderPageLoading('Please wait, the flash sale is loading.'); }
@@ -1753,7 +1880,7 @@ function openSearchSuggestions(input){
   if(!values.length){
     box.innerHTML='<div class="search-suggestions-head">Suggestions</div><div style="padding:12px;color:var(--ink-soft);font-size:12px;">No suggestions yet — keep typing or press Search.</div>';
   }else{
-    box.innerHTML='<div class="search-suggestions-head">'+(q?'Suggestions':'Trending searches')+'</div>'+values.map(v=>`<button type="button" class="search-suggestion" data-search-value="${esc(v)}" aria-label="Search ${esc(v)}"><span>${q?'':'↗ '}${esc(v)}</span><small>${q?'Search':'Trending'}</small></button>`).join('');
+    box.innerHTML='<div class="search-suggestions-head">'+(q?'Suggestions':'Trending searches')+'</div>'+values.map(v=>`<button type="button" class="search-suggestion" data-search-value="${esc(v)}" aria-label="Search ${esc(v)}" onclick="event.preventDefault();event.stopPropagation();performSearchQuery(this.getAttribute('data-search-value')||'');"><span>${q?'':'↗ '}${esc(v)}</span><small>${q?'Search':'Trending'}</small></button>`).join('');
   }
   box.classList.add('open');
 }
@@ -1778,29 +1905,42 @@ function useSearchSuggestion(v){
   return performSearchQuery(v);
 }
 
-// Reliable mouse/touch/pointer handling for suggestion buttons.
-// This is deliberately delegated from document so it continues working after render()
-// replaces the header/search DOM.
-document.addEventListener('pointerdown',function(e){
+// Search suggestions navigate on click rather than pointerdown. Navigating during pointerdown
+// replaces the header DOM before the browser finishes the click, which can make the
+// release/click land on the Back button behind the suggestion list.
+document.addEventListener('mousedown',function(e){
   const item=e.target.closest?.('.search-suggestion[data-search-value]');
   if(!item) return;
   e.preventDefault();
   e.stopPropagation();
-  performSearchQuery(item.getAttribute('data-search-value')||'');
 },{passive:false});
 document.addEventListener('click',function(e){
   const item=e.target.closest?.('.search-suggestion[data-search-value]');
   if(!item) return;
   e.preventDefault();
   e.stopPropagation();
+  performSearchQuery(item.getAttribute('data-search-value')||'');
 },{passive:false});
+document.addEventListener('touchstart',function(e){
+  const item=e.target.closest?.('.search-suggestion[data-search-value]');
+  if(!item) return;
+  e.stopPropagation();
+},{passive:true});
+document.addEventListener('click',function(e){
+  const item=e.target.closest?.('.search-suggestion[data-search-value]');
+  if(!item) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+  performSearchQuery(item.getAttribute('data-search-value')||'');
+},true);
 function renderHeader(){
   const logo = SETTINGS.logo ? `<img src="${mediaSrc(SETTINGS.logo)}" alt="${esc(SETTINGS.siteName)} logo" style="width:${SETTINGS.logoWidth}px;height:auto;max-height:56px;">` : `<span class="logo-fallback">${esc(SETTINGS.siteName)}</span>`;
   const navPages = PAGES.filter(p=>p.status==='published' && p.showInNav===true).map(p=>({label:p.title,url:'#/page/'+p.slug}));
   const navLinks = [...SETTINGS.nav.slice(0,3), ...navPages].map(n=>`<a href="${esc(n.url)}" ${n.newTab?'target="_blank" rel="noopener"':''}>${esc(n.label)}</a>`).join('');
   return `<header id="site-header"><div class="container header-row">
     <div class="logo-wrap" aria-label="StoreX logo">${logo}</div>
-    <button class="mobile-toggle" onclick="MOBILE_DRAWER_OPEN=true;render();" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <button class="mobile-toggle" onclick="MOBILE_DRAWER_OPEN=true;render();" aria-label="Open menu">☰</button>
     <div class="search-wrap"><form class="search-form ${MOBILE_SEARCH_OPEN?'mobile-open':''}" onsubmit="event.preventDefault();performSearchQuery(this.q.value);" autocomplete="off">
       <input name="q" type="search" placeholder="Search products..." aria-label="Search products" onfocus="openSearchSuggestions(this)" oninput="openSearchSuggestions(this)">
       <button type="submit" aria-label="Search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
@@ -2030,7 +2170,7 @@ function renderCategoriesSection(sec){
       <div class="cat-name">${esc(c.name)}</div>
     </a>`).join('');
   return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Shop by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div></div>
-  <div class="cat-grid">${cats}</div><div style="text-align:center;margin-top:16px;"><a class="btn small ghost" href="#/category/all">View All</a></div></section>`;
+  <div class="cat-grid">${cats}</div><div style="text-align:center;margin-top:16px;"><a class="btn small ghost" href="#/all-categories">View All</a></div></section>`;
 }
 
 function filteredProducts(filter){
@@ -2127,7 +2267,7 @@ function renderProductCard(p, options={}){
   const img=p.mainImage?mediaSrc(p.mainImage):(p.images&&p.images[0]?mediaSrc(p.images[0]):'');
   const original=Number(p.originalPrice??p.oldPrice??p.price)||0, special=Number(p.specialPrice??p.price)||original, pct=original>special?Math.round((original-special)/original*100):0, stock=Math.max(0,Number(p.stock)||0);
   const actions=(options.home || options.hideActions) ? '' : `<div class="card-actions-row">${stock>0?`<button class="card-cta ghost" aria-label="Add ${esc(p.title)} to cart" onclick="event.preventDefault();addToCart('${p.id}',1)">+ Cart</button>`:''}<button class="card-cta" ${stock<=0?'disabled':''} onclick="trackProductBuyClick('${p.id}');openOrderModal('${p.id}')">${stock<=0?'Out of stock':'Buy Now'}</button></div>`;
-  return `<div class="card">${wishlistHeartHtml(p.id)}<a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-img">${img?`<img src="${img}" alt="${esc(p.title)}" loading="lazy" decoding="async">`:''}</a><div class="card-body"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-title">${esc(p.shortTitle||p.title)}</a>${p.shortDesc?`<div class="card-desc">${esc(p.shortDesc)}</div>`:''}<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;"><strong class="price">${money(special)}</strong>${original>special?`<del style="font-size:12px;color:var(--ink-soft);">${money(original)}</del><span class="badge-status on">-${pct}%</span>`:''}</div></div>${actions}</div>`;
+  return `<div class="card"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-img">${img?`<img src="${img}" alt="${esc(p.title)}" loading="lazy" decoding="async">`:''}</a><div class="card-body"><a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}" class="card-title">${esc(p.shortTitle||p.title)}</a>${p.shortDesc?`<div class="card-desc">${esc(p.shortDesc)}</div>`:''}<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;"><strong class="price">${money(special)}</strong>${original>special?`<del style="font-size:12px;color:var(--ink-soft);">${money(original)}</del><span class="badge-status on">-${pct}%</span>`:''}</div></div>${actions}</div>`;
 }
 
 /* ================= PRODUCT DETAIL ================= */
@@ -2212,12 +2352,24 @@ function storexBaseRenderCategoryPage(slug){
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / ${esc(title)}</div>
     <div class="section-head" style="align-items:end;gap:12px;"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div><div class="field" style="min-width:190px;margin:0;"><label style="font-size:12px;">Sort products</label><select onchange="setCustomerProductSort(this.value)"><option value="default" ${CUSTOMER_PRODUCT_SORT==='default'?'selected':''}>Recommended</option><option value="newest" ${CUSTOMER_PRODUCT_SORT==='newest'?'selected':''}>Newest</option><option value="price-low" ${CUSTOMER_PRODUCT_SORT==='price-low'?'selected':''}>Price: Low to High</option><option value="price-high" ${CUSTOMER_PRODUCT_SORT==='price-high'?'selected':''}>Price: High to Low</option><option value="discount" ${CUSTOMER_PRODUCT_SORT==='discount'?'selected':''}>Biggest Discount</option><option value="name" ${CUSTOMER_PRODUCT_SORT==='name'?'selected':''}>Name A–Z</option></select></div></div>
-    ${list.length? `<div class="grid">${list.map(p=>renderProductCard(p, slug==='all'?{hideActions:true}:{})).join('')}</div>` :
+    ${list.length? `<div class="grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F50D}</div><h3>No products found</h3><p>There's nothing here yet \u2014 check back soon.</p></div>`}
   </div>`;
 }
 
 /* ================= FLASH SALE PAGES ================= */
+function renderAllCategoriesPage(){
+  const cats=CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0));
+  return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
+    <div class="section-head"><div><h2>All Categories</h2><p>Browse every category</p></div></div>
+    ${cats.length?`<div class="cat-grid">${cats.map(c=>`
+      <a class="cat-card" href="#/category/${esc(c.slug)}">
+        <div class="cat-icon">${c.image?`<img src="${mediaSrc(c.image)}" alt="" loading="lazy" decoding="async">`:(c.icon||'\u{1F6CD}')}</div>
+        <div class="cat-name">${esc(c.name)}</div>
+      </a>`).join('')}</div>`:`<div class="empty-state"><div class="icon">\u{1F4C2}</div><h3>No categories available</h3></div>`}
+  </div>`;
+}
+
 function renderFlashSaleIndex(){
   const sales = FLASHSALES.filter(f=>f.status!=='hidden');
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
@@ -2276,7 +2428,7 @@ function renderSearchPage(q){
   ));
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="section-head"><div><h2>Search results for "${esc(q)}"</h2><p>${list.length} product${list.length!==1?'s':''} found</p></div></div>
-    ${list.length? `<div class="grid">${list.map(renderProductCard).join('')}</div>` : `<div class="empty-state"><div class="icon">\u{1F614}</div><h3>No results found</h3><p>Try a different search term.</p></div>`}
+    ${list.length? `<div class="grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` : `<div class="empty-state"><div class="icon">\u{1F614}</div><h3>No results found</h3><p>Try a different search term.</p></div>`}
   </div>`;
 }
 
@@ -2504,10 +2656,39 @@ function adminDashboard(){
 let MEDIA_PICKER_CALLBACK=null;
 function openMediaPicker(callback){
   MEDIA_PICKER_CALLBACK=callback;
+  const pickerId='media-device-input-'+uid();
   showModal(`<h2>Select image from Media Library</h2>
-    <p style="font-size:12.5px;color:var(--ink-soft);">Choose an existing image from this HTML file. The selected image is immediately applied to the current field.</p>
-    ${MEDIA.length?`<div class="thumb-picker" style="gap:12px;">${MEDIA.map(m=>`<button type="button" class="t" style="width:90px;height:90px;padding:0;background:#fff;" onclick="selectMediaForField('${m.id}')"><img src="${mediaSrc(m.id)}" alt=""></button>`).join('')}</div>`:'<div class="empty-state"><div class="icon">🖼️</div><h3>No media yet</h3><p>Add an image URL in Media Library first.</p></div>'}
+    <p style="font-size:12.5px;color:var(--ink-soft);">Choose an existing image or upload a new image from your phone/computer. Uploading will keep this picker open and apply the selected image to the current field.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;">
+      <label class="btn small media-upload-button">Upload from device
+        <input id="${pickerId}" type="file" accept="image/*" onchange="handleMediaPickerFile(this)">
+      </label>
+    </div>
+    <div id="media-picker-status" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;"></div>
+    ${MEDIA.length?`<div class="thumb-picker" style="gap:12px;">${MEDIA.map(m=>`<button type="button" class="t" style="width:90px;height:90px;padding:0;background:#fff;" onclick="selectMediaForField('${m.id}')"><img src="${mediaSrc(m.id)}" alt=""></button>`).join('')}</div>`:'<div class="empty-state"><div class="icon">🖼️</div><h3>No media yet</h3><p>Upload an image from your device or add an image URL first.</p></div>'}
     <div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal();MEDIA_PICKER_CALLBACK=null;">Cancel</button></div>`);
+}
+async function handleMediaPickerFile(input){
+  const file=input?.files?.[0];
+  if(!file)return;
+  const status=document.getElementById('media-picker-status');
+  if(status)status.textContent='Uploading image…';
+  input.disabled=true;
+  try{
+    const url=await uploadImageToSupabase(file);
+    await rememberMediaUrl(url,file.name||'image');
+    const cb=MEDIA_PICKER_CALLBACK;
+    MEDIA_PICKER_CALLBACK=null;
+    closeModal();
+    if(typeof cb==='function')cb(url);
+    toast('Image selected successfully ✓');
+  }catch(e){
+    console.error('Media picker upload failed:',e);
+    if(status)status.textContent='Upload failed. You can try again.';
+    toast('Image upload failed: '+(e.message||'Unknown error'));
+    input.disabled=false;
+    input.value='';
+  }
 }
 function selectMediaForField(id){
   const url=mediaSrc(id);
@@ -2520,7 +2701,7 @@ function adminImageControls(label,current,onSelectJs,previewId,extraNote=''){
     <input type="url" value="${esc(current||'')}" placeholder="Paste image URL..." onchange="if(this.value){const input=this;handleImageUrlInput(input,url=>{${onSelectJs};const p=document.getElementById('${safePreview}');if(p){p.src=url;p.style.display=url?'block':'none';}});}">
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
       
-      <button type="button" class="btn small ghost" onclick="openMediaPicker(url=>{${onSelectJs};const p=document.getElementById('${safePreview}');if(p){p.src=url;p.style.display='block';}})">Choose from Media Library</button>
+      <button type="button" class="btn small ghost" onclick="openMediaPicker(url=>{${onSelectJs};const p=document.getElementById('${safePreview}');if(p){p.src=url;p.style.display='block';}})">Choose from Media Library / Device</button>
     </div>
     <img id="${safePreview}" src="${current?mediaSrc(current):''}" style="max-width:180px;max-height:90px;object-fit:contain;border-radius:6px;margin-top:8px;${current?'':'display:none;'}">
     ${extraNote?`<div class="upload-note">${extraNote}</div>`:''}
@@ -2592,10 +2773,10 @@ function openProductModal(id){
             <input type="url" placeholder="Image URL yahan enter karein (https://...)" onchange="if(this.value){ handleImageUrlInput(this, url=>{ addProductImage('${p.id}', url, ${isNew}); this.value=''; }); }">
             
             <button type="button" class="btn small ghost" style="margin-top:8px;" onclick="openMediaPicker(url=>addProductImage('${p.id}',url,${isNew}))">Choose from Media Library</button>
-            <div id="product-img-list-${p.id}" class="thumb-picker" style="margin-top:10px;">
-              ${(p.images||[]).map(im=>`<div class="t ${p.mainImage===im?'sel':''}" onclick="setMainProductImage('${p.id}','${im}',${isNew})"><img src="${mediaSrc(im)}"></div>`).join('')}
+            <div id="product-img-list-${p.id}" class="product-image-editor">
+              ${renderProductImageEditor(p,isNew)}
             </div>
-            <div style="font-size:11.5px;margin-top:6px;">Click a thumbnail to set it as the main image.</div>
+            <div style="font-size:11.5px;margin-top:6px;">Click Set Main to choose the main image. Use ↑ / ↓ to change image number/order, or Delete to remove an image.</div>
             <div class="upload-note">For a clean, perfectly fitted product image, upload a square photo \u2014 recommended 800 x 800px (product on a plain background).</div>
           </div>
         </div>
@@ -2617,22 +2798,69 @@ function openProductModal(id){
   if(isNew){ window.__draftProduct = p; }
 }
 
-function addProductImage(pid, mediaId, isNew){
-  let p = isNew ? window.__draftProduct : PRODUCTS.find(x=>x.id===pid);
-  if(!p) return;
-  p.images = p.images||[];
-  p.images.push(mediaId);
-  if(!p.mainImage) p.mainImage = mediaId;
-  if(!isNew) saveKey(KEYS.products,PRODUCTS);
-  const list = document.getElementById('product-img-list-'+pid);
-  if(list){ list.innerHTML = p.images.map(im=>`<div class="t ${p.mainImage===im?'sel':''}" onclick="setMainProductImage('${pid}','${im}',${isNew})"><img src="${mediaSrc(im)}"></div>`).join(''); }
+function getProductImageDraft(pid,isNew){
+  return isNew ? window.__draftProduct : PRODUCTS.find(x=>x.id===pid);
 }
-
+function persistProductImageEdit(isNew){
+  if(!isNew) saveKey(KEYS.products,PRODUCTS);
+}
+function renderProductImageEditor(p,isNew){
+  const images=Array.isArray(p?.images)?p.images:[];
+  if(!images.length) return '<div style="grid-column:1/-1;color:var(--ink-soft);font-size:12px;padding:8px 0;">No images added yet.</div>';
+  return images.map((im,index)=>`
+    <div class="product-image-item ${p.mainImage===im?'is-main':''}">
+      <img src="${esc(mediaSrc(im))}" alt="Product image ${index+1}">
+      <span class="image-number">Image ${index+1}${p.mainImage===im?' · Main':''}</span>
+      <div class="image-tools">
+        <button type="button" onclick="setMainProductImage('${esc(p.id)}','${esc(im)}',${isNew})">Set Main</button>
+        <button type="button" onclick="moveProductImage('${esc(p.id)}',${index},-1,${isNew})" ${index===0?'disabled':''}>↑</button>
+        <button type="button" onclick="moveProductImage('${esc(p.id)}',${index},1,${isNew})" ${index===images.length-1?'disabled':''}>↓</button>
+        <button type="button" class="danger" onclick="deleteProductImage('${esc(p.id)}',${index},${isNew})">Delete</button>
+      </div>
+    </div>`).join('');
+}
+function refreshProductImageEditor(pid,isNew){
+  const p=getProductImageDraft(pid,isNew);
+  const list=document.getElementById('product-img-list-'+pid);
+  if(list&&p)list.innerHTML=renderProductImageEditor(p,isNew);
+}
+function addProductImage(pid, mediaId, isNew){
+  const p=getProductImageDraft(pid,isNew);
+  if(!p||!mediaId)return;
+  p.images=Array.isArray(p.images)?p.images:[];
+  if(!p.images.includes(mediaId))p.images.push(mediaId);
+  if(!p.mainImage)p.mainImage=mediaId;
+  persistProductImageEdit(isNew);
+  refreshProductImageEditor(pid,isNew);
+}
 function setMainProductImage(pid, mediaId, isNew){
-  let p = isNew ? window.__draftProduct : PRODUCTS.find(x=>x.id===pid);
-  if(!p) return; p.mainImage = mediaId;
-  const list = document.getElementById('product-img-list-'+pid);
-  if(list){ list.innerHTML = p.images.map(im=>`<div class="t ${p.mainImage===im?'sel':''}" onclick="setMainProductImage('${pid}','${im}',${isNew})"><img src="${mediaSrc(im)}"></div>`).join(''); }
+  const p=getProductImageDraft(pid,isNew);
+  if(!p)return;
+  p.images=Array.isArray(p.images)?p.images:[];
+  if(p.images.includes(mediaId))p.mainImage=mediaId;
+  persistProductImageEdit(isNew);
+  refreshProductImageEditor(pid,isNew);
+}
+function moveProductImage(pid,index,direction,isNew){
+  const p=getProductImageDraft(pid,isNew);
+  if(!p||!Array.isArray(p.images))return;
+  const next=index+direction;
+  if(index<0||next<0||index>=p.images.length||next>=p.images.length)return;
+  const [item]=p.images.splice(index,1);
+  p.images.splice(next,0,item);
+  persistProductImageEdit(isNew);
+  refreshProductImageEditor(pid,isNew);
+}
+function deleteProductImage(pid,index,isNew){
+  const p=getProductImageDraft(pid,isNew);
+  if(!p||!Array.isArray(p.images)||index<0||index>=p.images.length)return;
+  const removed=p.images[index];
+  if(!confirm('Delete Image '+(index+1)+' from this product?'))return;
+  p.images.splice(index,1);
+  if(p.mainImage===removed)p.mainImage=p.images[0]||null;
+  if(!p.images.length)p.mainImage=null;
+  persistProductImageEdit(isNew);
+  refreshProductImageEditor(pid,isNew);
 }
 
 function saveProductForm(pid, isNew){
@@ -2643,8 +2871,11 @@ function saveProductForm(pid, isNew){
   const originalPrice=Number(fd.get('originalPrice')||0), specialPrice=Number(fd.get('specialPrice')||originalPrice), stock=Math.max(0,Number(fd.get('stock')||0));
   if(originalPrice<0 || specialPrice<0 || specialPrice>originalPrice){ toast('Special price must be between 0 and original price.'); return; }
   const autoDiscount=originalPrice>0?Math.round((originalPrice-specialPrice)/originalPrice*100):0;
+  draft.images=Array.isArray(draft.images)?draft.images.filter(Boolean):[];
+  if(draft.mainImage && !draft.images.includes(draft.mainImage))draft.mainImage=draft.images[0]||null;
+  if(!draft.mainImage && draft.images.length)draft.mainImage=draft.images[0];
   Object.assign(draft, {
-    title, shortTitle: fd.get('shortTitle').trim(), sku: fd.get('sku').trim(),
+    title, shortTitle: fd.get('shortTitle').trim(),
     shortDesc: fd.get('shortDesc').trim(), fullDesc: fd.get('fullDesc').trim(),
     category: fd.get('category'), tags: fd.get('tags').split(',').map(t=>t.trim()).filter(Boolean),
     price:specialPrice, oldPrice:originalPrice, originalPrice, specialPrice, stock, deliveryCharges:Math.max(0,Number(fd.get('deliveryCharges')||0)),
@@ -2671,6 +2902,24 @@ function invoicePrintHTML(o,opts){const w=Math.max(50,Number(opts.width_mm)||210
 <style>
 .admin-stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.admin-stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}.admin-stat b{display:block;font-size:24px;margin-bottom:5px}.admin-stat span{font-size:12px;color:var(--ink-soft)}
 .product-promotion-title{animation:storexPromoIn .35s ease both}@keyframes storexPromoIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+</style>
+
+<style id="StoreXFinalRequestedStyles">
+@media (min-width:821px){
+  .mobile-toggle{display:inline-flex!important;font-size:26px!important;align-items:center;justify-content:center;}
+  .header-row{grid-template-columns:44px minmax(220px,1fr) auto auto!important;}
+  .header-row .search-wrap{grid-column:2!important;grid-row:1!important;padding-right:300px!important;}
+  .header-row .header-icons{grid-column:3!important;grid-row:1!important;}
+  .header-row .main-nav{grid-column:4!important;grid-row:1!important;}
+  .card-img{aspect-ratio:4/3!important;}
+  .card-img img{width:88%!important;height:88%!important;object-fit:contain!important;}
+  .flash{display:grid!important;grid-template-columns:minmax(280px,42%) minmax(0,58%)!important;grid-template-rows:1fr!important;height:230px!important;min-height:230px!important;aspect-ratio:auto!important;}
+  .flash-info{order:1!important;height:230px!important;padding:20px 24px!important;}
+  .flash-visual{order:2!important;height:230px!important;min-height:230px!important;aspect-ratio:auto!important;}
+}
+@media (max-width:820px){
+  .mobile-toggle{display:inline-flex!important;font-size:26px!important;line-height:1!important;color:var(--header-text)!important;visibility:visible!important;opacity:1!important;}
+}
 </style>
 </head><body><div class="paper"><div class="head">${logo?`<img class="logo" src="${esc(logo)}" alt="Logo">`:`<div class="brand">${esc(SETTINGS?.siteName||'StoreX')}</div>`}<div class="invoice-title"><h1>ORDER</h1><div><b>${orderNo}</b></div><div class="muted">${esc(created)}</div></div></div><div class="grid"><div class="box"><b>Customer</b>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}${o.customer_email?`<br>${esc(o.customer_email)}`:''}</div><div class="box"><b>Delivery Address</b>${esc(o.customer_address||'')}<br>${esc(o.city||'')}<br><span class="muted">Status: ${status}</span></div></div><table class="items"><thead><tr><th>Product</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead><tbody><tr><td>${title}</td><td>${sku}</td><td class="num">${qty}</td><td class="num">${moneyLocal(unit)}</td><td class="num">${moneyLocal(unit*qty)}</td></tr></tbody></table><div class="totals"><div><span>Original</span><b>${moneyLocal(original*qty)}</b></div>${discount>0?`<div><span>Discount</span><b>- ${moneyLocal(discount)}</b></div>`:''}<div><span>Delivery</span><b>${moneyLocal(delivery)}</b></div><div class="grand"><span>Total</span><span>${moneyLocal(total)}</span></div></div><div class="footer"><div class="owner">${owner}</div><div class="thanks">${thanks}</div><div class="small">Order No: ${orderNo}</div><div class="small" style="margin-top:3px">Save your order number to track, cancel, or return your order.</div></div></div></body></html>`;}
 async function openInvoiceEditor(id){const o=ORDERS.find(x=>String(x.id)===String(id));if(!o){toast('Order not found.');return;}await loadInvoiceSettings();const preset=invoicePreset(INVOICE_SETTINGS.ratio);showModal(`<h2>Invoice</h2><p style="margin-top:0;color:var(--ink-soft);">Choose the invoice ratio/size and edit the owner text. Then select <b>Save as PDF</b> in the browser print dialog.</p><div class="invoice-admin-grid"><div class="field"><label>Invoice ratio / size</label><select id="invoice-ratio" onchange="invoiceRatioChanged()"><option value="A4">A4 Portrait</option><option value="A5">A5 Portrait</option><option value="4:3">4:3</option><option value="3:2">3:2</option><option value="1:1">1:1</option><option value="Receipt">80mm Receipt</option><option value="5x7">5 × 7 in</option><option value="5x8">5 × 8 in</option><option value="6x7">6 × 7 in</option><option value="6x8">6 × 8 in</option><option value="6x9">6 × 9 in</option><option value="7x8">7 × 8 in</option><option value="7x9">7 × 9 in</option><option value="Custom">Custom</option></select></div><div class="field"><label>Owner name</label><input id="invoice-owner" value="${esc(INVOICE_SETTINGS.owner_name||'Asim Ali Asif')}"></div><div class="field"><label>Width (mm)</label><input id="invoice-width" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.width_mm)||preset[0]}"></div><div class="field"><label>Height (mm)</label><input id="invoice-height" type="number" min="50" step="1" value="${Number(INVOICE_SETTINGS.height_mm)||preset[1]}"></div><div class="field full"><label>Thank-you text</label><input id="invoice-thanks" value="${esc(INVOICE_SETTINGS.thank_you||'Thanks for the order')}"></div></div><div class="invoice-preview"><div class="invoice-mini-paper"><div class="invoice-mini-head"><div>${invoiceLogoUrl()?`<img class="invoice-mini-logo" src="${esc(invoiceLogoUrl())}">`:`<b>${esc(SETTINGS?.siteName||'StoreX')}</b>`}</div><div><b>INVOICE</b><br>${esc(o.order_number||'')}</div></div><b>${esc(o.product_title||'Product')}</b><div style="margin-top:5px">${esc(o.customer_name||'')} · Qty ${Number(o.quantity)||0}</div><div style="margin-top:8px;text-align:right;font-weight:800">Total: ${money(o.total_amount)}</div></div></div><p class="invoice-print-note">The PDF is generated in the browser, so invoice files do not need to be stored in Supabase.</p><div class="modal-close-row"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Save settings &amp; Print / PDF</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`);const sel=document.getElementById('invoice-ratio');if(sel)sel.value=INVOICE_SETTINGS.ratio||'A4';}
@@ -2703,7 +2952,28 @@ function invoicePreviewBody(o){
     const doc=new DOMParser().parseFromString(html,'text/html');
     const body=doc.body;
     const styles=[...doc.querySelectorAll('style')].map(x=>x.textContent).join('\n');
-    return `<style>${styles}</style><div class="invoice-detail-paper">${body.innerHTML.replace('<div class=\"paper\">','').replace(/<\/div>\s*$/, '')}</div>`;
+    return `<style>${styles}
+/* ===== Final StoreX UI fixes ===== */
+@media (min-width:821px){
+  /* Smaller product imagery on desktop Home / All Products / category grids. */
+  .grid .card-img{aspect-ratio:4/3 !important;max-height:230px;overflow:hidden;}
+  .grid .card-img img{width:100%;height:100%;object-fit:contain;}
+  .search-results-grid .card-img{aspect-ratio:4/3 !important;max-height:220px;}
+
+  /* Compact horizontal Flash Sale on desktop. */
+  .flash{grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr) !important;max-width:980px;margin-left:auto;margin-right:auto;min-height:220px !important;height:220px !important;aspect-ratio:auto !important;}
+  .flash-visual{height:220px !important;min-height:220px !important;}
+  .flash-info{padding:20px !important;}
+  .flash-info h3{font-size:21px !important;}
+
+  /* Hamburger sits immediately before the desktop search field. */
+  .header-row{grid-template-columns:44px minmax(220px,1fr) auto auto !important;}
+  .header-row .mobile-toggle{grid-column:1 !important;grid-row:1 !important;order:1 !important;display:inline-flex !important;font-size:26px !important;width:44px !important;height:44px !important;}
+  .header-row .search-wrap{grid-column:2 !important;grid-row:1 !important;padding-right:300px;}
+}
+/* Wishlist is intentionally available only on the individual Product page. */
+.card .wishlist-heart{display:none !important;}
+</style><div class="invoice-detail-paper">${body.innerHTML.replace('<div class=\"paper\">','').replace(/<\/div>\s*$/, '')}</div>`;
   }catch(e){ return '<div class="empty-state">Invoice preview could not be generated.</div>'; }
 }
 async function loadHtml2Canvas(){
@@ -3740,7 +4010,8 @@ function renderCartPage(){
   }
   const subtotal=lines.reduce((n,x)=>n+x.info.unit*x.line.qty,0);
   const productPromo=computeProductPromotionTotals(lines);
-  const coupon=getAppliedCoupon();
+  const appliedCoupon=getAppliedCoupon();
+  const coupon=appliedCoupon?findLoadedCoupon(appliedCoupon.code):null;
   const couponCalc=coupon?computeCouponDiscount(coupon,lines,subtotal):{discount:0,freeShipping:false};
   const delivery=(couponCalc.freeShipping||productPromo.freeShipping)?0:Number(SETTINGS?.deliveryCharge||SETTINGS?.defaultDeliveryCharge||0)||defaultDeliveryFee();
   const total=Math.max(0,subtotal-productPromo.discount-couponCalc.discount)+delivery;
@@ -3777,7 +4048,7 @@ function renderCartPage(){
         <div class="summary-row"><span>Delivery</span><span>${delivery?money(delivery):'FREE'}</span></div>
         <div class="summary-row total"><span>Total</span><span>${money(total)}</span></div>
         <div id="coupon-box">
-          <div class="coupon-row"><input id="coupon-input" type="text" placeholder="Enter coupon code" value="${esc(coupon?coupon.code:'')}" aria-label="Coupon code"><button type="button" class="btn small" onclick="applyCouponFromCart()">${coupon?'Update':'Apply'}</button>${coupon?`<button type="button" class="btn small ghost" onclick="removeCouponFromCart()">Remove</button>`:''}</div>
+          <div class="coupon-row"><input id="coupon-input" type="text" placeholder="Enter coupon code" value="${esc(appliedCoupon?appliedCoupon.code:'')}" aria-label="Coupon code"><button type="button" class="btn small" onclick="applyCouponFromCart()">${appliedCoupon?'Update':'Apply'}</button>${appliedCoupon?`<button type="button" class="btn small ghost" onclick="removeCouponFromCart()">Remove</button>`:''}</div>
           <div id="coupon-msg" class="coupon-msg"></div>
         </div>
         <a href="#/checkout" class="btn" style="width:100%;justify-content:center;margin-top:12px;">Proceed to Checkout</a>
@@ -3859,17 +4130,23 @@ function findLoadedCoupon(code){
 }
 async function loadCoupons(){
   COUPON_LOAD_ERROR='';
-  if(!supabaseClient||!SUPABASE_READY){ COUPONS=[]; return; }
+  COUPONS=[];
+  if(!supabaseClient||!SUPABASE_READY){
+    COUPON_LOAD_ERROR='Supabase is not ready yet.';
+    return;
+  }
   try{
-    const {data,error}=await supabaseClient
-      .from('storex_coupons')
-      .select('*')
-      .eq('active',true);
+    const {data,error}=await supabaseClient.from('storex_coupons').select('*').order('created_at',{ascending:false});
     if(error) throw error;
-    COUPONS=Array.isArray(data)?data:[];
+    const rows=Array.isArray(data)?data:[];
+    const isActive=v=>v===true || v===1 || String(v??'').trim().toLowerCase().match(/^(true|1|t|yes|on|active)$/);
+    COUPONS=rows.filter(c=>c && isActive(c.active));
+    // Keep the raw rows available when a database uses a different active representation.
+    if(!COUPONS.length && rows.length){
+      COUPONS=rows.filter(c=>c && c.active!==false && String(c.active??'').trim().toLowerCase()!=='false');
+    }
   }catch(e){
     console.warn('StoreX coupons read failed:',e);
-    COUPONS=[];
     COUPON_LOAD_ERROR=e?.message||'Unable to read coupons from Supabase.';
   }
 }
@@ -3932,7 +4209,8 @@ async function validateCoupon(code, lines, subtotal){
 
   const coupon=findLoadedCoupon(code);
   if(!coupon) return {ok:false,message:'This coupon code does not exist.'};
-  if(coupon.active===false) return {ok:false,message:'This coupon is not active.'};
+  const couponActive=!(coupon.active===false || ['false','0','off','inactive','no'].includes(String(coupon.active??'').trim().toLowerCase()));
+  if(!couponActive) return {ok:false,message:'This coupon is not active.'};
 
   const now=Date.now();
   if(coupon.starts_at && new Date(coupon.starts_at).getTime()>now) return {ok:false,message:'This coupon is not active yet.'};
@@ -4192,18 +4470,17 @@ function renderMobileDrawer(){
   const built=[
     {label:'Home',url:'#/'},
     {label:'All Products',url:'#/category/all'},
+    {label:'All Categories',url:'#/all-categories'},
     {label:'Flash Sale',url:'#/flash-sale'},
     {label:'Wishlist',url:'#/wishlist'},
     {label:'Cart',url:'#/cart'},
     {label:'Track Your Order',url:'#/track-order'}
   ];
-  const cats=CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0));
-  const categoryMenu=cats.length?`<details class="mobile-category-group"><summary>All Categories <span>⌄</span></summary><div>${cats.map(c=>`<a href="#/category/${esc(c.slug)}" onclick="MOBILE_DRAWER_OPEN=false;">${esc(c.name)}</a>`).join('')}</div></details>`:'';
   const seen=new Set();
   const makeLinks=items=>items.filter(n=>n&&n.label&&n.url).filter(n=>{const k=String(n.url)+'|'+String(n.label);if(seen.has(k))return false;seen.add(k);return true;}).map(n=>`<a href="${esc(n.url)}" ${n.newTab?'target="_blank" rel="noopener"':''} onclick="MOBILE_DRAWER_OPEN=false;">${esc(n.label)}</a>`).join('');
   const fixedLinks=makeLinks(built);
   const bottomLinks=makeLinks([...hamburgerPages,...configured]);
-  return `<div class="mobile-drawer open" onclick="if(event.target===this){MOBILE_DRAWER_OPEN=false;render();}"><div class="mobile-drawer-panel"><button class="mobile-drawer-close" onclick="MOBILE_DRAWER_OPEN=false;render();">&times;</button><div style="clear:both;height:8px;"></div>${fixedLinks}${categoryMenu}${bottomLinks}</div></div>`;
+  return `<div class="mobile-drawer open" onclick="if(event.target===this){MOBILE_DRAWER_OPEN=false;render();}"><div class="mobile-drawer-panel"><button class="mobile-drawer-close" onclick="MOBILE_DRAWER_OPEN=false;render();">&times;</button><div style="clear:both;height:8px;"></div>${fixedLinks}${bottomLinks}</div></div>`;
 }
 
 /* Guest checkout only. No account/default-address/login logic remains. */
@@ -4382,6 +4659,63 @@ boot().catch(function(err){
     app.innerHTML='<div style=\"min-height:50vh;display:grid;place-items:center;padding:24px;font-family:Arial,sans-serif;background:#fff;color:#1f2328;text-align:center\"><div><h2 style=\"margin:0 0 8px\">Store is temporarily unavailable</h2><p style=\"margin:0;color:#666\">Please refresh once your internet connection is restored.</p></div></div>';
   }
 });
+</script>
+
+<style id="StoreXLatestRequestedFixes">
+/* Latest requested storefront fixes only */
+@media (min-width:821px){
+  /* ---- Desktop header: logo, search bar and icons each get their own column so the
+     logo no longer floats on top of / splits the search bar. ---- */
+  .header-row{grid-template-columns:44px auto minmax(200px,1fr) auto auto!important;column-gap:18px!important;}
+  .header-row .mobile-toggle{grid-column:1!important;grid-row:1!important;display:inline-flex!important;font-size:26px!important;visibility:visible!important;opacity:1!important;}
+  .header-row .logo-wrap{position:static!important;left:auto!important;top:auto!important;transform:none!important;grid-column:2!important;grid-row:1!important;justify-content:flex-start!important;}
+  .header-row .logo-wrap img{width:auto!important;max-width:150px!important;max-height:44px!important;}
+  .header-row .search-wrap{grid-column:3!important;grid-row:1!important;padding-right:0!important;}
+  .header-row .main-nav{grid-column:4!important;grid-row:1!important;justify-self:end!important;display:flex!important;order:0!important;}
+  .header-row .header-icons{grid-column:5!important;grid-row:1!important;justify-self:end!important;display:flex!important;order:0!important;}
+
+  /* Compact the entire product-card image area on Home / All Products / Search so more
+     items are visible per screen and the page is easier to scroll. */
+  .grid .card-img,.search-results-grid .card-img{height:120px!important;min-height:120px!important;max-height:120px!important;aspect-ratio:auto!important;background:#F2F0EB!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important;}
+  .grid .card-img img,.search-results-grid .card-img img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;display:block!important;}
+  .grid .card,.search-results-grid .card{min-height:0!important;}
+  .grid .card-body{padding:8px 10px 10px!important;gap:4px!important;}
+  .grid .card-title{font-size:12.5px!important;min-height:2.15em!important;}
+  /* Narrower product cards on Home page sections too (Featured Deals, Trending Now, etc.)
+     — same 4-column desktop width as All Products/Search, instead of the wider admin-set
+     2/3-column layout that was left untouched before. */
+  .grid,.search-results-grid{grid-template-columns:repeat(6,1fr)!important;gap:12px!important;}
+
+  /* Smaller category section: shorter icons, more per row, tighter footprint. */
+  :root{--cat-media-height:78px!important;}
+  .cat-grid{grid-template-columns:repeat(6,1fr)!important;gap:10px!important;}
+  .cat-card{padding:6px!important;}
+  .cat-name{font-size:11.5px!important;padding:6px 2px 0!important;}
+
+  /* Smaller Home hero/product banner. */
+  .hero{height:270px!important;min-height:270px!important;max-height:270px!important;}
+  .hero-inner{min-height:270px!important;height:270px!important;}
+}
+@media (max-width:820px){
+  .mobile-toggle{display:inline-flex!important;visibility:visible!important;opacity:1!important;font-size:26px!important;line-height:1!important;width:44px!important;height:44px!important;z-index:10010!important;color:var(--header-text)!important;}
+}
+</style>
+<script>
+(function(){
+  function fixCouponLoading(){
+    if(typeof loadAdminCoupons!=='function') return;
+    const old=loadAdminCoupons;
+    window.loadAdminCoupons=async function(){
+      if(!supabaseClient||!SUPABASE_READY){ADMIN_COUPONS=[];return;}
+      try{
+        const r=await supabaseClient.from('storex_coupons').select('*').order('created_at',{ascending:false});
+        if(r.error) throw r.error;
+        ADMIN_COUPONS=Array.isArray(r.data)?r.data:[];
+      }catch(e){console.warn('StoreX coupon load failed:',e);ADMIN_COUPONS=[];}
+    };
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fixCouponLoading); else fixCouponLoading();
+})();
 </script>
 </body>
 </html>
