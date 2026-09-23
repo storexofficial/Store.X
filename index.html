@@ -328,6 +328,21 @@ img{max-width:100%;display:block;}
 
 /* ---------- Product Grid / Card ---------- */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+/* Spotlight Desktop Height */
+@media (min-width:721px){
+  .spotlight-card .spotlight-img{
+    height:270px !important;
+    aspect-ratio:auto !important;
+  }
+}
+
+/* Spotlight Mobile Height */
+@media (max-width:720px){
+  .spotlight-card .spotlight-img{
+    height:200px !important;
+    aspect-ratio:auto !important;
+  }
+}
 .grid.cols-2{grid-template-columns:repeat(2,1fr);}
 .grid.cols-3{grid-template-columns:repeat(3,1fr);}
 .grid.cols-4{grid-template-columns:repeat(4,1fr);}
@@ -778,6 +793,7 @@ website hosting (not inside the HTML):
 .StoreX-loading-content p{margin:0 0 20px;font:500 clamp(15px,2.5vw,20px)/1.4 Arial,sans-serif;}
 .StoreX-loading-shop{border:0;border-radius:7px;background:#F6A15A;color:#fff;padding:12px 24px;font:700 15px Arial,sans-serif;cursor:pointer;box-shadow:0 5px 18px rgba(0,0,0,.16);}
 @media(max-width:700px){.StoreX-loading-hero{background-image:url("https://i.ibb.co/FL22c0Nw/file-000000002b24824386351d44be0c160c.png");background-position:center top}.StoreX-loading-logo{width:min(280px,78vw);max-height:90px}.StoreX-loading-content{padding:24px 16px}.StoreX-loading-content h1{font-size:32px}.StoreX-loading-content p{font-size:15px}.StoreX-loading-shop{padding:11px 22px;}}
+}
 </style>
 <script>(function(){try{const r=location.hash.replace(/^#/,'')||'/';const el=document.getElementById('StoreX-loading-text');if(!el)return;if(r.startsWith('/p/')||r.startsWith('/product/'))el.textContent='Please wait, the product is loading.';else if(r.startsWith('/f/')||r.startsWith('/flash-sale/'))el.textContent='Please wait, the flash sale is loading.';}catch(_){}})();</script><div id="app"></div>
 <script>
@@ -892,8 +908,25 @@ async function trackProductEvent(productId,eventType){
   const type=eventType==='click'?'click':'view';
   if(!id||!supabaseClient||!SUPABASE_READY)return;
   try{
-    const {data,error}=await supabaseClient.rpc('storex_track_product_event',{p_product_id:id,p_event_type:type});
-    if(error)throw error;
+    let data=null;
+    const rpc=await supabaseClient.rpc('storex_track_product_event',{p_product_id:id,p_event_type:type});
+    if(!rpc.error){
+      data=Array.isArray(rpc.data)?rpc.data[0]:rpc.data;
+    }else{
+      // Fallback for databases where the RPC migration has not been installed.
+      const {data:row,error:readError}=await supabaseClient.from('storex_product_analytics')
+        .select('product_id,views,clicks,updated_at').eq('product_id',id).maybeSingle();
+      if(readError)throw readError;
+      const next={
+        product_id:id,
+        views:Math.max(0,Number(row?.views)||0)+(type==='view'?1:0),
+        clicks:Math.max(0,Number(row?.clicks)||0)+(type==='click'?1:0),
+        updated_at:new Date().toISOString()
+      };
+      const {error:writeError}=await supabaseClient.from('storex_product_analytics').upsert(next,{onConflict:'product_id'});
+      if(writeError)throw writeError;
+      data=next;
+    }
     if(data&&data.product_id){
       PRODUCT_ANALYTICS[String(data.product_id)]={views:Number(data.views)||0,clicks:Number(data.clicks)||0,updated_at:data.updated_at};
       const p=PRODUCTS.find(x=>String(x.id)===id);
@@ -1084,14 +1117,15 @@ async function loadKey(key,fallback){
   }
 }
 
-async function saveKey(key,val){
+async function saveKey(key,val,options={}){
   if(!SUPABASE_READY){ toast('Supabase is not connected. Change was not saved.'); return false; }
   if(!SUPABASE_ADMIN){ toast('Admin session required. Please log in again.'); return false; }
   const cloudKey=SUPA_SETTING_KEYS[key.replace('storex-','').replace('-v2','')]||key;
   try{
     const {error}=await supabaseClient.from('sx_settings').upsert({key:cloudKey,value:JSON.parse(JSON.stringify(val)),updated_at:new Date().toISOString()},{onConflict:'key'});
     if(error) throw error;
-    applyTheme(); render();
+    applyTheme();
+    if(!options.silent) render();
     return true;
   }catch(e){
     console.error('StoreX cloud save failed:',e);
@@ -2861,7 +2895,7 @@ function getProductImageDraft(pid,isNew){
   return isNew ? window.__draftProduct : PRODUCTS.find(x=>x.id===pid);
 }
 function persistProductImageEdit(isNew){
-  if(!isNew) saveKey(KEYS.products,PRODUCTS);
+  if(!isNew) saveKey(KEYS.products,PRODUCTS,{silent:true});
 }
 function renderProductImageEditor(p,isNew){
   const images=Array.isArray(p?.images)?p.images:[];
