@@ -461,6 +461,37 @@ img{max-width:100%;display:block;}
 @media (max-width:820px){.pd-grid{grid-template-columns:1fr;gap:20px;}}
 .pd-main-img{background:#F2F0EB;border-radius:10px;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 .pd-main-img img{width:100%;height:100%;object-fit:contain;}
+
+/* ===== Home product rows: horizontal scroll ===== */
+.h-scroll-wrap{position:relative;}
+.h-scroll{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding:2px 2px 10px;scrollbar-width:thin;}
+.h-scroll::-webkit-scrollbar{height:6px;}
+.h-scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px;}
+.h-scroll > .card{flex:0 0 190px;width:190px;scroll-snap-align:start;}
+.h-scroll > .card .card-img{height:auto!important;max-height:none!important;min-height:0!important;aspect-ratio:1/1!important;}
+.h-scroll > .card .card-img img{width:100%!important;height:100%!important;object-fit:cover!important;}
+.h-scroll > .card .card-title{font-size:13px!important;min-height:2.5em!important;}
+.h-scroll > .card .price{font-size:15px!important;}
+@media (max-width:720px){.h-scroll{gap:8px;}.h-scroll > .card{flex-basis:42vw;width:42vw;max-width:190px;}}
+.hs-btn{display:none;position:absolute;top:38%;z-index:5;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:20px;line-height:1;cursor:pointer;color:var(--ink);align-items:center;justify-content:center;padding:0;}
+.hs-btn.prev{left:-10px;}.hs-btn.next{right:-10px;}
+@media (min-width:821px) and (hover:hover){.h-scroll-wrap:hover .hs-btn{display:flex;}}
+.cat-showcase-group .h-scroll-wrap{margin-top:0;}
+
+/* ===== Product page: swipeable image slider + clamped description ===== */
+.pd-grid > div{min-width:0;}
+.pd-slider-wrap{position:relative;}
+.pd-slider{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;background:#F2F0EB;border-radius:10px;scrollbar-width:none;}
+.pd-slider::-webkit-scrollbar{display:none;}
+.pd-slide{flex:0 0 100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.pd-slide img{width:100%;height:100%;object-fit:cover;display:block;}
+.pd-slide-count{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;pointer-events:none;}
+.pd-arrow{display:none;position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.92);font-size:22px;line-height:1;cursor:pointer;align-items:center;justify-content:center;padding:0;color:var(--ink);}
+.pd-arrow.prev{left:8px;}.pd-arrow.next{right:8px;}
+@media (min-width:821px) and (hover:hover){.pd-slider-wrap:hover .pd-arrow{display:flex;}}
+.pd-desc.clamped{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;}
+.pd-more-btn{display:none;background:none;border:0;padding:0;margin:-6px 0 12px;color:var(--primary);font-weight:700;font-size:14px;cursor:pointer;}
+.pd-more-btn.show{display:inline-block;}
 .pd-thumbs{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
 .pd-thumbs img{width:60px;height:60px;object-fit:cover;border-radius:6px;border:1.5px solid var(--line);cursor:pointer;}
 .pd-thumbs img.active{border-color:var(--primary);}
@@ -2153,6 +2184,7 @@ function render(){
     initFlashCarousels();
     initFlashVisuals();
     initLazyMedia();
+    initProductDesc();
   }catch(err){
     console.error('StoreX render error:',err);
     safeRenderFallback('Please wait while the store is loading.');
@@ -2503,13 +2535,53 @@ function filteredProducts(filter){
   else if(filter==='bestSeller') list = list.filter(p=>p.bestSeller);
   return list.sort((a,b)=>(a.order||0)-(b.order||0));
 }
+function renderProductScroller(list){
+  return `<div class="h-scroll-wrap"><button type="button" class="hs-btn prev" aria-label="Scroll left" onclick="hScrollBy(this,-1)">&#8249;</button><div class="h-scroll">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div><button type="button" class="hs-btn next" aria-label="Scroll right" onclick="hScrollBy(this,1)">&#8250;</button></div>`;
+}
+function hScrollBy(btn,dir){
+  const sc=btn.parentElement.querySelector('.h-scroll'); if(!sc)return;
+  sc.scrollBy({left:dir*Math.max(200,sc.clientWidth*0.8),behavior:'smooth'});
+}
+function pdSlider(){return document.getElementById('pd-slider');}
+function pdGoImg(i){
+  const sl=pdSlider(); if(!sl)return;
+  sl.scrollTo({left:i*sl.clientWidth,behavior:'smooth'});
+}
+function pdStepImg(dir){
+  const sl=pdSlider(); if(!sl)return;
+  const n=sl.children.length, cur=Math.round(sl.scrollLeft/Math.max(1,sl.clientWidth));
+  pdGoImg(Math.max(0,Math.min(n-1,cur+dir)));
+}
+document.addEventListener('scroll',function(e){
+  const sl=e.target;
+  if(!sl||sl.id!=='pd-slider')return;
+  const i=Math.round(sl.scrollLeft/Math.max(1,sl.clientWidth));
+  document.querySelectorAll('.pd-thumbs img').forEach((t,k)=>t.classList.toggle('active',k===i));
+  const c=document.getElementById('pd-slide-count'); if(c)c.textContent=(i+1)+' / '+sl.children.length;
+},true);
+function togglePdDesc(btn){
+  const d=document.getElementById('pd-desc'); if(!d)return;
+  const open=d.classList.toggle('clamped')===false;
+  btn.textContent=open?'Less':'More';
+}
+function initProductDesc(){
+  const d=document.getElementById('pd-desc'), b=document.getElementById('pd-more-btn');
+  if(!d||!b)return;
+  d.classList.add('clamped');
+  b.textContent='More';
+  b.classList.toggle('show', d.scrollHeight>d.clientHeight+1);
+}
+window.addEventListener('resize',function(){
+  const d=document.getElementById('pd-desc'), b=document.getElementById('pd-more-btn');
+  if(d&&b&&d.classList.contains('clamped'))b.classList.toggle('show', d.scrollHeight>d.clientHeight+1);
+});
 function renderRecentlyViewedSection(sec){
   const cfg=sec.config||{count:6,layout:'grid',columns:3};
   const all=recentlyViewedProducts(50);
-  const list=all.slice(0,3);
+  const list=all;
   if(!list.length)return '';
   const cols=[2,3,4].includes(Number(cfg.columns))?Number(cfg.columns):3;
-  return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Recently Viewed')}</h2><p>${esc(sec.subtitle||'Products you recently viewed')}</p></div>${all.length>list.length?`<a href="#/recently-viewed">View all</a>`:''}</div><div class="grid cols-${cols}">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div></section>`;
+  return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Recently Viewed')}</h2><p>${esc(sec.subtitle||'Products you recently viewed')}</p></div><a href="#/recently-viewed">View all</a></div>${renderProductScroller(list)}</section>`;
 }
 
 /* ---------- Randomization helpers (homepage previews only) ---------- */
@@ -2554,7 +2626,7 @@ function renderCollectionSection(sec){
     </div></section>`;
   }
   const eligible = filteredProducts(cfg.filter);
-  const list = getRandomProducts(eligible, 3);
+  const list = eligible;
   if(!list.length){
     return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title)}</h2><p>${esc(sec.subtitle||'')}</p></div></div>
     <div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">\u{1F6CD}</div><div style="font-size:14px;font-weight:700;color:var(--ink-soft);padding:12px 0;">Products are loading.</div></div></section>`;
@@ -2562,7 +2634,7 @@ function renderCollectionSection(sec){
   const cols = [2,3,4].includes(Number(cfg.columns)) ? Number(cfg.columns) : 3;
   const viewAllHref = collectionViewAllHref(cfg.filter);
   return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title)}</h2><p>${esc(sec.subtitle||'')}</p></div><a href="${viewAllHref}">View all</a></div>
-  <div class="grid cols-${cols}">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div></section>`;
+  ${renderProductScroller(list)}</section>`;
 }
 
 function renderCategoryShowcaseSection(sec){
@@ -2571,11 +2643,11 @@ function renderCategoryShowcaseSection(sec){
   if(cfg.categoryId) cats=cats.filter(c=>c.id===cfg.categoryId);
   const groups=cats.map(c=>{
     const eligible=PRODUCTS.filter(p=>p.status==='published'&&p.category===c.id&&Math.max(0,Number(p.stock)||0)>0);
-    const list=getRandomProducts(eligible,3);
+    const list=eligible.slice().sort((a,b)=>(a.order||0)-(b.order||0));
     if(!list.length)return '';
     return `<div class="cat-showcase-group">
       <div class="cat-showcase-head"><h3>${esc(c.name)}</h3><a href="#/category/${esc(c.slug||slugify(c.name))}">View All</a></div>
-      <div class="grid cols-3">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div>
+      ${renderProductScroller(list)}
     </div>`;
   }).filter(Boolean).join('');
   if(!groups)return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Products by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div>${cfg.categoryId?`<a href="#/category/${esc((CATEGORIES.find(c=>c.id===cfg.categoryId)||{}).slug||'')}">View Category</a>`:''}</div><div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">📂</div><h3>No products in the selected category yet</h3></div></section>`;
@@ -2659,12 +2731,12 @@ function storexBaseRenderProductPage(key){
     <div class="crumb"><a href="#/">Home</a> / ${cat?`<a href="#/category/${esc(cat.slug)}">${esc(cat.name)}</a> / `:''}${esc(p.shortTitle||p.title)}</div>
     <div class="pd-grid">
       <div>
-        <div class="pd-main-img">${main?`<img src="${mediaSrc(main)}" alt="${esc(p.title)}">`:''}</div>
-        ${images.length>1?`<div class="pd-thumbs">${images.map((im,i)=>`<img src="${mediaSrc(im)}" class="${i===PD_ACTIVE_IMG?'active':''}" onclick="PD_ACTIVE_IMG=${i};render();">`).join('')}</div>`:''}
+        ${images.length?`<div class="pd-slider-wrap"><div class="pd-slider" id="pd-slider">${images.map((im,i)=>`<div class="pd-slide"><img src="${mediaSrc(im)}" alt="${esc(p.title)}${images.length>1?' - image '+(i+1):''}" ${i===0?'':'loading="lazy"'} decoding="async" draggable="false"></div>`).join('')}</div>${images.length>1?`<button type="button" class="pd-arrow prev" aria-label="Previous image" onclick="pdStepImg(-1)">&#8249;</button><button type="button" class="pd-arrow next" aria-label="Next image" onclick="pdStepImg(1)">&#8250;</button><div class="pd-slide-count" id="pd-slide-count">1 / ${images.length}</div>`:''}</div>`:`<div class="pd-main-img"></div>`}
+        ${images.length>1?`<div class="pd-thumbs">${images.map((im,i)=>`<img src="${mediaSrc(im)}" class="${i===0?'active':''}" alt="" onclick="pdGoImg(${i})">`).join('')}</div>`:''}
       </div>
       <div>
         <h1 class="pd-title">${esc(p.title)}</h1>
-        <div class="pd-desc">${esc(p.fullDesc||p.shortDesc||'')}</div>
+        <div class="pd-desc clamped" id="pd-desc">${esc(p.fullDesc||p.shortDesc||'')}</div><button type="button" class="pd-more-btn" id="pd-more-btn" onclick="togglePdDesc(this)">More</button>
         ${p.tags&&p.tags.length?`<div class="pd-tags">${p.tags.map(t=>`<span class="tag-pill">${esc(t)}</span>`).join('')}</div>`:''}${p.promotion&&p.promotion.title?`<div class="product-promotion-title" style="margin:12px 0;padding:11px 14px;border-radius:10px;background:linear-gradient(135deg,#fff3e8,#fff9f3);border:1px solid #ffd6b5;color:var(--primary-dark);font-weight:800;">🔥 ${esc(p.promotion.title)}</div>`:''}
         <div style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><strong class="price">${money(Number(p.specialPrice??p.price)||0)}</strong>${Number(p.originalPrice??p.oldPrice)>Number(p.specialPrice??p.price)?`<del style="color:var(--ink-soft);">${money(Number(p.originalPrice??p.oldPrice))}</del>`:''}</div><p id="pd-delivery-info" style="font-size:13px;color:var(--ink-soft);">Delivery: ${Number(p.deliveryCharges)||0?money(Number(p.deliveryCharges)): 'FREE'} · Stock: ${stock>0?stock+' available':'Out of stock'}</p>
         ${stock>0?`<div style="display:flex;align-items:center;gap:12px;margin:6px 0 8px;"><span style="font-size:13px;font-weight:700;">Quantity</span><div class="qty-stepper" id="pd-qty-stepper"><button type="button" aria-label="Decrease quantity" onclick="pdChangeQty(-1,${stock},'${esc(p.id)}')">−</button><span id="pd-qty">1</span><button type="button" aria-label="Increase quantity" onclick="pdChangeQty(1,${stock},'${esc(p.id)}')">+</button></div></div><div style="font-size:13px;color:var(--ink-soft);margin:0 0 4px;">Products total: <strong id="pd-total-price" data-unit-price="${Number(p.specialPrice??p.price)||0}">${money(Number(p.specialPrice??p.price)||0)}</strong></div><div id="pd-promo-status" style="font-size:12.5px;color:var(--primary-dark);font-weight:700;margin:0 0 10px;">${(()=>{const c=calculateOrder(p,1);const parts=[];if(c.promotionDiscount>0)parts.push((Number(p.promotion?.percentOff)||0)+'% off — '+money(c.promotionDiscount)+' saved');if(c.delivery===0&&Number(p.deliveryCharges||0)>0&&p.promotion?.freeDelivery)parts.push('Delivery is FREE');if(c.bonusQuantity>0)parts.push('Buy '+(p.promotion?.buyQty||'')+' Get '+(p.promotion?.freeQty||'')+' Free');return parts.length?'Promotion applied: '+parts.join(' • '):'';})()}</div>`:''}        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;">
