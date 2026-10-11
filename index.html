@@ -4168,9 +4168,14 @@ function adminMedia(){
   <div class="admin-card">
     <div class="upload-box">
       <input type="url" id="media-url-input" placeholder="Image URL yahan enter karein (https://...)" onkeydown="if(event.key==='Enter'){event.preventDefault();addMediaByUrl();}">
-      <button type="button" class="btn small" style="margin-top:8px;" onclick="addMediaByUrl()">+ Add Image URL</button>
-      
-      <div class="upload-note">Paste an image URL and click "Add Image URL" to save it to your library for reuse across the site.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        <button type="button" class="btn small" onclick="addMediaByUrl()">+ Add Image URL</button>
+        <label class="btn small ghost media-upload-button">Upload from device
+          <input id="media-library-device-input" type="file" accept="image/*" multiple onchange="handleMediaLibraryUpload(this)">
+        </label>
+      </div>
+      <div id="media-library-status" style="font-size:12px;color:var(--ink-soft);margin-top:8px;"></div>
+      <div class="upload-note">Paste an image URL and click "Add Image URL", or upload one or more images from your device. They are saved to your library for reuse across the site.</div>
     </div>
   </div>
   <div class="admin-card">
@@ -4192,6 +4197,32 @@ async function addMediaByUrl(){
   await saveKey(KEYS.media,MEDIA);
   input.value='';
   toast('Image added to Media Library ✓');
+}
+
+async function handleMediaLibraryUpload(input){
+  const files=Array.from(input?.files||[]).filter(f=>f.type&&f.type.startsWith('image/'));
+  if(!files.length){toast('Please choose image files');if(input)input.value='';return;}
+  const status=document.getElementById('media-library-status');
+  input.disabled=true;
+  let done=0,failed=0;
+  for(const file of files){
+    if(status)status.textContent='Uploading '+(done+failed+1)+' of '+files.length+'…';
+    try{
+      const url=await uploadImageToSupabase(file);
+      if(!Array.isArray(MEDIA))MEDIA=[];
+      MEDIA.push({id:uid(),name:file.name||'image',dataUrl:url,publicUrl:url});
+      done++;
+    }catch(e){
+      console.error('Media library upload failed:',e);
+      failed++;
+    }
+  }
+  if(done){ await saveKey(KEYS.media,MEDIA); }
+  toast(done?(done+' image'+(done===1?'':'s')+' added to Media Library ✓'+(failed?' ('+failed+' failed)':'')):'Image upload failed');
+  const st=document.getElementById('media-library-status');
+  if(st&&!done)st.textContent='Upload failed. Please try again.';
+  const inp=document.getElementById('media-library-device-input');
+  if(inp){inp.disabled=false;inp.value='';}
 }
 
 function deleteMedia(id){
