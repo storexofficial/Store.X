@@ -1866,6 +1866,10 @@ async function trackOrder(){
     const {data,error}=await supabaseClient.rpc('storex_track_order',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone});
     if(error)throw error;
     if(!data||data.found===false) throw new Error('Order not found or verification details do not match.');
+    try{
+      const rs=await supabaseClient.rpc('storex_get_order_request_status',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone});
+      if(rs&&!rs.error&&rs.data&&typeof rs.data==='object'&&!Array.isArray(rs.data)) Object.assign(data,rs.data);
+    }catch(_){}
     result.innerHTML=renderTrackedOrder(data);
   }catch(e){result.innerHTML=`<div class="customer-card trk-fail"><b>Unable to verify this order.</b><p style="margin:6px 0 0;color:var(--ink-soft);">${esc(e.message||'Please check your order number, name and phone number.')}</p></div>`;}
   finally{if(btn){btn.disabled=false;btn.textContent='Track Order';}}
@@ -1876,19 +1880,19 @@ function renderTrackTimeline(o,status){
   const rank={pending:0,confirmed:1,ready_to_ship:2,shipped:3,delivered:4,return_requested:4,returned:4};
   const cur=rank[status]!=null?rank[status]:0;
   const items=steps.map((st,i)=>{const cls=i<cur||(i===cur&&status==='delivered')?'done':i===cur?'current':'';const when=i===0&&o.created_at?`<small>${esc(new Date(o.created_at).toLocaleString())}</small>`:'';return `<li class="${cls}"${cls==='current'?' aria-current="step"':''}><span class="trk-dot">${cls==='done'?'✓':i+1}</span><div><b>${st[0]}</b>${when}</div></li>`;}).join('');
-  const extra=status==='return_requested'?'<div class="trk-alert">Return requested — awaiting confirmation.</div>':status==='returned'?'<div class="trk-alert off">This order has been returned.</div>':'';
+  const extra=status==='return_requested'?'<div class="trk-alert">Return requested — awaiting admin approval.</div>':status==='returned'?'<div class="trk-alert off">This order has been returned.</div>':'';
   return `<ol class="trk-steps" aria-label="Order progress">${items}</ol>${extra}`;
 }
 function renderTrackedOrder(o){
-  const status=String(o.status||'pending').toLowerCase(), canCancel=customerCanCancelStatus(status), canReturn=customerCanRequestReturn(o) && !o.return_requested_at && status!=='returned';
-  const statusNote=status==='ready_to_ship'?'Your order is ready to ship. Customer cancellation is no longer available at this stage.':status==='shipped'?'Your order has been shipped.':status==='delivered'?(canReturn?'Your order was delivered. You have 7 days from delivery to request a return.':'The 7-day return window has ended or a return request is already recorded.') :status==='return_requested'?'Your return request has been received. We will contact you to confirm the return.':status==='returned'?'This order has been marked as returned.':'Your order is being processed.';
-  return `<div class="customer-card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;"><div><h2 style="margin:0;">Order ${esc(o.order_number||'')}</h2><p style="margin:5px 0;color:var(--ink-soft);">${esc(o.product_title||'')}</p></div><span class="badge-status ${status==='confirmed'||status==='ready_to_ship'||status==='shipped'||status==='delivered'?'on':status==='cancelled'||status==='returned'?'off':''}">${esc(formatOrderStatus(status))}</span></div>${renderTrackTimeline(o,status)}<div class="trk-grid"><div class="trk-box"><h3>Order summary</h3>${o.product_image?`<img class="trk-thumb" src="${esc(o.product_image)}" alt="" loading="lazy" onerror="this.remove()">`:''}<dl class="trk-dl"><dt>Placed on</dt><dd>${o.created_at?esc(new Date(o.created_at).toLocaleString()):'—'}</dd><dt>Quantity</dt><dd>${Number(o.quantity)||0}</dd>${o.unit_price!=null?`<dt>Unit price</dt><dd>${money(o.unit_price)}</dd>`:''}${Number(o.discount_amount)>0?`<dt>Discount</dt><dd>− ${money(o.discount_amount)}</dd>`:''}${o.delivery_charges!=null?`<dt>Delivery</dt><dd>${Number(o.delivery_charges)>0?money(o.delivery_charges):'Free'}</dd>`:''}<dt class="trk-total">Total</dt><dd class="trk-total">${money(o.total_amount)}</dd></dl></div><div class="trk-box"><h3>Delivery details</h3><dl class="trk-dl"><dt>Name</dt><dd>${esc(o.customer_name||'')}</dd><dt>Phone</dt><dd>${esc(o.customer_phone||'')}</dd><dt>City</dt><dd>${esc(o.city||'')}</dd><dt>Address</dt><dd>${esc(o.customer_address||'')}</dd>${o.tracking_number?`<dt>Tracking no.</dt><dd>${esc(o.tracking_number)}</dd>`:''}${o.return_reason?`<dt>Return reason</dt><dd>${esc(o.return_reason)}</dd>`:''}</dl></div></div><div style="margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#F7F7F5;">${esc(statusNote)}</div>${canCancel?`<div class="modal-close-row" style="justify-content:flex-start;"><button class="btn danger" onclick="cancelTrackedOrder('${esc(o.order_number)}')">Cancel Order</button></div>`:''}${canReturn?`<div class="modal-close-row" style="justify-content:flex-start;"><button class="btn" onclick="openReturnRequest('${esc(o.order_number)}')">Request Return</button></div>`:''}</div>`;
+  const status=String(o.status||'pending').toLowerCase(), cancelReq=String(o.cancel_request_status||'').toLowerCase(), retReq=String(o.return_request_status||'').toLowerCase(), canCancel=customerCanCancelStatus(status) && !cancelReq, canReturn=customerCanRequestReturn(o) && !o.return_requested_at && status!=='returned' && !retReq;
+  const statusNote=status==='ready_to_ship'?'Your order is ready to ship. Customer cancellation is no longer available at this stage.':status==='shipped'?'Your order has been shipped.':status==='delivered'?(canReturn?'Your order was delivered. You have 7 days from delivery to request a return.':'The 7-day return window has ended or a return request is already recorded.') :status==='return_requested'?'Your return request has been received and is waiting for admin approval.':status==='returned'?'This order has been marked as returned.':'Your order is being processed.';
+  return `<div class="customer-card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;"><div><h2 style="margin:0;">Order ${esc(o.order_number||'')}</h2><p style="margin:5px 0;color:var(--ink-soft);">${esc(o.product_title||'')}</p></div><span class="badge-status ${status==='confirmed'||status==='ready_to_ship'||status==='shipped'||status==='delivered'?'on':status==='cancelled'||status==='returned'?'off':''}">${esc(formatOrderStatus(status))}</span></div>${renderTrackTimeline(o,status)}<div class="trk-grid"><div class="trk-box"><h3>Order summary</h3>${o.product_image?`<img class="trk-thumb" src="${esc(o.product_image)}" alt="" loading="lazy" onerror="this.remove()">`:''}<dl class="trk-dl"><dt>Placed on</dt><dd>${o.created_at?esc(new Date(o.created_at).toLocaleString()):'—'}</dd><dt>Quantity</dt><dd>${Number(o.quantity)||0}</dd>${o.unit_price!=null?`<dt>Unit price</dt><dd>${money(o.unit_price)}</dd>`:''}${Number(o.discount_amount)>0?`<dt>Discount</dt><dd>− ${money(o.discount_amount)}</dd>`:''}${o.delivery_charges!=null?`<dt>Delivery</dt><dd>${Number(o.delivery_charges)>0?money(o.delivery_charges):'Free'}</dd>`:''}<dt class="trk-total">Total</dt><dd class="trk-total">${money(o.total_amount)}</dd></dl></div><div class="trk-box"><h3>Delivery details</h3><dl class="trk-dl"><dt>Name</dt><dd>${esc(o.customer_name||'')}</dd><dt>Phone</dt><dd>${esc(o.customer_phone||'')}</dd><dt>City</dt><dd>${esc(o.city||'')}</dd><dt>Address</dt><dd>${esc(o.customer_address||'')}</dd>${o.tracking_number?`<dt>Tracking no.</dt><dd>${esc(o.tracking_number)}</dd>`:''}${o.return_reason?`<dt>Return reason</dt><dd>${esc(o.return_reason)}</dd>`:''}</dl></div></div><div style="margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#F7F7F5;">${esc(statusNote)}</div>${requestNoticeHtml(o,status)}${canCancel?`<div class="modal-close-row" style="justify-content:flex-start;"><button class="btn danger" onclick="openCancelRequest('${esc(o.order_number)}')">Request Cancellation</button></div>`:''}${canReturn?`<div class="modal-close-row" style="justify-content:flex-start;"><button class="btn" onclick="openReturnRequest('${esc(o.order_number)}')">Request Return</button></div>`:''}</div>`;
 }
 function openReturnRequest(orderNumber){
   const form=document.getElementById('track-order-form');
   const name=String(form?.querySelector('[name="name"]')?.value||'').trim();
   const phone=String(form?.querySelector('[name="phone"]')?.value||'').trim();
-  showModal(`<h2>Return Request</h2><p style="margin-top:0;color:var(--ink-soft);">Tell us why you want to return this order. We will contact you by phone or email to confirm the return.</p><form id="return-request-form" onsubmit="event.preventDefault();submitReturnRequest('${esc(orderNumber)}');"><div class="field"><label>Reason for return *</label><textarea name="reason" required maxlength="1000" placeholder="Please describe why you want to return the order."></textarea></div><div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button type="submit" class="btn">Send Return Request</button></div></form>`);
+  showModal(`<h2>Return Request</h2><p style="margin-top:0;color:var(--ink-soft);">Tell us why you want to return this order. Our team will review your request, and the decision will be shown on this page.</p><form id="return-request-form" onsubmit="event.preventDefault();submitReturnRequest('${esc(orderNumber)}');"><div class="field"><label>Reason for return *</label><textarea name="reason" required maxlength="1000" placeholder="Please describe why you want to return the order."></textarea></div><div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button type="submit" class="btn">Send Return Request</button></div></form>`);
 }
 async function submitReturnRequest(orderNumber){
   const form=document.getElementById('return-request-form'); if(!form)return;
@@ -1906,18 +1910,31 @@ async function submitReturnRequest(orderNumber){
   }catch(e){toast(e.message||'Return request failed.');}
 }
 
-async function cancelTrackedOrder(orderNumber){
-  if(!confirm('Are you sure you want to cancel this order?'))return;
-  const name=String(document.querySelector('#track-order-form [name="name"]')?.value||'').trim(), phone=String(document.querySelector('#track-order-form [name="phone"]')?.value||'').trim();
+function requestNoticeHtml(o,status){
+  const c=String(o.cancel_request_status||'').toLowerCase(), r=String(o.return_request_status||'').toLowerCase(), out=[];
+  if(c==='pending'&&status!=='cancelled') out.push('<div class="trk-alert" role="status" style="margin-top:10px;"><b>Cancellation request sent.</b> It is waiting for admin approval. The result will appear here.</div>');
+  if(c==='rejected') out.push('<div class="trk-alert off" role="status" style="margin-top:10px;"><b>Cancellation request not approved.</b> Your order will continue as normal.</div>');
+  if(c==='approved'&&status==='cancelled') out.push('<div class="trk-alert off" role="status" style="margin-top:10px;"><b>Cancellation approved.</b> Your order has been cancelled.</div>');
+  if(r==='rejected') out.push('<div class="trk-alert off" role="status" style="margin-top:10px;"><b>Return request not approved.</b></div>');
+  if(r==='approved'&&status==='returned') out.push('<div class="trk-alert off" role="status" style="margin-top:10px;"><b>Return approved.</b> Your order has been marked as returned.</div>');
+  return out.join('');
+}
+function openCancelRequest(orderNumber){
+  showModal(`<h2>Request Cancellation</h2><p style="margin-top:0;color:var(--ink-soft);">Your order is not cancelled yet. Send a request and our team will approve or reject it. The result will be shown on this page.</p><form id="cancel-request-form" onsubmit="event.preventDefault();submitCancelRequest('${esc(orderNumber)}');"><div class="field"><label>Reason for cancellation *</label><textarea name="reason" required maxlength="1000" placeholder="Please tell us why you want to cancel this order."></textarea></div><div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Close</button><button type="submit" class="btn danger">Send Cancellation Request</button></div></form>`);
+}
+async function submitCancelRequest(orderNumber){
+  const form=document.getElementById('cancel-request-form'); if(!form)return;
+  const reason=String(new FormData(form).get('reason')||'').trim();
+  const trackForm=document.getElementById('track-order-form');
+  const name=String(trackForm?.querySelector('[name="name"]')?.value||'').trim();
+  const phone=String(trackForm?.querySelector('[name="phone"]')?.value||'').trim();
+  if(!reason){toast('Please enter a cancellation reason.');return;}
   try{
-    const {data,error}=await supabaseClient.rpc('storex_cancel_customer_order',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone});
+    const {data,error}=await supabaseClient.rpc('storex_request_order_cancellation',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone,p_reason:reason});
     if(error)throw error;
-    if(!data||data.success!==true) throw new Error(data?.message||'This order cannot be cancelled at its current status.');
-    try{ await supabaseClient.rpc('storex_mark_customer_cancellation',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone}); }catch(_){}
-    try{ await supabaseClient.rpc('storex_sync_order_stock',{p_order_key:orderNumber,p_new_status:'cancelled'}); }catch(_){}
-    toast('Order cancelled successfully.');
-    await trackOrder();
-  }catch(e){toast(e.message||'Order cancellation failed.');}
+    if(!data||data.success!==true)throw new Error(data?.message||'Cancellation request could not be sent.');
+    closeModal(); toast('Cancellation request sent. Waiting for admin approval.'); await trackOrder();
+  }catch(e){toast(e.message||'Cancellation request failed.');}
 }
 
 async function boot(){
@@ -1973,7 +1990,9 @@ async function boot(){
   // Public pages come only from the backend/admin configuration.
   applyTheme();
   injectGA();
+  try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(_){}
   window.addEventListener('hashchange',function(){const h=route();render();});
+  window.addEventListener('pageshow',function(e){ if(e&&e.persisted&&!location.hash.startsWith('#/admin-of-storex')) window.scrollTo(0,0); });
   render();
   applyMediaSizing();
   initLazyMedia();
@@ -2177,6 +2196,7 @@ function render(){
     else if(h.startsWith('/page/')){ body = renderCustomPage(decodeURIComponent(h.split('/page/')[1])); }
     else { body = renderNotFound(); }
     app.innerHTML = renderHeader() + '<main>'+body+'</main>' + renderFooter() + renderMobileDrawer();
+    if(!location.hash.startsWith('#/admin-of-storex')){ window.scrollTo(0,0); requestAnimationFrame(()=>window.scrollTo(0,0)); }
     wireStorefrontEvents();
     trackSitePageView();
     startCountdowns();
@@ -2358,6 +2378,7 @@ function renderSection(sec){
     case 'categoryShowcase': return renderCategoryShowcaseSection(sec);
     case 'recentlyViewed': return renderRecentlyViewedSection(sec);
     case 'banner': return renderBannerSection(sec);
+    case 'social': return renderSocialSection(sec);
         case 'customHtml': return `<section class="section container">${sec.config&&sec.config.html||''}</section>`;
     default: return '';
   }
@@ -2666,6 +2687,33 @@ function bannerStyle(b){
   const d=Object.assign({height:260,radius:12,overlay:.25,padding:30,imageFit:'cover'},b.display||{});
   return `height:${Math.max(80,Number(d.height)||260)}px;min-height:${Math.max(80,Number(d.height)||260)}px;border-radius:${Math.max(0,Number(d.radius)||0)}px;background-size:${esc(d.imageFit||'cover')};--promo-overlay:${Math.max(0,Math.min(1,Number(d.overlay)||0))}`;
 }
+/* ---------- Social media section (Homepage Builder) ---------- */
+const SOCIAL_PLATFORMS={
+  facebook:{label:'Facebook',color:'#1877F2',icon:'f'},
+  instagram:{label:'Instagram',color:'linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)',icon:'IG'},
+  tiktok:{label:'TikTok',color:'#111111',icon:'\u266A'},
+  youtube:{label:'YouTube',color:'#FF0000',icon:'\u25B6'},
+  whatsapp:{label:'WhatsApp',color:'#25D366',icon:'\u260E'},
+  telegram:{label:'Telegram',color:'#229ED9',icon:'\u27A4'},
+  x:{label:'X (Twitter)',color:'#111111',icon:'X'},
+  snapchat:{label:'Snapchat',color:'#F5C400',icon:'\u{1F47B}'},
+  linkedin:{label:'LinkedIn',color:'#0A66C2',icon:'in'},
+  pinterest:{label:'Pinterest',color:'#E60023',icon:'P'},
+  custom:{label:'Other',color:'#F57224',icon:'\u{1F517}'}
+};
+function safeSocialUrl(u){
+  u=String(u||'').trim(); if(!u)return '';
+  if(/^(javascript|data|vbscript|file):/i.test(u))return '';
+  if(!/^https?:\/\//i.test(u)) u='https://'+u.replace(/^\/+/,'');
+  return u;
+}
+function renderSocialSection(sec){
+  const c=sec.config||{}; const url=safeSocialUrl(c.url); if(!url)return '';
+  const pf=SOCIAL_PLATFORMS[c.platform]||SOCIAL_PLATFORMS.custom;
+  const name=c.platform==='custom'?(c.customLabel||'our page'):pf.label;
+  const title=sec.title||('Follow us on '+name);
+  return `<section class="section container"><a class="social-card" href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(title)}" style="--sc:${pf.color}"><span class="social-icon" aria-hidden="true">${pf.icon}</span><span class="social-text"><b>${esc(title)}</b>${sec.subtitle?`<small>${esc(sec.subtitle)}</small>`:''}</span><span class="social-btn">${esc(c.buttonText||('Follow on '+name))}</span></a></section>`;
+}
 function renderBannerSection(sec){
   const b=BANNERS.find(x=>x.id===(sec.config&&sec.config.bannerId)); if(!b||!b.visible)return '';
   const d=Object.assign({headingColor:'#FFFFFF',descriptionColor:'#FFFFFF',buttonBg:'#F57224',buttonColor:'#FFFFFF',buttonBorder:'#F57224',padding:30,buttonWidth:'',imageFit:'cover'},b.display||{});
@@ -2698,6 +2746,23 @@ function shareFlashSale(slug){const f=FLASHSALES.find(x=>String(x.slug)===String
 function shareStorefront(){return shareUrl(makeShareUrl('site',''),SETTINGS?.siteName||'StoreX','Discover products and deals on '+(SETTINGS?.siteName||'StoreX')+'.');}
 function renderPageLoading(message='Please wait, the product is loading.'){return `<div class="page-loading"><div class="page-loading-card"><div class="page-loading-spinner" aria-hidden="true"></div><h2>Please wait</h2><p>${esc(message)}</p></div></div>`;}
 
+function seededShuffleProducts(arr,seed){
+  const a=Array.isArray(arr)?arr.slice():[]; let h=2166136261; const str=String(seed||'');
+  for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}
+  let t=h>>>0; const rnd=()=>{t+=0x6D2B79F5;let r=Math.imul(t^t>>>15,1|t);r^=r+Math.imul(r^r>>>7,61|r);return((r^r>>>14)>>>0)/4294967296;};
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));const x=a[i];a[i]=a[j];a[j]=x;}
+  return a;
+}
+/* Two scrolling rows of other products; the mix is seeded by the product id so every product page shows its own set. */
+function buildProductRecommendationRows(p){
+  const eligible=PRODUCTS.filter(x=>x.status==='published'&&x.id!==p.id&&Math.max(0,Number(x.stock)||0)>0);
+  const same=seededShuffleProducts(eligible.filter(x=>x.category===p.category),p.id);
+  const others=seededShuffleProducts(eligible.filter(x=>x.category!==p.category),p.id);
+  const all=[...same,...others];
+  if(!all.length)return [];
+  const per=Math.min(10,Math.ceil(all.length/2));
+  return [all.slice(0,per),all.slice(per,per*2)].filter(r=>r.length);
+}
 function buildProductRecommendations(p, count){
   const n=Math.max(0,Number(count)||6);
   const eligible = PRODUCTS.filter(x=>x.status==='published' && x.id!==p.id && Math.max(0,Number(x.stock)||0)>0);
@@ -2724,7 +2789,7 @@ function storexBaseRenderProductPage(key){
   const images = (p.images&&p.images.length? p.images : (p.mainImage?[p.mainImage]:[]));
   const main = images[PD_ACTIVE_IMG] || images[0];
   const cat = CATEGORIES.find(c=>c.id===p.category);
-  const related = buildProductRecommendations(p, 6);
+  const relatedRows = buildProductRecommendationRows(p);
   applySEO(p.seo, p.shortTitle||p.title, p.shortDesc);
   const stock=Math.max(0,Number(p.stock)||0);
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
@@ -2750,7 +2815,7 @@ function storexBaseRenderProductPage(key){
         ${cat?`<p style="font-size:12.5px;color:var(--ink-soft);margin-top:14px;">Category: <a href="#/category/${esc(cat.slug)}" style="color:var(--primary);">${esc(cat.name)}</a></p>`:''}
       </div>
     </div>
-    ${related.length?`<section class="section"><div class="section-head"><div><h2>You May Also Like</h2></div></div><div class="grid">${related.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div></section>`:''}
+    ${relatedRows.length?`<section class="section"><div class="section-head"><div><h2>You May Also Like</h2></div></div>${relatedRows.map(r=>renderProductScroller(r)).join('')}</section>`:''}
   </div>`;
 }
 
@@ -2784,7 +2849,7 @@ function storexBaseRenderCategoryPage(slug){
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / ${esc(title)}</div>
     <div class="section-head" style="align-items:end;gap:12px;"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div><div class="field" style="min-width:190px;margin:0;"><label style="font-size:12px;">Sort products</label><select onchange="setCustomerProductSort(this.value)"><option value="default" ${CUSTOMER_PRODUCT_SORT==='default'?'selected':''}>Recommended</option><option value="newest" ${CUSTOMER_PRODUCT_SORT==='newest'?'selected':''}>Newest</option><option value="price-low" ${CUSTOMER_PRODUCT_SORT==='price-low'?'selected':''}>Price: Low to High</option><option value="price-high" ${CUSTOMER_PRODUCT_SORT==='price-high'?'selected':''}>Price: High to Low</option><option value="discount" ${CUSTOMER_PRODUCT_SORT==='discount'?'selected':''}>Biggest Discount</option><option value="name" ${CUSTOMER_PRODUCT_SORT==='name'?'selected':''}>Name A–Z</option></select></div></div>
-    ${list.length? `<div class="grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
+    ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F50D}</div><h3>No products found</h3><p>There's nothing here yet \u2014 check back soon.</p></div>`}
   </div>`;
 }
@@ -2797,7 +2862,7 @@ function renderCollectionPage(routeKey){
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / ${esc(title)}</div>
     <div class="section-head"><div><h2>${esc(title)}</h2><p>Browse the complete ${esc(title.toLowerCase())} collection</p></div></div>
-    ${list.length? `<div class="grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
+    ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F6CD}</div><h3>No products available</h3><p>Check back soon.</p></div>`}
   </div>`;
 }
@@ -2806,7 +2871,7 @@ function renderRecentlyViewedPage(){
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / Recently Viewed</div>
     <div class="section-head"><div><h2>Recently Viewed</h2><p>Products you recently viewed, newest first</p></div></div>
-    ${list.length? `<div class="grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
+    ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F440}</div><h3>No recently viewed products yet</h3><p>Browse products to see them here.</p></div>`}
   </div>`;
 }
@@ -2867,7 +2932,7 @@ function renderFlashSalePage(slug){
         <button type="button" class="share-btn" style="align-self:flex-start;margin-top:8px;" onclick="shareFlashSale('${esc(f.slug)}')" aria-label="Share this flash sale"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share Flash Sale</button>
       </div>
     </div>
-    ${items? `<div class="grid">${items}</div>` : `<div class="empty-state"><div class="icon">\u{1F6CD}</div><h3>No products in this flash sale yet</h3></div>`}
+    ${items? `<div class="grid prod-grid">${items}</div>` : `<div class="empty-state"><div class="icon">\u{1F6CD}</div><h3>No products in this flash sale yet</h3></div>`}
   </div>`;
 }
 
@@ -2882,7 +2947,7 @@ function renderSearchPage(q){
   ));
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="section-head"><div><h2>Search results for "${esc(q)}"</h2><p>${list.length} product${list.length!==1?'s':''} found</p></div></div>
-    ${list.length? `<div class="grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` : `<div class="empty-state"><div class="icon">\u{1F614}</div><h3>No results found</h3><p>Try a different search term.</p></div>`}
+    ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` : `<div class="empty-state"><div class="icon">\u{1F614}</div><h3>No results found</h3><p>Try a different search term.</p></div>`}
   </div>`;
 }
 
@@ -3048,11 +3113,17 @@ function dismissOrderRequestAlert(id){
 }
 function isCustomerCancellation(o){return !!(o?.customer_cancelled_at || o?.cancelled_by==='customer' || o?.cancel_source==='customer' || o?.customer_cancel_request_at || o?.cancel_reason || o?.cancelReason);}
 function isCustomerReturnRequest(o){return !!(o?.return_source==='customer' || o?.customer_return_request_at || o?.return_requested_at);}
+function orderCancelPending(o){return String(o?.cancel_request_status||'').toLowerCase()==='pending' && !['cancelled','returned'].includes(String(o?.status||'').toLowerCase());}
+function orderReturnPending(o){return String(o?.status||'').toLowerCase()==='return_requested';}
+function requestAlertRow(o,kind){
+  const reason=kind==='cancel'?(o.cancel_reason||o.cancelReason):o.return_reason;
+  return `<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span>${reason?`<br><span style="color:var(--ink-soft);">Reason: ${esc(reason)}</span>`:''}<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;"><button class="btn small" onclick="reviewOrderRequest('${o.id}','${kind}','approve')">Approve</button><button class="btn small danger" onclick="reviewOrderRequest('${o.id}','${kind}','reject')">Reject</button><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">View</button><button class="btn small ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete</button></div></div>`;
+}
 function isOrderRequestAlert(o){return isCustomerReturnRequest(o)||isCustomerCancellation(o);}
 function adminDashboard(){
   const dismissedAlerts = new Set(getDismissedOrderAlerts());
-  const returnRequests = ORDERS.filter(o=>(String(o.status||'').toLowerCase()==='return_requested' || o.return_requested_at) && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.return_requested_at||b.updated_at||b.created_at||0)-new Date(a.return_requested_at||a.updated_at||a.created_at||0));
-  const cancellationRequests = ORDERS.filter(o=>isCustomerCancellation(o) && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.customer_cancelled_at||b.cancelled_at||b.updated_at||b.created_at||0)-new Date(a.customer_cancelled_at||a.cancelled_at||a.updated_at||a.created_at||0));
+  const returnRequests = ORDERS.filter(o=>orderReturnPending(o) && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.return_requested_at||b.updated_at||b.created_at||0)-new Date(a.return_requested_at||a.updated_at||a.created_at||0));
+  const cancellationRequests = ORDERS.filter(o=>orderCancelPending(o) && !dismissedAlerts.has(String(o.id))).sort((a,b)=>new Date(b.customer_cancel_request_at||b.updated_at||b.created_at||0)-new Date(a.customer_cancel_request_at||a.updated_at||a.created_at||0));
   const latestOrders = [...ORDERS].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,6);
   const published = PRODUCTS.filter(p=>p.status==='published').length;
   const hidden = PRODUCTS.filter(p=>p.status==='hidden').length;
@@ -3072,11 +3143,11 @@ function adminDashboard(){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
       <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;">
         <div style="font-weight:800;margin-bottom:8px;">Return Requests <span class="badge-status ${returnRequests.length?'off':'on'}" style="margin-left:6px;">${returnRequests.length}</span></div>
-        ${returnRequests.length?returnRequests.slice(0,5).map(o=>`<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span><span style="float:right;display:flex;gap:5px;margin-top:-2px;"><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">View</button><button class="btn small ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete</button></span></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No pending return requests.</div>'}
+        ${returnRequests.length?returnRequests.slice(0,5).map(o=>requestAlertRow(o,'return')).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No pending return requests.</div>'}
       </div>
       <div style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;">
         <div style="font-weight:800;margin-bottom:8px;">Cancellation Requests <span class="badge-status ${cancellationRequests.length?'off':'on'}" style="margin-left:6px;">${cancellationRequests.length}</span></div>
-        ${cancellationRequests.length?cancellationRequests.slice(0,5).map(o=>`<div style="padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;"><b>${esc(o.order_number||o.id||'')}</b> — ${esc(o.customer_name||'Customer')}<br><span style="color:var(--ink-soft);">${esc(o.product_title||'Product')}</span>${(o.cancel_reason||o.cancelReason)?`<br><span style="color:var(--ink-soft);">Reason: ${esc(o.cancel_reason||o.cancelReason)}</span>`:''}<span style="float:right;display:flex;gap:5px;margin-top:-2px;"><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">View</button><button class="btn small ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete</button></span></div>`).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No cancellation requests.</div>'}
+        ${cancellationRequests.length?cancellationRequests.slice(0,5).map(o=>requestAlertRow(o,'cancel')).join(''):'<div style="color:var(--ink-soft);font-size:13px;">No pending cancellation requests.</div>'}
       </div>
     </div>
   </div>
@@ -3437,7 +3508,9 @@ function adminOrderActions(o){
   if(s==='ready_to_ship') btns.push(`<button class="btn small" onclick="updateOrderStatus('${o.id}','shipped')">Shipped</button>`);
   if(s==='shipped') btns.push(`<button class="btn small" onclick="updateOrderStatus('${o.id}','delivered')">Delivered</button>`);
   if(s==='pending'||s==='confirmed') btns.push(`<button class="btn small danger" onclick="updateOrderStatus('${o.id}','cancelled')">Cancel</button>`);
-  if(s==='return_requested'||s==='delivered') btns.push(`<button class="btn small" onclick="updateOrderStatus('${o.id}','returned')">Mark Returned</button>`);
+  if(orderCancelPending(o)) btns.push(`<button class="btn small" onclick="reviewOrderRequest('${o.id}','cancel','approve')">Approve Cancel</button><button class="btn small danger" onclick="reviewOrderRequest('${o.id}','cancel','reject')">Reject Cancel</button>`);
+  if(orderReturnPending(o)) btns.push(`<button class="btn small" onclick="reviewOrderRequest('${o.id}','return','approve')">Approve Return</button><button class="btn small danger" onclick="reviewOrderRequest('${o.id}','return','reject')">Reject Return</button>`);
+  if(s==='delivered') btns.push(`<button class="btn small" onclick="updateOrderStatus('${o.id}','returned')">Mark Returned</button>`);
   return btns.join(' ');
 }
 
@@ -3447,7 +3520,7 @@ function adminOrders(){
   if(ADMIN_ORDER_STATUS_SORT==='status') list.sort((a,b)=>String(a.status||'').localeCompare(String(b.status||''))||new Date(b.created_at||0)-new Date(a.created_at||0));
   else if(ADMIN_ORDER_STATUS_SORT==='oldest') list.sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0));
   else list.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
-  return `<div class="admin-topbar"><h1>Orders</h1><button class="btn small ghost" onclick="loadOrders().then(render)">Refresh</button></div><div class="admin-card"><div class="form-grid" style="align-items:end;margin-bottom:12px;"><div class="field"><label>Order status</label><select onchange="ADMIN_ORDER_STATUS_FILTER=this.value;render()">${statuses.map(v=>`<option value="${v}" ${ADMIN_ORDER_STATUS_FILTER===v?'selected':''}>${v==='all'?'All statuses':formatOrderStatus(v)}</option>`).join('')}</select></div><div class="field"><label>Sort orders</label><select onchange="ADMIN_ORDER_STATUS_SORT=this.value;render()"><option value="newest" ${ADMIN_ORDER_STATUS_SORT==='newest'?'selected':''}>Newest first</option><option value="oldest" ${ADMIN_ORDER_STATUS_SORT==='oldest'?'selected':''}>Oldest first</option><option value="status" ${ADMIN_ORDER_STATUS_SORT==='status'?'selected':''}>By status</option></select></div></div>${list.length?`<div style="overflow:auto"><table class="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>City</th><th>Product</th><th>Qty</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody>${list.map(o=>`<tr><td><b>${esc(o.order_number||String(o.id||'').slice(0,8))}</b><br><small>${o.created_at?new Date(o.created_at).toLocaleString():''}</small></td><td>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}</td><td>${esc(o.city||'')}</td><td>${esc(o.product_title||'')}</td><td>${Number(o.quantity)||0}</td><td>${money(o.total_amount)}</td><td><span class="badge-status ${o.status==='confirmed'||o.status==='ready_to_ship'||o.status==='shipped'||o.status==='delivered'?'on':o.status==='cancelled'||o.status==='returned'?'off':''}">${formatOrderStatus(o.status)}</span></td><td><div class="row-actions"><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">Details</button><button class="btn small ghost" onclick="openInvoiceEditor('${o.id}')">Invoice</button>${adminOrderActions(o)}</div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><div class="icon">📦</div><h3>No matching orders</h3><p>Change the status filter.</p></div>'}</div>`;
+  return `<div class="admin-topbar"><h1>Orders</h1><button class="btn small ghost" onclick="loadOrders().then(render)">Refresh</button></div><div class="admin-card"><div class="form-grid" style="align-items:end;margin-bottom:12px;"><div class="field"><label>Order status</label><select onchange="ADMIN_ORDER_STATUS_FILTER=this.value;render()">${statuses.map(v=>`<option value="${v}" ${ADMIN_ORDER_STATUS_FILTER===v?'selected':''}>${v==='all'?'All statuses':formatOrderStatus(v)}</option>`).join('')}</select></div><div class="field"><label>Sort orders</label><select onchange="ADMIN_ORDER_STATUS_SORT=this.value;render()"><option value="newest" ${ADMIN_ORDER_STATUS_SORT==='newest'?'selected':''}>Newest first</option><option value="oldest" ${ADMIN_ORDER_STATUS_SORT==='oldest'?'selected':''}>Oldest first</option><option value="status" ${ADMIN_ORDER_STATUS_SORT==='status'?'selected':''}>By status</option></select></div></div>${list.length?`<div style="overflow:auto"><table class="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>City</th><th>Product</th><th>Qty</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody>${list.map(o=>`<tr><td><b>${esc(o.order_number||String(o.id||'').slice(0,8))}</b><br><small>${o.created_at?new Date(o.created_at).toLocaleString():''}</small></td><td>${esc(o.customer_name||'')}<br>${esc(o.customer_phone||'')}</td><td>${esc(o.city||'')}</td><td>${esc(o.product_title||'')}</td><td>${Number(o.quantity)||0}</td><td>${money(o.total_amount)}</td><td><span class="badge-status ${o.status==='confirmed'||o.status==='ready_to_ship'||o.status==='shipped'||o.status==='delivered'?'on':o.status==='cancelled'||o.status==='returned'?'off':''}">${formatOrderStatus(o.status)}</span>${orderCancelPending(o)?'<br><span class="badge-status off" style="margin-top:4px;">Cancel requested</span>':''}</td><td><div class="row-actions"><button class="btn small ghost" onclick="showOrderDetails('${o.id}')">Details</button><button class="btn small ghost" onclick="openInvoiceEditor('${o.id}')">Invoice</button>${adminOrderActions(o)}</div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><div class="icon">📦</div><h3>No matching orders</h3><p>Change the status filter.</p></div>'}</div>`;
 }
 function invoicePreviewBody(o){
   try{
@@ -3510,8 +3583,31 @@ function openInvoicePreview(id){
   });
 }
 
-function showOrderDetails(id){ const o=ORDERS.find(x=>String(x.id)===String(id)); if(!o)return; loadInvoiceSettings().then(()=>showModal(`<h2>Order Details</h2><div style="display:grid;gap:7px;font-size:13px"><b>Order: ${esc(o.order_number||o.id||'')}</b><b>${esc(o.product_title||'')}</b><span>Name: ${esc(o.customer_name||'')}</span><span>Phone: ${esc(o.customer_phone||'')}</span><span>Email: ${esc(o.customer_email||'')}</span><span>City: ${esc(o.city||'')}</span><span>Full delivery address: ${esc(o.customer_address||'')}</span><span>Quantity: ${Number(o.quantity)||0}</span><span>Delivery: ${money(o.delivery_charges)}</span><span>Total: <b>${money(o.total_amount)}</b></span><span>Status: ${formatOrderStatus(o.status)}</span>${isOrderRequestAlert(o)?`<div style="margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#FFF9F3;"><b>Request alert</b><div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">Remove this request from the Dashboard alerts after you have reviewed it.</div></div>`:''}${o.return_reason?`<span>Return reason: ${esc(o.return_reason)}</span>`:''}${o.return_requested_at?`<span>Return requested: ${esc(new Date(o.return_requested_at).toLocaleString())}</span>`:''}</div><div class="invoice-detail-export"><h3 style="margin:0 0 8px">Invoice</h3><div class="invoice-detail-preview">${invoicePreviewBody(o)}</div><div class="invoice-detail-actions"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Export PDF</button><button class="btn ghost" onclick="exportInvoiceImage('${o.id}')">Export Image (PNG)</button><button class="btn ghost" onclick="openInvoiceEditor('${o.id}')">Edit Invoice</button></div></div><div class="modal-close-row">${adminOrderActions(o)}${isOrderRequestAlert(o)?`<button class="btn ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete Request Alert</button>`:''}<button class="btn ghost" onclick="closeModal()">Close</button></div>`)); }
+function showOrderDetails(id){ const o=ORDERS.find(x=>String(x.id)===String(id)); if(!o)return; loadInvoiceSettings().then(()=>showModal(`<h2>Order Details</h2><div style="display:grid;gap:7px;font-size:13px"><b>Order: ${esc(o.order_number||o.id||'')}</b><b>${esc(o.product_title||'')}</b><span>Name: ${esc(o.customer_name||'')}</span><span>Phone: ${esc(o.customer_phone||'')}</span><span>Email: ${esc(o.customer_email||'')}</span><span>City: ${esc(o.city||'')}</span><span>Full delivery address: ${esc(o.customer_address||'')}</span><span>Quantity: ${Number(o.quantity)||0}</span><span>Delivery: ${money(o.delivery_charges)}</span><span>Total: <b>${money(o.total_amount)}</b></span><span>Status: ${formatOrderStatus(o.status)}</span>${isOrderRequestAlert(o)?`<div style="margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#FFF9F3;"><b>Request alert</b><div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">Remove this request from the Dashboard alerts after you have reviewed it.</div></div>`:''}${o.return_reason?`<span>Return reason: ${esc(o.return_reason)}</span>`:''}${o.cancel_reason?`<span>Cancellation reason: ${esc(o.cancel_reason)}</span>`:''}${o.cancel_request_status?`<span>Cancellation request: ${esc(o.cancel_request_status)}</span>`:''}${o.return_request_status?`<span>Return request: ${esc(o.return_request_status)}</span>`:''}${o.return_requested_at?`<span>Return requested: ${esc(new Date(o.return_requested_at).toLocaleString())}</span>`:''}</div><div class="invoice-detail-export"><h3 style="margin:0 0 8px">Invoice</h3><div class="invoice-detail-preview">${invoicePreviewBody(o)}</div><div class="invoice-detail-actions"><button class="btn" onclick="saveAndPrintInvoice('${o.id}')">Export PDF</button><button class="btn ghost" onclick="exportInvoiceImage('${o.id}')">Export Image (PNG)</button><button class="btn ghost" onclick="openInvoiceEditor('${o.id}')">Edit Invoice</button></div></div><div class="modal-close-row">${adminOrderActions(o)}${isOrderRequestAlert(o)?`<button class="btn ghost" onclick="dismissOrderRequestAlert('${o.id}')">Delete Request Alert</button>`:''}<button class="btn ghost" onclick="closeModal()">Close</button></div>`)); }
 async function updateOrderStatus(id,status){ if(!SUPABASE_ADMIN||!supabaseClient)return; try{ const allowed=['pending','confirmed','ready_to_ship','shipped','delivered','cancelled','return_requested','returned']; if(!allowed.includes(status))throw new Error('Invalid order status.'); let rpcError=null; try{ const rpc=await supabaseClient.rpc('storex_sync_order_stock',{p_order_key:String(id),p_new_status:status}); rpcError=rpc.error||null; }catch(e){rpcError=e;} if(rpcError){ const {error}=await supabaseClient.from('storex_orders').update({status,updated_at:new Date().toISOString()}).eq('id',id); if(error)throw error; } const o=ORDERS.find(x=>String(x.id)===String(id)); if(o)o.status=status; closeModal(); await loadOrders(); render(); toast('Order status updated: '+formatOrderStatus(status)); }catch(e){toast('Order update failed: '+(e.message||'Unknown error'));} }
+
+async function reviewOrderRequest(id,kind,decision){
+  if(!SUPABASE_ADMIN||!supabaseClient)return;
+  const o=ORDERS.find(x=>String(x.id)===String(id)); if(!o)return;
+  const label=kind==='cancel'?'cancellation':'return';
+  if(!confirm((decision==='approve'?'Approve':'Reject')+' the '+label+' request for order '+(o.order_number||'')+'?'))return;
+  const now=new Date().toISOString();
+  const saveFlag=async patch=>{const {error}=await supabaseClient.from('storex_orders').update(Object.assign({request_reviewed_at:now,updated_at:now},patch)).eq('id',id); if(error)throw error;};
+  try{
+    if(decision==='approve'){
+      await updateOrderStatus(id,kind==='cancel'?'cancelled':'returned');
+      const after=ORDERS.find(x=>String(x.id)===String(id));
+      if(!after||String(after.status).toLowerCase()!==(kind==='cancel'?'cancelled':'returned')) return;
+      await saveFlag(kind==='cancel'?{cancel_request_status:'approved'}:{return_request_status:'approved'});
+    } else if(kind==='cancel'){
+      await saveFlag({cancel_request_status:'rejected'});
+    } else {
+      await saveFlag({status:'delivered',return_request_status:'rejected'});
+    }
+    closeModal(); await loadOrders(); render();
+    toast('Request '+(decision==='approve'?'approved':'rejected')+'. Order status updated.');
+  }catch(e){toast('Request update failed: '+(e.message||'Unknown error')+'. If columns are missing, run phase-2.sql in Supabase.');}
+}
 
 /* ---------- Coupons (Admin) ---------- */
 let ADMIN_COUPONS=[];
@@ -3926,7 +4022,7 @@ function adminHomepage(){
   <div class="admin-card">${items || '<p style="color:var(--ink-soft);font-size:13.5px;">No sections yet.</p>'}</div>`;
 }
 
-function sectionTypeLabel(t){ return {hero:'Hero banner',flashsale:'Flash sale',categories:'Categories',productCollection:'Product collection',categoryShowcase:'Products by category (auto)',recentlyViewed:'Recently viewed products',banner:'Promotional banner',legacyPromo:'Legacy promo',customHtml:'Custom text/HTML'}[t]||t; }
+function sectionTypeLabel(t){ return {hero:'Hero banner',flashsale:'Flash sale',categories:'Categories',productCollection:'Product collection',categoryShowcase:'Products by category (auto)',recentlyViewed:'Recently viewed products',banner:'Promotional banner',legacyPromo:'Legacy promo',customHtml:'Custom text/HTML',social:'Social media link'}[t]||t; }
 
 function reorderSection(dropIdx){
   if(DRAG_IDX===null || DRAG_IDX===dropIdx) return;
@@ -3941,7 +4037,7 @@ function removeSection(i){ if(!confirm('Delete this section?')) return; SETTINGS
 function addSectionModal(){
   showModal(`<h2>Add Section</h2>
     <div class="form-grid">
-      ${['hero','flashsale','categories','productCollection','categoryShowcase','recentlyViewed','banner','customHtml'].map(t=>`<button type="button" class="btn ghost" style="justify-content:flex-start;" onclick="${t==='flashsale'?'addFlashSaleSectionModal()':`addSection('${t}')`}">+ ${sectionTypeLabel(t)}</button>`).join('')}
+      ${['hero','flashsale','categories','productCollection','categoryShowcase','recentlyViewed','banner','customHtml','social'].map(t=>`<button type="button" class="btn ghost" style="justify-content:flex-start;" onclick="${t==='flashsale'?'addFlashSaleSectionModal()':`addSection('${t}')`}">+ ${sectionTypeLabel(t)}</button>`).join('')}
     </div>
     <div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Close</button></div>`);
 }
@@ -3954,7 +4050,9 @@ function addSection(type){
   if(type==='recentlyViewed') base.config={count:6,layout:'grid',columns:3};
   if(type==='banner') base.config={bannerId: BANNERS[0]?BANNERS[0].id:''};
   if(type==='customHtml') base.config={html:'<p>Your custom content here.</p>'};
+  if(type==='social'){ base.title='Follow us on Instagram'; base.subtitle='Stay connected for new arrivals and offers'; base.config={platform:'instagram',url:'',buttonText:'Follow us',customLabel:''}; }
   SETTINGS.sections.push(base); saveKey(KEYS.settings,SETTINGS); closeModal();
+  if(type==='social'){ const idx=SETTINGS.sections.length-1; setTimeout(()=>editSectionModal(idx),120); }
 }
 
 function addFlashSaleSectionModal(){
@@ -4028,6 +4126,13 @@ function editSectionModal(i){
     extra = `<div class="field"><label>Number of products</label><input type="number" name="count" min=1 max=20 value="${(s.config&&s.config.count)||6}"></div><div class="field"><label>Columns per row</label><select name="columns"><option value="2" ${Number(s.config?.columns)===2?'selected':''}>2</option><option value="3" ${(!s.config?.columns||Number(s.config?.columns)===3)?'selected':''}>3</option><option value="4" ${Number(s.config?.columns)===4?'selected':''}>4</option></select></div>`;
   } else if(s.type==='banner'){
     extra = `<div class="field full"><label>Which banner</label><select name="bannerId">${BANNERS.map(b=>`<option value="${b.id}" ${s.config.bannerId===b.id?'selected':''}>${esc(b.heading||b.id)}</option>`).join('')||'<option value="">No banners yet</option>'}</select></div>`;
+  } else if(s.type==='social'){
+    const sc=s.config||{}; const cur=sc.platform||'instagram';
+    extra = `<div class="field"><label>Platform</label><select name="platform" onchange="const t=document.querySelector('#section-form [name=title]');if(t&&(!t.value||/^Follow us on /.test(t.value)))t.value='Follow us on '+this.options[this.selectedIndex].text;">${Object.keys(SOCIAL_PLATFORMS).map(k=>`<option value="${k}" ${cur===k?'selected':''}>${esc(SOCIAL_PLATFORMS[k].label)}</option>`).join('')}</select></div>
+    <div class="field"><label>Button text</label><input type="text" name="buttonText" value="${esc(sc.buttonText||'Follow us')}"></div>
+    <div class="field full"><label>Your page / profile link *</label><input type="url" name="url" placeholder="https://www.instagram.com/yourpage" value="${esc(sc.url||'')}"></div>
+    <div class="field full"><label>Platform name (only if you chose "Other")</label><input type="text" name="customLabel" value="${esc(sc.customLabel||'')}"></div>
+    <div class="help-note full">Visitors who tap this section are taken to your link in a new tab. Leave the link empty to hide the section.</div>`;
   } else if(s.type==='customHtml'){
     extra = `<div class="field full"><label>Content</label><textarea name="html" style="min-height:120px;">${esc(s.config.html||'')}</textarea></div>`;
   }
@@ -4065,6 +4170,7 @@ function saveSectionForm(i){
   if(s.type==='recentlyViewed'){ s.config = {count:Number(fd.get('count'))||6,layout:'grid',columns:Number(fd.get('columns'))||3}; }
   if(s.type==='banner'){ s.config = {bannerId: fd.get('bannerId')}; }
   if(s.type==='customHtml'){ s.config = {html: fd.get('html')}; }
+  if(s.type==='social'){ s.config = {platform:fd.get('platform')||'instagram', url:safeSocialUrl(fd.get('url')), buttonText:String(fd.get('buttonText')||'').trim()||'Follow us', customLabel:String(fd.get('customLabel')||'').trim()}; }
   saveKey(KEYS.settings,SETTINGS); closeModal();
 }
 
@@ -5304,5 +5410,63 @@ boot().catch(function(err){
   },{passive:true});
 })();
 </script>
+
+<style id="StoreXResponsiveV3">
+/* ===== Product cards: same size on every page, two per row ===== */
+.h-scroll > .card .card-body,.grid.prod-grid > .card .card-body{padding:8px 10px 10px!important;gap:4px!important;}
+.h-scroll > .card .card-title,.grid.prod-grid > .card .card-title{font-size:13px!important;min-height:2.5em!important;line-height:1.3!important;}
+.h-scroll > .card .price,.grid.prod-grid > .card .price{font-size:15px!important;}
+.grid.prod-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;align-items:start;}
+@media (min-width:821px){.grid.prod-grid{grid-template-columns:repeat(2,190px)!important;justify-content:start;}}
+@media (max-width:720px){.grid.prod-grid{gap:8px!important;}}
+.grid.prod-grid > .card{width:100%;min-width:0;}
+.grid.prod-grid > .card .card-img{height:auto!important;max-height:none!important;min-height:0!important;aspect-ratio:1/1!important;}
+.grid.prod-grid > .card .card-img img{width:100%!important;height:100%!important;object-fit:cover!important;}
+.h-scroll-wrap + .h-scroll-wrap{margin-top:6px;}
+.grid.prod-grid > .card .card-title,.grid.prod-grid > .card .card-desc{overflow-wrap:anywhere;}
+
+/* ===== Social media section ===== */
+.social-card{display:flex;align-items:center;gap:14px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.05);transition:box-shadow .15s,transform .15s;}
+.social-card:hover{box-shadow:0 6px 18px rgba(0,0,0,.12);transform:translateY(-1px);}
+.social-icon{flex:0 0 auto;width:48px;height:48px;border-radius:50%;background:var(--sc,#F57224);color:#fff;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;line-height:1;}
+.social-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.social-text b{font-size:clamp(15px,4.2vw,18px);overflow-wrap:anywhere;}
+.social-text small{font-size:clamp(12px,3.4vw,13.5px);color:var(--ink-soft);overflow-wrap:anywhere;}
+.social-btn{flex:0 0 auto;background:var(--primary);color:#fff;font-weight:700;font-size:13.5px;padding:10px 16px;border-radius:999px;white-space:nowrap;}
+@media (max-width:520px){.social-card{flex-wrap:wrap;justify-content:center;text-align:center;}.social-text{flex-basis:100%;align-items:center;order:2;}.social-icon{order:1;}.social-btn{order:3;width:100%;text-align:center;white-space:normal;}}
+
+/* ===== Responsive: text always fits the screen ===== */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+body{overflow-x:hidden;overflow-wrap:break-word;}
+img,video,canvas,svg{max-width:100%;}
+h1,h2,h3,h4,.section-head p,.promo-banner-inner h3,.promo-banner-inner p,.flash-info h3,.flash-info p,.hero h1,.hero p,.cat-name,.footer-grid a,.footer-grid h4,.footer-bottom{overflow-wrap:anywhere;}
+.container{padding-left:clamp(12px,4vw,20px);padding-right:clamp(12px,4vw,20px);}
+.section{padding-top:clamp(22px,6vw,44px);padding-bottom:clamp(22px,6vw,44px);}
+.section-head{gap:8px 14px;}
+.section-head > div{min-width:0;flex:1 1 200px;}
+.section-head h2{font-size:clamp(18px,5vw,24px);line-height:1.25;}
+.section-head p{font-size:clamp(12.5px,3.5vw,14.5px);}
+.section-head a{white-space:nowrap;}
+.hero-inner{padding:clamp(28px,8vw,64px) clamp(14px,4vw,20px);}
+.hero h1{font-size:clamp(22px,6.5vw,46px);max-width:100%;}
+.hero p{font-size:clamp(14px,3.8vw,17px);max-width:100%;}
+.promo-banner{height:auto!important;}
+.promo-banner-inner{max-width:100%;}
+.promo-banner-inner h3{font-size:clamp(17px,5vw,22px);}
+.promo-banner-inner p{font-size:clamp(12.5px,3.5vw,14px);}
+.flash-info{padding:clamp(14px,4.5vw,22px)!important;}
+.flash-info h3{font-size:clamp(18px,5.4vw,24px)!important;}
+.flash-info p{font-size:clamp(12.5px,3.5vw,14px);}
+.flash-info .countdown{flex-wrap:wrap;}
+.cat-name{font-size:clamp(11.5px,3.3vw,13px);}
+.logo-fallback{font-size:clamp(17px,5vw,22px);}
+.footer-grid > *{min-width:0;}
+@media (max-width:900px){.footer-grid{grid-template-columns:1fr 1fr;gap:22px;}}
+@media (max-width:420px){.footer-grid{grid-template-columns:1fr;}}
+.section table{display:block;max-width:100%;overflow-x:auto;}
+.section pre{max-width:100%;overflow:auto;}
+.section iframe{max-width:100%;}
+@media (max-width:360px){.section-head h2{font-size:17px;}.btn{padding-left:12px;padding-right:12px;}}
+</style>
 </body>
 </html>
