@@ -888,16 +888,17 @@ async function storexBaseTrackSitePageView(){
   const path=route(); if(path.startsWith('/admin-of-storex')) return;
   const session=getSiteAnalyticsSession();
   const token=session+'|'+path;
-  if(SITE_ANALYTICS_LAST_TOKEN===token)return;
+  if(!supabaseClient||!SUPABASE_READY)return false; // not connected yet: caller retries (do NOT consume the token)
+  if(SITE_ANALYTICS_LAST_TOKEN===token)return true;
   SITE_ANALYTICS_LAST_TOKEN=token;
-  if(!supabaseClient||!SUPABASE_READY)return;
   try{
     const modern=await supabaseClient.from('storex_site_analytics').insert({event_type:'page_view',visitor_key:session,page_path:path,session_key:session,event_date:new Date().toISOString().slice(0,10),metadata:{},created_at:new Date().toISOString()});
     if(modern.error){
       const legacy=await supabaseClient.from('storex_site_analytics').insert({session_id:session,path,viewed_at:new Date().toISOString()});
       if(legacy.error)throw legacy.error;
     }
-  }catch(e){ console.warn('Site analytics event skipped:',e); }
+  }catch(e){ window.STOREX_ANALYTICS_ERROR=(e&&e.message)||String(e); console.warn('Site analytics event skipped:',e); }
+  return true;
 }
 async function fetchSiteAnalytics(start,end){
   if(!supabaseClient||!SUPABASE_READY)return [];
@@ -939,7 +940,7 @@ async function loadAnalyticsDashboard(){
     const returned=orders.filter(o=>String(o.status||'').toLowerCase()==='returned');
     const root=document.getElementById('analytics-results'); if(!root)return;
     root.innerHTML=`<div class="admin-card" style="margin-top:12px;"><div class="admin-stats-grid"><div class="admin-stat"><b>${views.toLocaleString()}</b><span>Page views</span></div><div class="admin-stat"><b>${visitors.toLocaleString()}</b><span>Visitors</span></div><div class="admin-stat"><b>${orders.length.toLocaleString()}</b><span>Orders</span></div><div class="admin-stat"><b>${shipped.length.toLocaleString()}</b><span>Shipped / delivered</span></div><div class="admin-stat"><b>${returned.length.toLocaleString()}</b><span>Returned</span></div></div><h3 style="margin:18px 0 8px;">Daily breakdown</h3><div style="overflow:auto;"><table class="admin-table"><thead><tr><th>Date</th><th>Views</th></tr></thead><tbody>${Object.keys(byDay).sort().reverse().map(d=>`<tr><td>${esc(d)}</td><td>${byDay[d]}</td></tr>`).join('')||'<tr><td colspan="2">No website views recorded for this period.</td></tr>'}</tbody></table></div></div>`;
-  }catch(e){const root=document.getElementById('analytics-results');if(root)root.innerHTML=`<div class="admin-card"><b>Analytics data is not available yet.</b><p style="color:var(--ink-soft);">Run the supplied Supabase analytics migration once, then refresh this section.</p></div>`;}
+  }catch(e){const root=document.getElementById('analytics-results');if(root)root.innerHTML=`<div class="admin-card"><b>Analytics data is not available yet.</b><p style="color:var(--ink-soft);">Run the supplied Supabase analytics migration (phase-3.sql), then refresh this section.</p><p style="color:var(--ink-soft);font-size:12px;">Details: ${esc((e&&e.message)||String(e))}</p></div>`;}
 }
 function adminAnalytics(){
   setTimeout(loadAnalyticsDashboard,0);
@@ -2355,10 +2356,12 @@ function renderMobileDrawer(){
 
 function renderFooter(){
   const s=SETTINGS.footer||{};
-  const topCats=[...CATEGORIES].filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0)).slice(0,5);
-  const cats=topCats.map(c=>`<a href="#/category/${esc(c.slug)}">${esc(c.name)}</a>`).join('')||'<span style="color:#71757B;font-size:13px;">No categories yet</span>';
+  const visCats=[...CATEGORIES].filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0));
+  const chosenCats=(Array.isArray(s.categoryIds)?s.categoryIds:[]).map(id=>visCats.find(c=>c.id===id)).filter(Boolean).slice(0,3);
+  const topCats=chosenCats.length?chosenCats:visCats.slice(0,3);
+  const cats=(topCats.map(c=>`<a href="#/category/${esc(c.slug)}">${esc(c.name)}</a>`).join('')||'<span style="color:#71757B;font-size:13px;">No categories yet</span>')+'<a href="#/all-categories" style="font-weight:700;">View all categories &rarr;</a>';
   const pageLinks=[...new Map(PAGES.filter(p=>p.status==='published').map(p=>[p.slug,p])).values()].map(p=>`<a href="#/page/${esc(p.slug)}">${esc(p.title)}</a>`).join('');
-  return `<footer id="site-footer"><div class="container footer-grid"><div><h4>${esc(SETTINGS.siteName)}</h4><p style="font-size:13.5px;color:#B7BABE;max-width:320px;">${esc(s.about||'')}</p></div><div><h4>Categories</h4>${cats}</div><div><h4>Quick Links</h4><a href="#/">Home</a><a href="#/flash-sale">Flash Sale</a></div><div><h4>Information</h4>${pageLinks||'<span style="color:#71757B;font-size:13px;">No pages yet</span>'}</div></div><div class="container footer-bottom"><span>${esc(s.copyright||'')}</span><div class="footer-share"><span>Secure direct ordering</span><button type="button" class="share-btn" onclick="shareStorefront()" aria-label="Share this website"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share Website</button></div></div></footer>`;
+  return `<footer id="site-footer"><div class="container footer-grid"><div><h4>${esc(SETTINGS.siteName)}</h4><p style="font-size:13.5px;color:#FFFFFF;max-width:320px;">${esc(s.about||'')}</p></div><div><h4>Categories</h4>${cats}</div><div><h4>Quick Links</h4><a href="#/">Home</a><a href="#/flash-sale">Flash Sale</a></div><div><h4>Information</h4>${pageLinks||'<span style="color:#71757B;font-size:13px;">No pages yet</span>'}</div></div><div class="container footer-bottom"><span>${esc(s.copyright||'')}</span><div class="footer-share"><span>Secure direct ordering</span><button type="button" class="share-btn" onclick="shareStorefront()" aria-label="Share this website"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share Website</button></div></div></footer>`;
 }
 
 /* ================= HOME / SECTIONS ================= */
@@ -2534,16 +2537,14 @@ function renderCategoriesSection(sec){
     return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Shop by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div></div>
     <div class="empty-state" style="background:#fff;border:1px solid var(--line);border-radius:10px;"><div class="icon">\u{1F4C2}</div><div style="font-size:14px;font-weight:700;color:var(--ink-soft);padding:12px 0;">Categories are loading.</div></div></section>`;
   }
-  const selectedIds=Array.isArray(SETTINGS.homeCategoryIds)?SETTINGS.homeCategoryIds:[];
-   const visibleCats=CATEGORIES.filter(c=>c.status!=='hidden');
-   const selected=selectedIds.length?visibleCats.filter(c=>selectedIds.includes(c.id)):visibleCats.slice(0,6);
-   const cats=selected.slice(0,6).sort((a,b)=>(a.order||0)-(b.order||0)).map(c=>`
+  const allCats=CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0));
+  const cats=allCats.map(c=>`
     <a class="cat-card" href="#/category/${esc(c.slug)}">
       <div class="cat-icon">${c.image? `<img src="${mediaSrc(c.image)}" alt="" loading="lazy" decoding="async">` : (c.icon||'\u{1F6CD}')}</div>
       <div class="cat-name">${esc(c.name)}</div>
     </a>`).join('');
-  return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Shop by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div></div>
-  <div class="cat-grid">${cats}</div><div style="text-align:center;margin-top:16px;"><a class="btn small ghost" href="#/all-categories">View All</a></div></section>`;
+  return `<section class="section container"><div class="section-head"><div><h2>${esc(sec.title||'Shop by Category')}</h2><p>${esc(sec.subtitle||'')}</p></div><a href="#/all-categories">View all</a></div>
+  <div class="h-scroll-wrap"><button type="button" class="hs-btn prev" aria-label="Scroll left" onclick="hScrollBy(this,-1)">&#8249;</button><div class="h-scroll cat-scroll">${cats}</div><button type="button" class="hs-btn next" aria-label="Scroll right" onclick="hScrollBy(this,1)">&#8250;</button></div></section>`;
 }
 
 function filteredProducts(filter){
@@ -2642,7 +2643,7 @@ function renderCollectionSection(sec){
       <div class="spotlight-body">
         <a href="#/p/${esc(p.seo&&p.seo.slug||p.id)}"><h3>${esc(p.shortTitle||p.title)}</h3></a>
         ${p.shortDesc?`<p style="color:var(--ink-soft);margin:0;">${esc(p.shortDesc)}</p>`:''}
-        <button class="btn" style="margin-top:6px;width:fit-content;" onclick="trackProductBuyClick('${p.id}');startBuyNow('${p.id}', Number(document.getElementById('pd-qty')?document.getElementById('pd-qty').textContent:1))">Buy Now</button>
+        <a class="btn" style="margin-top:6px;width:fit-content;" href="#/p/${esc(p.seo&&p.seo.slug||p.id)}">Buy Now</a>
       </div>
     </div></section>`;
   }
@@ -2689,18 +2690,24 @@ function bannerStyle(b){
 }
 /* ---------- Social media section (Homepage Builder) ---------- */
 const SOCIAL_PLATFORMS={
-  facebook:{label:'Facebook',color:'#1877F2',icon:'f'},
-  instagram:{label:'Instagram',color:'linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)',icon:'IG'},
-  tiktok:{label:'TikTok',color:'#111111',icon:'\u266A'},
-  youtube:{label:'YouTube',color:'#FF0000',icon:'\u25B6'},
-  whatsapp:{label:'WhatsApp',color:'#25D366',icon:'\u260E'},
-  telegram:{label:'Telegram',color:'#229ED9',icon:'\u27A4'},
-  x:{label:'X (Twitter)',color:'#111111',icon:'X'},
-  snapchat:{label:'Snapchat',color:'#F5C400',icon:'\u{1F47B}'},
-  linkedin:{label:'LinkedIn',color:'#0A66C2',icon:'in'},
-  pinterest:{label:'Pinterest',color:'#E60023',icon:'P'},
+  facebook:{label:'Facebook',domain:'facebook.com',color:'#1877F2',icon:'f'},
+  instagram:{label:'Instagram',domain:'instagram.com',color:'linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)',icon:'IG'},
+  tiktok:{label:'TikTok',domain:'tiktok.com',color:'#111111',icon:'\u266A'},
+  youtube:{label:'YouTube',domain:'youtube.com',color:'#FF0000',icon:'\u25B6'},
+  whatsapp:{label:'WhatsApp',domain:'whatsapp.com',color:'#25D366',icon:'\u260E'},
+  telegram:{label:'Telegram',domain:'telegram.org',color:'#229ED9',icon:'\u27A4'},
+  x:{label:'X (Twitter)',domain:'x.com',color:'#111111',icon:'X'},
+  snapchat:{label:'Snapchat',domain:'snapchat.com',color:'#F5C400',icon:'\u{1F47B}'},
+  linkedin:{label:'LinkedIn',domain:'linkedin.com',color:'#0A66C2',icon:'in'},
+  pinterest:{label:'Pinterest',domain:'pinterest.com',color:'#E60023',icon:'P'},
   custom:{label:'Other',color:'#F57224',icon:'\u{1F517}'}
 };
+function socialIconHtml(pf,url,platform){
+  let domain=pf.domain||'';
+  if(!domain){ try{ domain=new URL(url).hostname; }catch(_){ domain=''; } }
+  const img=domain?`<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128" alt="" loading="lazy" decoding="async" onerror="this.parentNode.classList.add('noimg');this.remove()">`:'';
+  return `<span class="social-icon${img?'':' noimg'}" aria-hidden="true">${img}<em>${pf.icon}</em></span>`;
+}
 function safeSocialUrl(u){
   u=String(u||'').trim(); if(!u)return '';
   if(/^(javascript|data|vbscript|file):/i.test(u))return '';
@@ -2712,7 +2719,7 @@ function renderSocialSection(sec){
   const pf=SOCIAL_PLATFORMS[c.platform]||SOCIAL_PLATFORMS.custom;
   const name=c.platform==='custom'?(c.customLabel||'our page'):pf.label;
   const title=sec.title||('Follow us on '+name);
-  return `<section class="section container"><a class="social-card" href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(title)}" style="--sc:${pf.color}"><span class="social-icon" aria-hidden="true">${pf.icon}</span><span class="social-text"><b>${esc(title)}</b>${sec.subtitle?`<small>${esc(sec.subtitle)}</small>`:''}</span><span class="social-btn">${esc(c.buttonText||('Follow on '+name))}</span></a></section>`;
+  return `<section class="section container"><a class="social-card" href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(title)}" style="--sc:${pf.color}">${socialIconHtml(pf,url,c.platform)}<span class="social-text"><b>${esc(title)}</b>${sec.subtitle?`<small>${esc(sec.subtitle)}</small>`:''}</span><span class="social-btn">${esc(c.buttonText||('Follow on '+name))}</span></a></section>`;
 }
 function renderBannerSection(sec){
   const b=BANNERS.find(x=>x.id===(sec.config&&sec.config.bannerId)); if(!b||!b.visible)return '';
@@ -4480,6 +4487,7 @@ function adminSettings(){
         <div class="field"><label>Google Analytics ID</label><input type="text" name="gaId" value="${esc(s.gaId)}"></div>
         <div class="field full"><label>Footer About Text</label><textarea name="footerAbout">${esc(s.footer.about)}</textarea></div>
         <div class="field full"><label>Footer Copyright</label><input type="text" name="footerCopyright" value="${esc(s.footer.copyright)}"></div>
+        <div class="field full"><label>Footer categories (pick up to 3; a "View all categories" link is added automatically)</label><div class="form-grid">${[0,1,2].map(i=>`<div class="field"><label>Category ${i+1}</label><select name="footerCat${i}"><option value="">${i===0?'Auto (first categories)':'— None —'}</option>${CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0)).map(c=>`<option value="${esc(c.id)}" ${((s.footer.categoryIds||[])[i])===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`).join('')}</div></div>
       </div>
       <button class="btn" style="margin-top:14px;" type="submit">Save General Settings</button>
     </form>
@@ -4502,6 +4510,7 @@ function saveGeneralSettings(form){
   SETTINGS.gaId=fd.get('gaId').trim();
   SETTINGS.footer.about=fd.get('footerAbout').trim();
   SETTINGS.footer.copyright=fd.get('footerCopyright').trim();
+  SETTINGS.footer.categoryIds=[...new Set([0,1,2].map(i=>String(fd.get('footerCat'+i)||'')).filter(Boolean))];
   saveKey(KEYS.settings,SETTINGS);toast('Settings saved');
 }
 
@@ -5289,8 +5298,15 @@ async function submitCheckout(){
 }
 
 /* Make sure visitor analytics is attempted on every public route after Supabase is ready. */
+let SITE_ANALYTICS_RETRY_TIMER=null, SITE_ANALYTICS_RETRIES=0;
 async function trackSitePageView(){
-  try{await storexBaseTrackSitePageView();}catch(e){console.warn('Visitor analytics failed:',e);}
+  try{
+    const done=await storexBaseTrackSitePageView();
+    if(done===false && !SITE_ANALYTICS_RETRY_TIMER && SITE_ANALYTICS_RETRIES<40){
+      SITE_ANALYTICS_RETRIES++;
+      SITE_ANALYTICS_RETRY_TIMER=setTimeout(()=>{SITE_ANALYTICS_RETRY_TIMER=null;trackSitePageView();},1000);
+    }
+  }catch(e){console.warn('Visitor analytics failed:',e);}
 }
 
 /* ================= INIT ================= */
@@ -5467,6 +5483,21 @@ h1,h2,h3,h4,.section-head p,.promo-banner-inner h3,.promo-banner-inner p,.flash-
 .section pre{max-width:100%;overflow:auto;}
 .section iframe{max-width:100%;}
 @media (max-width:360px){.section-head h2{font-size:17px;}.btn{padding-left:12px;padding-right:12px;}}
+
+/* ===== Shop by category scrolling bar ===== */
+.h-scroll.cat-scroll{gap:12px;}
+.h-scroll > .cat-card{flex:0 0 120px;width:120px;scroll-snap-align:start;padding:6px;}
+.cat-scroll .cat-icon{aspect-ratio:1/1!important;height:auto!important;}
+.cat-scroll .cat-name{font-size:12.5px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em;}
+@media (max-width:720px){.h-scroll.cat-scroll{gap:8px;}.h-scroll > .cat-card{flex-basis:28vw;width:28vw;max-width:130px;}}
+/* ===== Social favicon icon ===== */
+.social-icon{background:#fff!important;border:1px solid var(--line);color:var(--ink)!important;}
+.social-icon img{width:28px;height:28px;object-fit:contain;display:block;}
+.social-icon em{display:none;font-style:normal;font-size:16px;}
+.social-icon.noimg{background:var(--sc,#F57224)!important;color:#fff!important;border-color:transparent;}
+.social-icon.noimg em{display:block;}
+/* ===== Footer description: pure white ===== */
+#site-footer .footer-grid p{color:#FFFFFF!important;}
 </style>
 </body>
 </html>
