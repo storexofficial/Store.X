@@ -1825,25 +1825,93 @@ function customerCanRequestReturn(o){
   return (Date.now()-deliveredAt) >= 0 && (Date.now()-deliveredAt) <= 7*86400000;
 }
 function renderTrackOrder(){
-  return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;max-width:760px;"><div class="trk-head"><nav class="crumb" aria-label="Breadcrumb"><a href="#/">Home</a> / Track Order</nav><h1>Track Your Order</h1><p>Stay updated on your order’s journey.</p></div><div class="customer-card trk-card"><form id="track-order-form" novalidate onsubmit="event.preventDefault();trackOrder();"><div class="form-grid"><div class="field full"><label for="trk-no">Order number *</label><input id="trk-no" name="order_number" required placeholder="e.g. SX-ABC1234567" autocomplete="off" autocapitalize="characters"></div><div class="field"><label for="trk-name">Full name *</label><input id="trk-name" name="name" required autocomplete="name"></div><div class="field"><label for="trk-phone">Phone number *</label><input id="trk-phone" name="phone" required type="tel" inputmode="tel" autocomplete="tel"></div></div><div id="track-order-error" class="trk-error" role="alert" hidden></div><div class="form-actions"><button id="track-order-btn" type="submit" class="btn trk-btn">Track Order</button></div></form><div class="trk-forgot"><button type="button" class="btn ghost" onclick="showAllCustomerOrdersForm()">Forgot Order ID / See All Orders</button></div></div><div id="track-order-result" style="margin-top:18px;"></div><div id="all-orders-result" style="margin-top:18px;"></div></div>`;
+  return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;max-width:760px;"><div class="trk-head"><nav class="crumb" aria-label="Breadcrumb"><a href="#/">Home</a> / Track Order</nav><h1>Track Your Order</h1><p>Stay updated on your order’s journey.</p></div><div class="customer-card trk-card"><form id="track-order-form" novalidate onsubmit="event.preventDefault();trackOrder();"><div class="form-grid"><div class="field full"><label for="trk-no">Order number *</label><input id="trk-no" name="order_number" required placeholder="e.g. SX-ABC1234567" autocomplete="off" autocapitalize="characters"></div><div class="field"><label for="trk-name">Full name *</label><input id="trk-name" name="name" required autocomplete="name"></div><div class="field"><label for="trk-phone">Phone number *</label><input id="trk-phone" name="phone" required type="tel" inputmode="tel" autocomplete="tel"></div></div><div id="track-order-error" class="trk-error" role="alert" hidden></div><div class="form-actions"><button id="track-order-btn" type="submit" class="btn trk-btn">Track Order</button></div></form><div class="trk-forgot"><button type="button" class="btn ghost" onclick="location.hash='#/my-orders'">Forgot Order ID / See All Orders</button></div></div><div id="track-order-result" style="margin-top:18px;"></div><div id="all-orders-result" style="margin-top:18px;"></div></div>`;
 }
-function showAllCustomerOrdersForm(){
-  const result=document.getElementById('all-orders-result'); if(!result)return;
-  result.innerHTML=`<div class="customer-card" style="border:1px solid var(--line);"><h2 style="margin-top:0;">Forgot Order ID / See All Orders</h2><p style="color:var(--ink-soft);">Enter the same name and phone number used when placing your orders. Your matching order IDs will be shown.</p><form id="all-orders-form" onsubmit="event.preventDefault();findAllCustomerOrders();"><div class="form-grid"><div class="field"><label>Full name *</label><input name="all_name" required autocomplete="name"></div><div class="field"><label>Phone number *</label><input name="all_phone" required type="tel" autocomplete="tel"></div></div><div class="form-actions"><button id="all-orders-btn" type="submit" class="btn">See All Orders</button></div></form><div id="all-orders-list" style="margin-top:16px;"></div></div>`;
-  result.scrollIntoView({behavior:'smooth',block:'start'});
+/* ---------- Track order: dedicated order page + "all my orders" page ---------- */
+const TRACK_CREDS_KEY='StoreX.trackCreds.v1';
+let ORDER_PAGE_PRELOAD=null;
+function trackCredsGet(){try{const v=JSON.parse(sessionStorage.getItem(TRACK_CREDS_KEY)||'null');return v&&v.name&&v.phone?v:null;}catch(_){return null;}}
+function trackCredsSet(name,phone){try{sessionStorage.setItem(TRACK_CREDS_KEY,JSON.stringify({name:String(name||'').trim(),phone:String(phone||'').trim()}));}catch(_){}}
+function waitForSupabase(ms){return new Promise(res=>{const t0=Date.now();(function chk(){if(supabaseClient&&SUPABASE_READY)return res(true);if(Date.now()-t0>=ms)return res(false);setTimeout(chk,300);})();});}
+async function fetchTrackedOrder(orderNumber,name,phone){
+  if(!(await waitForSupabase(15000)))throw new Error('Order service is temporarily unavailable. Please try again shortly.');
+  const {data,error}=await supabaseClient.rpc('storex_track_order',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone});
+  if(error)throw error;
+  if(!data||data.found===false)throw new Error('Order not found or verification details do not match.');
+  try{
+    const rs=await supabaseClient.rpc('storex_get_order_request_status',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone});
+    if(rs&&!rs.error&&rs.data&&typeof rs.data==='object'&&!Array.isArray(rs.data)) Object.assign(data,rs.data);
+  }catch(_){}
+  return data;
+}
+function openOrderPage(orderNumber){ location.hash='#/order/'+encodeURIComponent(String(orderNumber||'').trim()); }
+async function refreshOrderView(orderNumber){
+  if(route().startsWith('/order/')) await loadOrderPage(orderNumber); else await trackOrder();
+}
+function buildTrackedOrderInvoiceHtml(o){
+  const qty=Number(o.quantity)||1, hasUnit=o.unit_price!=null&&Number.isFinite(Number(o.unit_price));
+  const disc=Number(o.discount_amount)||0, hasDel=o.delivery_charges!=null, del=Number(o.delivery_charges)||0;
+  const row=(a,b,x='')=>`<div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;${x}"><span>${a}</span><span>${b}</span></div>`;
+  const created=o.created_at?new Date(o.created_at).toLocaleString('en-PK'):'';
+  return `<div class="order-invoice" style="background:#fff;border-radius:14px;padding:22px;max-width:620px;margin:auto;box-shadow:0 12px 40px rgba(0,0,0,.12);">
+    <div style="text-align:center;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">${storexLogoHtml()}<div style="margin-top:12px;font-size:22px;font-weight:800;">ORDER INVOICE</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;font-size:13px;"><div><b>Order Number</b><br>${esc(o.order_number||'')}</div><div><b>Order Date</b><br>${esc(created)}</div><div><b>Status</b><br>${esc(formatOrderStatus(o.status))}</div><div><b>Customer</b><br>${esc(o.customer_name||'')}</div></div>
+    <div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;"><b>Order Details</b><div style="margin-top:9px;font-size:13px;">${row(esc(o.product_title||'Product'),'Qty: '+qty,'margin-top:0;')}${hasUnit?row('Unit price',money(o.unit_price)):''}${disc>0?row('Discount','-'+money(disc)):''}${hasDel?row('Delivery',del>0?money(del):'FREE'):''}${row('Total',money(o.total_amount),'font-size:16px;font-weight:800;border-top:1px solid var(--line);padding-top:9px;margin-top:8px;')}</div></div>
+    <div style="display:grid;gap:5px;font-size:13px;margin-bottom:12px;"><b>Delivery Details</b><span>Name: ${esc(o.customer_name||'')}</span><span>Phone: ${esc(o.customer_phone||'')}</span><span>City: ${esc(o.city||'')}</span><span>Address: ${esc(o.customer_address||'')}</span></div>
+    <div style="text-align:center;border-top:1px solid var(--line);padding-top:12px;font-weight:800;">${esc(SETTINGS.siteName||'')}<div style="font-size:12px;font-weight:500;color:var(--ink-soft);margin-top:4px;">Thanks for your order</div></div>
+  </div>`;
+}
+function orderPageHtml(o){
+  return renderTrackedOrder(o)+`<div class="customer-card" style="margin-top:16px;"><h2 style="margin-top:0;">Invoice</h2>${buildTrackedOrderInvoiceHtml(o)}<div class="modal-close-row" style="max-width:620px;margin:14px auto 0;"><button class="btn" onclick="window.print()">Save Invoice</button></div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;"><a class="btn ghost" href="#/my-orders">See all my orders</a><a class="btn ghost" href="#/track-order">Track another order</a></div>`;
+}
+function orderVerifyFormHtml(no,msg){
+  const c=trackCredsGet()||{};
+  return `<div class="customer-card trk-card"><h2 style="margin-top:0;">Verify your order</h2><p style="color:var(--ink-soft);margin-top:0;">Enter the name and phone number used for order <b>${esc(no)}</b> to view it.</p>${msg?`<div class="trk-error" role="alert">${esc(msg)}</div>`:''}<form id="order-verify-form" onsubmit="event.preventDefault();submitOrderVerify('${esc(no)}');"><div class="form-grid"><div class="field"><label>Full name *</label><input name="name" required autocomplete="name" value="${esc(c.name||'')}"></div><div class="field"><label>Phone number *</label><input name="phone" required type="tel" inputmode="tel" autocomplete="tel" value="${esc(c.phone||'')}"></div></div><div class="form-actions"><button id="order-verify-btn" type="submit" class="btn trk-btn">View Order</button></div></form></div>`;
+}
+async function submitOrderVerify(no){
+  const f=document.getElementById('order-verify-form'); if(!f)return;
+  const fd=new FormData(f), name=String(fd.get('name')||'').trim(), phone=String(fd.get('phone')||'').trim();
+  if(!name||phone.replace(/\D/g,'').length<7){const b=document.getElementById('order-page-body');if(b)b.innerHTML=orderVerifyFormHtml(no,'Please enter your full name and a valid phone number.');return;}
+  trackCredsSet(name,phone); await loadOrderPage(no);
+}
+async function loadOrderPage(no){
+  const box=()=>document.getElementById('order-page-body'); if(!box())return;
+  const pre=ORDER_PAGE_PRELOAD;
+  if(pre&&pre.no===no&&Date.now()-pre.ts<60000){ ORDER_PAGE_PRELOAD=null; box().innerHTML=orderPageHtml(pre.data); return; }
+  const c=trackCredsGet();
+  if(!c){ box().innerHTML=orderVerifyFormHtml(no); return; }
+  box().innerHTML='<div class="customer-card trk-loading" aria-busy="true"><span class="trk-spin"></span>Fetching your order\u2026</div>';
+  try{
+    const data=await fetchTrackedOrder(no,c.name,c.phone);
+    if(box()) box().innerHTML=orderPageHtml(data);
+  }catch(e){ if(box()) box().innerHTML=orderVerifyFormHtml(no,e.message||'We could not verify this order.'); }
+}
+function renderOrderPage(rawNo){
+  let no=rawNo; try{no=decodeURIComponent(rawNo);}catch(_){}
+  applySEO(null,'Order '+no,'');
+  setTimeout(()=>loadOrderPage(no),0);
+  return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;max-width:760px;"><div class="trk-head"><nav class="crumb" aria-label="Breadcrumb"><a href="#/">Home</a> / <a href="#/track-order">Track Order</a> / ${esc(no)}</nav><h1>Your Order</h1></div><div id="order-page-body"><div class="customer-card trk-loading" aria-busy="true"><span class="trk-spin"></span>Fetching your order\u2026</div></div></div>`;
+}
+function renderMyOrdersPage(){
+  const c=trackCredsGet()||{};
+  applySEO(null,'Find My Orders','');
+  if(c.name) setTimeout(()=>{ if(document.getElementById('all-orders-form')) findAllCustomerOrders(); },0);
+  return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;max-width:760px;"><div class="trk-head"><nav class="crumb" aria-label="Breadcrumb"><a href="#/">Home</a> / <a href="#/track-order">Track Order</a> / My Orders</nav><h1>Forgot Order ID / See All Orders</h1><p>Enter the same name and phone number used when placing your orders.</p></div><div class="customer-card trk-card"><form id="all-orders-form" onsubmit="event.preventDefault();findAllCustomerOrders();"><div class="form-grid"><div class="field"><label>Full name *</label><input name="all_name" required autocomplete="name" value="${esc(c.name||'')}"></div><div class="field"><label>Phone number *</label><input name="all_phone" required type="tel" inputmode="tel" autocomplete="tel" value="${esc(c.phone||'')}"></div></div><div class="form-actions"><button id="all-orders-btn" type="submit" class="btn trk-btn">See All Orders</button></div></form></div><div id="all-orders-list" style="margin-top:18px;"></div></div>`;
 }
 async function findAllCustomerOrders(){
   const form=document.getElementById('all-orders-form'), list=document.getElementById('all-orders-list'), btn=document.getElementById('all-orders-btn'); if(!form||!list)return;
   const fd=new FormData(form), name=String(fd.get('all_name')||'').trim(), phone=String(fd.get('all_phone')||'').trim();
+  if(!name||phone.replace(/\D/g,'').length<7){list.innerHTML='<div class="help-note">Please enter your full name and a valid phone number.</div>';return;}
   if(btn){btn.disabled=true;btn.textContent='Searching...';}
-  list.innerHTML='<div class="help-note">Searching your orders…</div>';
+  list.innerHTML='<div class="customer-card trk-loading" aria-busy="true"><span class="trk-spin"></span>Searching your orders\u2026</div>';
   try{
-    if(!supabaseClient||!SUPABASE_READY)throw new Error('Order service is temporarily unavailable.');
+    if(!(await waitForSupabase(15000)))throw new Error('Order service is temporarily unavailable.');
     const {data,error}=await supabaseClient.rpc('storex_find_customer_orders',{p_customer_name:name,p_customer_phone:phone});
     if(error)throw error;
     const orders=Array.isArray(data)?data:(data?.orders||[]);
     if(!orders.length){list.innerHTML='<div class="help-note">No orders were found for this name and phone number.</div>';return;}
-    list.innerHTML=`<div style="display:grid;gap:10px;">${orders.map(o=>`<div class="customer-card" style="border:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><div><b>Order ID: ${esc(o.order_number||'')}</b><div style="color:var(--ink-soft);font-size:12px;margin-top:3px;">${o.created_at?new Date(o.created_at).toLocaleString():''}</div></div><span class="badge-status ${['confirmed','ready_to_ship','shipped','delivered'].includes(String(o.status||'').toLowerCase())?'on':''}">${formatOrderStatus(o.status)}</span></div><div style="margin-top:8px;font-size:13px;">${esc(o.product_title||'')} × ${Number(o.quantity)||0} · ${money(o.total_amount)}</div></div>`).join('')}</div>`;
+    trackCredsSet(name,phone);
+    list.innerHTML=`<h2 style="margin:0 0 10px;font-size:18px;">Your orders (${orders.length})</h2><div style="display:grid;gap:10px;">${orders.map(o=>`<div class="customer-card" style="border:1px solid var(--line);"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><div><b>Order ID: ${esc(o.order_number||'')}</b><div style="color:var(--ink-soft);font-size:12px;margin-top:3px;">${o.created_at?new Date(o.created_at).toLocaleString():''}</div></div><span class="badge-status ${['confirmed','ready_to_ship','shipped','delivered'].includes(String(o.status||'').toLowerCase())?'on':''}">${formatOrderStatus(o.status)}</span></div><div style="margin-top:8px;font-size:13px;">${esc(o.product_title||'')} \u00D7 ${Number(o.quantity)||0} \u00B7 ${money(o.total_amount)}</div><div style="margin-top:10px;"><button type="button" class="btn small" onclick="openOrderPage('${esc(o.order_number||'')}')">Track Order</button></div></div>`).join('')}</div>`;
   }catch(e){list.innerHTML=`<div class="help-note">Could not retrieve orders. ${esc(e.message||'Please try again.')}</div>`;}
   finally{if(btn){btn.disabled=false;btn.textContent='See All Orders';}}
 }
@@ -1861,17 +1929,12 @@ async function trackOrder(){
   if(!orderNumber||!name||!phone){showErr('Please fill in the order number, full name and phone number.');return;}
   if(phone.replace(/\D/g,'').length<7){showErr('Please enter a valid phone number.');return;}
   if(btn){btn.disabled=true;btn.textContent='Verifying...';}
-  result.innerHTML='<div class="customer-card trk-loading" aria-busy="true"><span class="trk-spin"></span>Fetching your latest order status…</div>';
+  result.innerHTML='<div class="customer-card trk-loading" aria-busy="true"><span class="trk-spin"></span>Fetching your latest order status\u2026</div>';
   try{
-    if(!supabaseClient||!SUPABASE_READY)throw new Error('Order service is temporarily unavailable. Please try again shortly.');
-    const {data,error}=await supabaseClient.rpc('storex_track_order',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone});
-    if(error)throw error;
-    if(!data||data.found===false) throw new Error('Order not found or verification details do not match.');
-    try{
-      const rs=await supabaseClient.rpc('storex_get_order_request_status',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone});
-      if(rs&&!rs.error&&rs.data&&typeof rs.data==='object'&&!Array.isArray(rs.data)) Object.assign(data,rs.data);
-    }catch(_){}
-    result.innerHTML=renderTrackedOrder(data);
+    const data=await fetchTrackedOrder(orderNumber,name,phone);
+    trackCredsSet(name,phone);
+    ORDER_PAGE_PRELOAD={no:orderNumber,data,ts:Date.now()};
+    openOrderPage(orderNumber);
   }catch(e){result.innerHTML=`<div class="customer-card trk-fail"><b>Unable to verify this order.</b><p style="margin:6px 0 0;color:var(--ink-soft);">${esc(e.message||'Please check your order number, name and phone number.')}</p></div>`;}
   finally{if(btn){btn.disabled=false;btn.textContent='Track Order';}}
 }
@@ -1898,16 +1961,16 @@ function openReturnRequest(orderNumber){
 async function submitReturnRequest(orderNumber){
   const form=document.getElementById('return-request-form'); if(!form)return;
   const reason=String(new FormData(form).get('reason')||'').trim();
-  const trackForm=document.getElementById('track-order-form');
-  const name=String(trackForm?.querySelector('[name="name"]')?.value||'').trim();
-  const phone=String(trackForm?.querySelector('[name="phone"]')?.value||'').trim();
+  const trackForm=document.getElementById('track-order-form'), cr=trackCredsGet()||{};
+  const name=String(trackForm?.querySelector('[name="name"]')?.value||cr.name||'').trim();
+  const phone=String(trackForm?.querySelector('[name="phone"]')?.value||cr.phone||'').trim();
   if(!reason){toast('Please enter a return reason.');return;}
   try{
     const {data,error}=await supabaseClient.rpc('storex_request_order_return',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone,p_reason:reason});
     if(error)throw error;
     if(!data||data.success!==true)throw new Error(data?.message||'Return request could not be submitted.');
     try{ await supabaseClient.rpc('storex_mark_customer_return_request',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone}); }catch(_){}
-    closeModal(); toast('Return request submitted successfully.'); await trackOrder();
+    closeModal(); toast('Return request submitted successfully.'); await refreshOrderView(orderNumber);
   }catch(e){toast(e.message||'Return request failed.');}
 }
 
@@ -1926,15 +1989,15 @@ function openCancelRequest(orderNumber){
 async function submitCancelRequest(orderNumber){
   const form=document.getElementById('cancel-request-form'); if(!form)return;
   const reason=String(new FormData(form).get('reason')||'').trim();
-  const trackForm=document.getElementById('track-order-form');
-  const name=String(trackForm?.querySelector('[name="name"]')?.value||'').trim();
-  const phone=String(trackForm?.querySelector('[name="phone"]')?.value||'').trim();
+  const trackForm=document.getElementById('track-order-form'), cr=trackCredsGet()||{};
+  const name=String(trackForm?.querySelector('[name="name"]')?.value||cr.name||'').trim();
+  const phone=String(trackForm?.querySelector('[name="phone"]')?.value||cr.phone||'').trim();
   if(!reason){toast('Please enter a cancellation reason.');return;}
   try{
     const {data,error}=await supabaseClient.rpc('storex_request_order_cancellation',{p_order_number:orderNumber,p_customer_name:name,p_customer_phone:phone,p_reason:reason});
     if(error)throw error;
     if(!data||data.success!==true)throw new Error(data?.message||'Cancellation request could not be sent.');
-    closeModal(); toast('Cancellation request sent. Waiting for admin approval.'); await trackOrder();
+    closeModal(); toast('Cancellation request sent. Waiting for admin approval.'); await refreshOrderView(orderNumber);
   }catch(e){toast(e.message||'Cancellation request failed.');}
 }
 
@@ -2191,6 +2254,8 @@ function render(){
     else if(h==='/flash-sale'){ body = renderFlashSaleIndex(); }
     else if(h.startsWith('/search')){ const q = new URLSearchParams(h.split('?')[1]||'').get('q')||''; body = renderSearchPage(q); }
     else if(h==='/track-order'){ body = renderTrackOrder(); }
+    else if(h.startsWith('/order/')){ body = renderOrderPage(h.slice(7)); }
+    else if(h==='/my-orders'){ body = renderMyOrdersPage(); }
     else if(h==='/cart'){ body = renderCartPage(); }
     else if(h==='/wishlist'){ body = renderWishlistPage(); }
     else if(h==='/checkout'){ body = renderCheckoutPage(); }
@@ -2555,7 +2620,8 @@ function filteredProducts(filter){
   else if(filter==='trending') list = list.filter(p=>p.trending);
   else if(filter==='newArrival') list = list.filter(p=>p.newArrival);
   else if(filter==='bestSeller') list = list.filter(p=>p.bestSeller);
-  return list.sort((a,b)=>(a.order||0)-(b.order||0));
+  const posOf=p=>{const n=Number(p.sectionPos&&p.sectionPos[filter]);return n>0?n:1e9;};
+  return list.sort((a,b)=>(posOf(a)-posOf(b))||((a.order||0)-(b.order||0)));
 }
 function renderProductScroller(list){
   return `<div class="h-scroll-wrap"><button type="button" class="hs-btn prev" aria-label="Scroll left" onclick="hScrollBy(this,-1)">&#8249;</button><div class="h-scroll">${list.map(p=>renderProductCard(p,{home:true})).join('')}</div><button type="button" class="hs-btn next" aria-label="Scroll right" onclick="hScrollBy(this,1)">&#8250;</button></div>`;
@@ -2839,7 +2905,15 @@ function storexBaseSortCustomerProducts(list){
     default: return arr.sort((a,b)=>stockFirst(a,b)||(a.order||0)-(b.order||0));
   }
 }
-function setCustomerProductSort(value){CUSTOMER_PRODUCT_SORT=String(value||'default');render();}
+function setCustomerProductSort(value){
+  CUSTOMER_PRODUCT_SORT=String(value||'default');
+  const y=window.scrollY; render();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,y)));
+}
+function sortChipsHtml(){
+  const opts=[['default','Recommended'],['newest','Newest'],['price-low','Price: Low to High'],['price-high','Price: High to Low'],['discount','Biggest Discount'],['name','Name A\u2013Z']];
+  return `<div class="sort-bar" role="group" aria-label="Sort products"><span class="sort-label">Sort:</span><div class="sort-chips">${opts.map(([v,l])=>`<button type="button" class="sort-chip${CUSTOMER_PRODUCT_SORT===v?' active':''}" aria-pressed="${CUSTOMER_PRODUCT_SORT===v}" onclick="setCustomerProductSort('${v}')">${l}</button>`).join('')}</div></div>`;
+}
 function storexBaseRenderCategoryPage(slug){
   let list, title, desc;
   if(slug==='all'){
@@ -2855,7 +2929,8 @@ function storexBaseRenderCategoryPage(slug){
   }
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / ${esc(title)}</div>
-    <div class="section-head" style="align-items:end;gap:12px;"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div><div class="field" style="min-width:190px;margin:0;"><label style="font-size:12px;">Sort products</label><select onchange="setCustomerProductSort(this.value)"><option value="default" ${CUSTOMER_PRODUCT_SORT==='default'?'selected':''}>Recommended</option><option value="newest" ${CUSTOMER_PRODUCT_SORT==='newest'?'selected':''}>Newest</option><option value="price-low" ${CUSTOMER_PRODUCT_SORT==='price-low'?'selected':''}>Price: Low to High</option><option value="price-high" ${CUSTOMER_PRODUCT_SORT==='price-high'?'selected':''}>Price: High to Low</option><option value="discount" ${CUSTOMER_PRODUCT_SORT==='discount'?'selected':''}>Biggest Discount</option><option value="name" ${CUSTOMER_PRODUCT_SORT==='name'?'selected':''}>Name A–Z</option></select></div></div>
+    <div class="section-head" style="align-items:end;gap:12px;"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div></div>
+    ${sortChipsHtml()}
     ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F50D}</div><h3>No products found</h3><p>There's nothing here yet \u2014 check back soon.</p></div>`}
   </div>`;
@@ -3021,7 +3096,7 @@ function wireStorefrontEvents(){
 function renderAdminRoot(){
   if(!ADMIN_UNLOCKED) return renderAdminLogin();
   return `<div class="admin-shell">
-    <button class="admin-hamburger" onclick="ADMIN_DRAWER_OPEN=true;render();" aria-label="Open admin menu">
+    <button class="admin-hamburger${ADMIN_DRAWER_OPEN?' hide':''}" onclick="ADMIN_DRAWER_OPEN=true;render();" aria-label="Open admin menu">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     <div class="admin-drawer-overlay ${ADMIN_DRAWER_OPEN?'open':''}" onclick="ADMIN_DRAWER_OPEN=false;render();"></div>
@@ -3290,6 +3365,50 @@ function adminImageControls(label,current,onSelectJs,previewId,extraNote=''){
 }
 
 /* ---------- Products ---------- */
+/* ---------- Admin: change position of products / categories / flash sales / banners ---------- */
+function adminOrderedList(kind){
+  if(kind==='product')return [...PRODUCTS].sort((a,b)=>(a.order||0)-(b.order||0));
+  if(kind==='category')return [...CATEGORIES].sort((a,b)=>(a.order||0)-(b.order||0));
+  if(kind==='flash')return FLASHSALES;
+  if(kind==='banner')return BANNERS;
+  return [];
+}
+function adminPositionControl(kind,id,total){
+  const pos=adminOrderedList(kind).findIndex(x=>String(x.id)===String(id))+1;
+  return `<div class="pos-ctl"><button type="button" class="pos-btn" title="Move up" aria-label="Move up" onclick="adminMoveItem('${kind}','${id}',-1)">&#9650;</button><input class="pos-input" type="number" inputmode="numeric" min="1" max="${total}" value="${pos}" aria-label="Position" onchange="adminSetPosition('${kind}','${id}',this.value)"><button type="button" class="pos-btn" title="Move down" aria-label="Move down" onclick="adminMoveItem('${kind}','${id}',1)">&#9660;</button></div>`;
+}
+function adminMoveItem(kind,id,dir){
+  const list=adminOrderedList(kind); const i=list.findIndex(x=>String(x.id)===String(id)); if(i<0)return;
+  adminSetPosition(kind,id,i+1+dir);
+}
+function adminSetPosition(kind,id,position){
+  const list=adminOrderedList(kind).slice(); const n=list.length;
+  const from=list.findIndex(x=>String(x.id)===String(id)); if(from<0)return;
+  let to=Math.round(Number(position)); if(!Number.isFinite(to))return;
+  to=Math.max(1,Math.min(n,to))-1; if(to===from){render();return;}
+  const [moved]=list.splice(from,1); list.splice(to,0,moved);
+  if(kind==='product'){ list.forEach((x,k)=>{x.order=k+1;}); saveKey(KEYS.products,PRODUCTS); }
+  else if(kind==='category'){ list.forEach((x,k)=>{x.order=k+1;}); saveKey(KEYS.categories,CATEGORIES); }
+  else if(kind==='flash'){ FLASHSALES=list; saveKey(KEYS.flashsales,FLASHSALES); }
+  else if(kind==='banner'){ BANNERS=list; saveKey(KEYS.banners,BANNERS); }
+  toast('Moved to position '+(to+1));
+}
+/* Give every admin table cell its column name so tables can stack as cards on phones. */
+function labelAdminTables(){
+  document.querySelectorAll('.admin-main table.admin-table').forEach(t=>{
+    const heads=[...t.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+    if(!heads.length)return;
+    t.querySelectorAll('tbody tr').forEach(tr=>{[...tr.children].forEach((td,i)=>{
+      if(td.tagName==='TD'&&!td.hasAttribute('data-label')) td.setAttribute('data-label',td.colSpan>1?'':(heads[i]||''));
+    });});
+  });
+}
+(function(){
+  let timer=null;
+  const run=()=>{timer=null;const adm=location.hash.startsWith('#/admin-of-storex');document.body.classList.toggle('is-admin',adm);if(adm)labelAdminTables();};
+  const start=()=>{run();new MutationObserver(()=>{if(!timer)timer=setTimeout(run,50);}).observe(document.body,{childList:true,subtree:true});window.addEventListener('hashchange',run);};
+  if(document.body)start();else document.addEventListener('DOMContentLoaded',start);
+})();
 function adminProducts(){
   let list=PRODUCTS.filter(p=>ADMIN_PRODUCT_STATUS_FILTER==='all'||String(p.status||'')===ADMIN_PRODUCT_STATUS_FILTER);
   if(ADMIN_PRODUCT_STATUS_SORT==='status') list.sort((a,b)=>String(a.status||'').localeCompare(String(b.status||''))||String(a.title||'').localeCompare(String(b.title||'')));
@@ -3298,11 +3417,12 @@ function adminProducts(){
   else list.sort((a,b)=>(a.order||0)-(b.order||0));
   return `<div class="admin-topbar"><h1>Products</h1><button class="btn" onclick="openProductModal()">+ Add Product</button></div>
   <div class="admin-card"><div class="form-grid" style="align-items:end;margin-bottom:12px;"><div class="field"><label>Product status</label><select onchange="ADMIN_PRODUCT_STATUS_FILTER=this.value;render()"><option value="all" ${ADMIN_PRODUCT_STATUS_FILTER==='all'?'selected':''}>All products</option><option value="published" ${ADMIN_PRODUCT_STATUS_FILTER==='published'?'selected':''}>Published</option><option value="hidden" ${ADMIN_PRODUCT_STATUS_FILTER==='hidden'?'selected':''}>Hidden</option></select></div><div class="field"><label>Sort products</label><select onchange="ADMIN_PRODUCT_STATUS_SORT=this.value;render()"><option value="default" ${ADMIN_PRODUCT_STATUS_SORT==='default'?'selected':''}>Default order</option><option value="status" ${ADMIN_PRODUCT_STATUS_SORT==='status'?'selected':''}>Status</option><option value="stock-low" ${ADMIN_PRODUCT_STATUS_SORT==='stock-low'?'selected':''}>Stock: Low to High</option><option value="stock-high" ${ADMIN_PRODUCT_STATUS_SORT==='stock-high'?'selected':''}>Stock: High to Low</option></select></div></div>
-  ${list.length? `<table class="admin-table"><thead><tr><th>Image</th><th>Title</th><th>Category</th><th>Status</th><th>Stock</th><th>Flags</th><th>Actions</th></tr></thead><tbody>
+  ${list.length? `<table class="admin-table"><thead><tr><th>Position</th><th>Image</th><th>Title</th><th>Category</th><th>Status</th><th>Stock</th><th>Home sections</th><th>Actions</th></tr></thead><tbody>
     ${list.map(p=>{
       const cat = CATEGORIES.find(c=>c.id===p.category);
       const flags = ['featured','trending','newArrival','bestSeller'].filter(f=>p[f]).map(f=>({featured:'Featured',trending:'Trending',newArrival:'New',bestSeller:'Best seller'}[f])).join(', ');
-      return `<tr><td><img src="${mediaSrc(p.mainImage||(p.images&&p.images[0]))||''}" alt=""></td><td>${esc(p.title)}</td><td>${cat?esc(cat.name):'—'}</td><td><span class="badge-status ${p.status==='published'?'on':'off'}">${esc(p.status||'')}</span></td><td>${Math.max(0,Number(p.stock)||0)}</td><td style="font-size:12px;color:var(--ink-soft);">${flags||'—'}</td><td><div class="row-actions"><button class="btn small ghost" onclick="openProductModal('${p.id}')">Edit</button><button class="btn small ghost" onclick="duplicateProduct('${p.id}')">Duplicate</button><button class="btn small danger" onclick="deleteProduct('${p.id}')">Delete</button></div></td></tr>`;
+      const flagsTxt=['featured','trending','newArrival','bestSeller'].filter(f=>p[f]).map(f=>({featured:'Featured',trending:'Trending',newArrival:'New',bestSeller:'Best seller'}[f])+((p.sectionPos&&p.sectionPos[f])?' #'+p.sectionPos[f]:'')).join(', ');
+      return `<tr><td>${adminPositionControl('product',p.id,PRODUCTS.length)}</td><td><img src="${mediaSrc(p.mainImage||(p.images&&p.images[0]))||''}" alt=""></td><td>${esc(p.title)}</td><td>${cat?esc(cat.name):'—'}</td><td><span class="badge-status ${p.status==='published'?'on':'off'}">${esc(p.status||'')}</span></td><td>${Math.max(0,Number(p.stock)||0)}</td><td style="font-size:12px;color:var(--ink-soft);">${flagsTxt||'—'}</td><td><div class="row-actions"><button class="btn small ghost" onclick="openProductModal('${p.id}')">Edit</button><button class="btn small ghost" onclick="duplicateProduct('${p.id}')">Duplicate</button><button class="btn small danger" onclick="deleteProduct('${p.id}')">Delete</button></div></td></tr>`;
     }).join('')}
   </tbody></table>` : `<div class="empty-state"><div class="icon">\u{1F4E6}</div><h3>No matching products</h3><p>Change the product status filter.</p></div>`}
   </div>`;
@@ -3340,13 +3460,8 @@ function openProductModal(id){
         <div class="field"><label>Status</label><select name="status"><option value="published" ${p.status==='published'?'selected':''}>Published</option><option value="hidden" ${p.status==='hidden'?'selected':''}>Hidden</option></select></div>
         <div class="field"><label>Display order</label><input type="number" name="order" value="${esc(p.order)}"></div>
         <div class="field full">
-          <label>Flags</label>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;">
-            <label class="checkline"><input type="checkbox" name="featured" ${p.featured?'checked':''}> Featured</label>
-            <label class="checkline"><input type="checkbox" name="trending" ${p.trending?'checked':''}> Trending</label>
-            <label class="checkline"><input type="checkbox" name="newArrival" ${p.newArrival?'checked':''}> New arrival</label>
-            <label class="checkline"><input type="checkbox" name="bestSeller" ${p.bestSeller?'checked':''}> Best seller</label>
-          </div>
+          <label>Show this product on the home page in (tick a section, then set its position there &mdash; 1 shows first; leave empty to place it after numbered products)</label>
+          <div class="flag-grid">${[['featured','Featured products'],['trending','Trending'],['newArrival','New arrivals'],['bestSeller','Best sellers']].map(([k,l])=>`<div class="flag-row"><label class="checkline"><input type="checkbox" name="${k}" ${p[k]?'checked':''}> ${l}</label><input type="number" min="1" inputmode="numeric" name="pos_${k}" placeholder="Position" value="${esc((p.sectionPos&&p.sectionPos[k])||'')}" aria-label="${l} position"></div>`).join('')}</div>
         </div>
         <div class="field full">
           <label>Product images</label>
@@ -3464,6 +3579,7 @@ function saveProductForm(pid, isNew){
     promotion:{title:String(fd.get('promotionTitle')||'').trim(),freeDelivery:Number(fd.get('freeDeliveryQty')||0)>0,freeDeliveryQty:Number(fd.get('freeDeliveryQty')||0),percentOff:Math.max(0,Number(fd.get('percentOff')||0)),percentOffQty:Math.max(0,Number(fd.get('percentOffQty')||0)),buyQty:Math.max(0,Number(fd.get('buyQty')||0)),freeQty:Math.max(0,Number(fd.get('freeQty')||0))},
     status: fd.get('status'), order: Number(fd.get('order'))||0,
     featured: fd.get('featured')==='on', trending: fd.get('trending')==='on', newArrival: fd.get('newArrival')==='on', bestSeller: fd.get('bestSeller')==='on',
+    sectionPos: (()=>{const o={};['featured','trending','newArrival','bestSeller'].forEach(k=>{const n=Math.floor(Number(fd.get('pos_'+k)));if(n>0)o[k]=n;});return o;})(),
     seo: { slug: slugify(fd.get('seoSlug').trim() || title), title: fd.get('seoTitle').trim(), keywords: fd.get('seoKeywords').trim(), description: fd.get('seoDescription').trim() }
   });
   if(isNew){ PRODUCTS.push(draft); window.__draftProduct=null; }
@@ -3744,8 +3860,9 @@ async function deleteCoupon(id){
 function adminCategories(){
   return `<div class="admin-topbar"><h1>Categories</h1><button class="btn" onclick="openCategoryModal()">+ Add Category</button></div>
   <div class="admin-card">
-  ${CATEGORIES.length? `<table class="admin-table"><thead><tr><th>Image</th><th>Name</th><th>Slug</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+  ${CATEGORIES.length? `<table class="admin-table"><thead><tr><th>Position</th><th>Image</th><th>Name</th><th>Slug</th><th>Status</th><th>Actions</th></tr></thead><tbody>
   ${CATEGORIES.sort((a,b)=>(a.order||0)-(b.order||0)).map(c=>`<tr>
+    <td>${adminPositionControl('category',c.id,CATEGORIES.length)}</td>
     <td><img src="${mediaSrc(c.image)||''}" alt=""></td>
     <td>${esc(c.name)}</td><td>${esc(c.slug)}</td>
     <td><span class="badge-status ${c.status!=='hidden'?'on':'off'}">${c.status||'visible'}</span></td>
@@ -3815,9 +3932,9 @@ function saveCategoryForm(id, isNew){
 function adminFlashSales(){
   return `<div class="admin-topbar"><h1>Flash Sales</h1><button class="btn" onclick="openFlashSaleModal()">+ Create Flash Sale</button></div>
   <div class="admin-card">
-  ${FLASHSALES.length? `<table class="admin-table"><thead><tr><th>Title</th><th>Ends</th><th>Products</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+  ${FLASHSALES.length? `<table class="admin-table"><thead><tr><th>Position</th><th>Title</th><th>Ends</th><th>Products</th><th>Status</th><th>Actions</th></tr></thead><tbody>
   ${FLASHSALES.map(f=>`<tr>
-    <td>${esc(f.title)}</td><td>${f.end?new Date(f.end).toLocaleString():'\u2014'}</td><td>${(f.products||[]).length}</td>
+    <td>${adminPositionControl('flash',f.id,FLASHSALES.length)}</td><td>${esc(f.title)}</td><td>${f.end?new Date(f.end).toLocaleString():'\u2014'}</td><td>${(f.products||[]).length}</td>
     <td><span class="badge-status ${f.status==='active'?'on':'off'}">${f.status}</span></td>
     <td><div class="row-actions"><button class="btn small ghost" onclick="openFlashSaleModal('${f.id}')">Edit</button><button class="btn small danger" onclick="deleteFlashSale('${f.id}')">Delete</button></div></td>
   </tr>`).join('')}</tbody></table>` : `<div class="empty-state"><div class="icon">\u26A1</div><h3>No flash sales yet</h3></div>`}
@@ -3952,8 +4069,8 @@ function saveFlashForm(id, isNew){
 function adminBanners(){
   return `<div class="admin-topbar"><h1>Banners</h1><button class="btn" onclick="openBannerModal()">+ Add Banner</button></div>
   <div class="admin-card">
-  ${BANNERS.length? `<table class="admin-table"><thead><tr><th>Image</th><th>Heading</th><th>Visible</th><th>Actions</th></tr></thead><tbody>
-  ${BANNERS.map(b=>`<tr><td><img src="${mediaSrc(b.image)||''}"></td><td>${esc(b.heading)}</td><td><span class="badge-status ${b.visible?'on':'off'}">${b.visible?'Visible':'Hidden'}</span></td>
+  ${BANNERS.length? `<table class="admin-table"><thead><tr><th>Position</th><th>Image</th><th>Heading</th><th>Visible</th><th>Actions</th></tr></thead><tbody>
+  ${BANNERS.map(b=>`<tr><td>${adminPositionControl('banner',b.id,BANNERS.length)}</td><td><img src="${mediaSrc(b.image)||''}"></td><td>${esc(b.heading)}</td><td><span class="badge-status ${b.visible?'on':'off'}">${b.visible?'Visible':'Hidden'}</span></td>
   <td><div class="row-actions"><button class="btn small ghost" onclick="openBannerModal('${b.id}')">Edit</button><button class="btn small danger" onclick="deleteBanner('${b.id}')">Delete</button></div></td></tr>`).join('')}
   </tbody></table>` : `<div class="empty-state"><div class="icon">\u{1F5BC}</div><h3>No banners yet</h3></div>`}
   </div>`;
@@ -5498,6 +5615,59 @@ h1,h2,h3,h4,.section-head p,.promo-banner-inner h3,.promo-banner-inner p,.flash-
 .social-icon.noimg em{display:block;}
 /* ===== Footer description: pure white ===== */
 #site-footer .footer-grid p{color:#FFFFFF!important;}
+
+/* ===== Customer sort chips (one small line, no popup) ===== */
+.sort-bar{display:flex;align-items:center;gap:8px;margin:2px 0 12px;min-width:0;}
+.sort-label{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--ink-soft);}
+.sort-chips{display:flex;gap:6px;overflow-x:auto;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:2px 1px;min-width:0;}
+.sort-chips::-webkit-scrollbar{display:none;}
+.sort-chip{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:12px;font-weight:600;padding:6px 11px;border-radius:999px;cursor:pointer;line-height:1.1;font-family:inherit;}
+.sort-chip.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+
+/* ===== Admin: hamburger hides when the menu is open, white background, fits the device ===== */
+.admin-hamburger.hide{display:none!important;}
+body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#fff!important;}
+.admin-main{min-width:0;}
+.admin-topbar{flex-wrap:wrap;gap:10px;}
+.admin-card{min-width:0;}
+.pos-ctl{display:inline-flex;align-items:center;gap:4px;}
+.pos-btn{width:28px;height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;font-size:11px;line-height:1;cursor:pointer;padding:0;color:var(--ink);}
+.pos-input{width:52px;height:28px;border:1px solid var(--line);border-radius:6px;text-align:center;font-size:13px;padding:0 2px;}
+.flag-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;}
+.flag-row{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;}
+.flag-row input[type=number]{width:84px;height:30px;border:1px solid var(--line);border-radius:6px;padding:0 6px;font-size:13px;}
+@media (max-width:520px){.flag-grid{grid-template-columns:1fr;}}
+@media (max-width:900px){
+  body.is-admin{overflow-x:hidden;}
+  .admin-main{padding:70px 12px 24px!important;overflow-x:hidden!important;max-width:100vw;}
+  .admin-main img{max-width:100%;}
+  .admin-card{padding:12px!important;overflow-x:auto;}
+  .admin-main .form-grid{grid-template-columns:1fr!important;}
+  .admin-main .admin-table,.admin-main .admin-table tbody,.admin-main .admin-table tr,.admin-main .admin-table td{display:block;width:100%;box-sizing:border-box;}
+  .admin-main .admin-table thead{display:none;}
+  .admin-main .admin-table tr{border:1px solid var(--line);border-radius:10px;padding:6px 12px;margin-bottom:10px;background:#fff;}
+  .admin-main .admin-table td{display:flex;justify-content:space-between;align-items:center;gap:12px;border:0!important;border-bottom:1px solid #F0EEE9!important;padding:8px 0;text-align:right;overflow-wrap:anywhere;min-width:0;}
+  .admin-main .admin-table td:last-child{border-bottom:0!important;}
+  .admin-main .admin-table td::before{content:attr(data-label);flex:0 0 34%;text-align:left;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);}
+  .admin-main .admin-table td[data-label=""]::before{display:none;}
+  .admin-main .admin-table td .row-actions{flex-wrap:wrap;justify-content:flex-end;}
+  .admin-main .admin-table td img{width:44px;height:44px;}
+}
+
+/* ===== Category cards: same size and look as product cards, on every page ===== */
+:root{--cat-card-w:190px;}
+@media (max-width:720px){:root{--cat-card-w:42vw;}}
+.h-scroll > .cat-card{flex:0 0 var(--cat-card-w)!important;width:var(--cat-card-w)!important;max-width:190px!important;}
+.h-scroll.cat-scroll{gap:12px;}
+@media (max-width:720px){.h-scroll.cat-scroll{gap:8px;}}
+.cat-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;align-items:start;}
+@media (min-width:821px){.cat-grid{grid-template-columns:repeat(2,190px)!important;justify-content:start;}}
+@media (max-width:720px){.cat-grid{gap:8px!important;}}
+.cat-grid > .cat-card{flex:none!important;width:100%!important;max-width:none!important;min-width:0;}
+.h-scroll > .cat-card,.cat-grid > .cat-card{padding:0!important;align-items:stretch;}
+.cat-card .cat-icon{width:100%!important;height:auto!important;max-height:none!important;min-height:0!important;aspect-ratio:1/1!important;border-radius:0!important;margin:0!important;font-size:34px;}
+.cat-card .cat-icon img{width:100%!important;height:100%!important;object-fit:cover!important;}
+.cat-card .cat-name{font-size:13px!important;font-weight:700;line-height:1.3!important;padding:8px 10px 10px!important;min-height:2.5em;text-align:center;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;box-sizing:content-box;}
 </style>
 </body>
 </html>
