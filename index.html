@@ -2199,8 +2199,19 @@ function showModal(contentHtml){
 function route(){ return location.hash.replace(/^#/,'') || '/'; }
 
 let StoreX_RENDERING=false;
+/* A product can belong to several categories. p.categories is the full list; p.category stays as the first one for older code. */
+function productCatIds(p){
+  if(!p) return [];
+  const out=[];
+  if(Array.isArray(p.categories)) p.categories.forEach(id=>{ if(id && !out.includes(id)) out.push(id); });
+  if(p.category && !out.includes(p.category)) out.push(p.category);
+  return out;
+}
+function productInCategory(p,catId){ return !!catId && productCatIds(p).includes(catId); }
+function productsShareCategory(a,b){ const A=productCatIds(a),B=productCatIds(b); return A.some(id=>B.includes(id)); }
 function normalizeCloudState(){
   if(!Array.isArray(PRODUCTS)) PRODUCTS=[];
+  PRODUCTS.forEach(p=>{ if(p && typeof p==='object'){ const ids=productCatIds(p); p.categories=ids; p.category=ids[0]||''; } });
   if(!Array.isArray(CATEGORIES)) CATEGORIES=[];
   if(!Array.isArray(FLASHSALES)) FLASHSALES=[];
   if(!Array.isArray(BANNERS)) BANNERS=[];
@@ -2210,6 +2221,10 @@ function normalizeCloudState(){
   SETTINGS.search=SETTINGS.search&&typeof SETTINGS.search==='object'?SETTINGS.search:{};
   if(!Array.isArray(SETTINGS.sections)) SETTINGS.sections=[];
   SETTINGS.sections.forEach(s=>{if(s&&s.type==='categoryShowcase'){s.config=s.config&&typeof s.config==='object'?s.config:{};if(!('categoryId' in s.config))s.config.categoryId='';if(!s.config.count)s.config.count=3;}});
+  if(!SETTINGS.sections.some(s=>s&&s.type==='flashsale')){
+    const heroAt=SETTINGS.sections.findIndex(s=>s&&s.type==='hero');
+    SETTINGS.sections.splice(heroAt+1,0,{id:'sec-flash-auto',type:'flashsale',visible:true,title:'Flash Sale',subtitle:'Limited-time offers',config:{flashSaleId:''}});
+  }
   if(!SETTINGS.sections.some(s=>s&&s.type==='recentlyViewed')){
     SETTINGS.sections.push({id:'sec-recently-viewed',type:'recentlyViewed',visible:true,title:'Recently Viewed',subtitle:'Products you recently viewed',config:{count:6,layout:'grid',columns:3}});
   }
@@ -2228,6 +2243,7 @@ function render(){
   try{
     normalizeCloudState();
     const h = route();
+    if(window.__StoreXLastRoute!==h){ CUSTOMER_PRODUCT_SORT='default'; window.__StoreXLastRoute=h; }
     const app = document.getElementById('app');
     if(!app) throw new Error('StoreX app container is missing.');
     if(h.startsWith('/admin-of-storex')){
@@ -2559,8 +2575,8 @@ function renderFlashSaleSection(sec){
   const cfg = sec.config||{};
   let sales;
   if(cfg.flashSaleId){
-    const chosen = FLASHSALES.find(f=>f.id===cfg.flashSaleId && f.status==='active');
-    sales = chosen ? [chosen] : [];
+    const chosen = activeFlashSales().find(f=>f.id===cfg.flashSaleId);
+    sales = chosen ? [chosen] : activeFlashSales();
   } else {
     sales = activeFlashSales();
   }
@@ -2730,7 +2746,7 @@ function renderCategoryShowcaseSection(sec){
   let cats=CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0));
   if(cfg.categoryId) cats=cats.filter(c=>c.id===cfg.categoryId);
   const groups=cats.map(c=>{
-    const eligible=PRODUCTS.filter(p=>p.status==='published'&&p.category===c.id&&Math.max(0,Number(p.stock)||0)>0);
+    const eligible=PRODUCTS.filter(p=>p.status==='published'&&productInCategory(p,c.id)&&Math.max(0,Number(p.stock)||0)>0);
     const list=eligible.slice().sort((a,b)=>(a.order||0)-(b.order||0));
     if(!list.length)return '';
     return `<div class="cat-showcase-group">
@@ -2829,8 +2845,8 @@ function seededShuffleProducts(arr,seed){
 /* Two scrolling rows of other products; the mix is seeded by the product id so every product page shows its own set. */
 function buildProductRecommendationRows(p){
   const eligible=PRODUCTS.filter(x=>x.status==='published'&&x.id!==p.id&&Math.max(0,Number(x.stock)||0)>0);
-  const same=seededShuffleProducts(eligible.filter(x=>x.category===p.category),p.id);
-  const others=seededShuffleProducts(eligible.filter(x=>x.category!==p.category),p.id);
+  const same=seededShuffleProducts(eligible.filter(x=>productsShareCategory(x,p)),p.id);
+  const others=seededShuffleProducts(eligible.filter(x=>!productsShareCategory(x,p)),p.id);
   const all=[...same,...others];
   if(!all.length)return [];
   const per=Math.min(10,Math.ceil(all.length/2));
@@ -2839,8 +2855,8 @@ function buildProductRecommendationRows(p){
 function buildProductRecommendations(p, count){
   const n=Math.max(0,Number(count)||6);
   const eligible = PRODUCTS.filter(x=>x.status==='published' && x.id!==p.id && Math.max(0,Number(x.stock)||0)>0);
-  const sameCategory = shuffleProducts(eligible.filter(x=>x.category===p.category));
-  const others = shuffleProducts(eligible.filter(x=>x.category!==p.category));
+  const sameCategory = shuffleProducts(eligible.filter(x=>productsShareCategory(x,p)));
+  const others = shuffleProducts(eligible.filter(x=>!productsShareCategory(x,p)));
   const pool = [...sameCategory, ...others];
   const seen = new Set();
   const out = [];
@@ -2862,6 +2878,7 @@ function storexBaseRenderProductPage(key){
   const images = (p.images&&p.images.length? p.images : (p.mainImage?[p.mainImage]:[]));
   const main = images[PD_ACTIVE_IMG] || images[0];
   const cat = CATEGORIES.find(c=>c.id===p.category);
+  const pdCats = productCatIds(p).map(id=>CATEGORIES.find(c=>c.id===id)).filter(Boolean);
   const relatedRows = buildProductRecommendationRows(p);
   applySEO(p.seo, p.shortTitle||p.title, p.shortDesc);
   const stock=Math.max(0,Number(p.stock)||0);
@@ -2885,7 +2902,7 @@ function storexBaseRenderProductPage(key){
           <button type="button" class="wishlist-toggle-btn share-btn ${isInWishlist(p.id)?'active':''}" data-pid="${esc(p.id)}" onclick="toggleWishlist('${esc(p.id)}')" aria-pressed="${isInWishlist(p.id)}">${isInWishlist(p.id)?'♥ In Wishlist':'♡ Add to Wishlist'}</button>
           <button type="button" class="share-btn" onclick="shareProduct('${p.id}')" aria-label="Share this product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share</button>
         </div>
-        ${cat?`<p style="font-size:12.5px;color:var(--ink-soft);margin-top:14px;">Category: <a href="#/category/${esc(cat.slug)}" style="color:var(--primary);">${esc(cat.name)}</a></p>`:''}
+        ${pdCats.length?`<p style="font-size:12.5px;color:var(--ink-soft);margin-top:14px;">${pdCats.length>1?'Categories':'Category'}: ${pdCats.map(c=>`<a href="#/category/${esc(c.slug)}" style="color:var(--primary);">${esc(c.name)}</a>`).join(', ')}</p>`:''}
       </div>
     </div>
     ${relatedRows.length?`<section class="section"><div class="section-head"><div><h2>You May Also Like</h2></div></div>${relatedRows.map(r=>renderProductScroller(r)).join('')}</section>`:''}
@@ -2910,12 +2927,13 @@ function setCustomerProductSort(value){
   const y=window.scrollY; render();
   requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,y)));
 }
+function applyCustomerSort(list){ return CUSTOMER_PRODUCT_SORT==='default' ? list : sortCustomerProducts(list); }
 function sortChipsHtml(){
-  const opts=[['default','Recommended'],['newest','Newest'],['price-low','Price: Low to High'],['price-high','Price: High to Low'],['discount','Biggest Discount'],['name','Name A\u2013Z']];
+  const opts=[['default','Recommended'],['newest','Newest'],['promotion','Promotion'],['price-low','Price: Low to High'],['price-high','Price: High to Low'],['discount','Biggest Discount'],['name','Name A\u2013Z']];
   return `<div class="sort-bar" role="group" aria-label="Sort products"><span class="sort-label">Sort:</span><div class="sort-chips">${opts.map(([v,l])=>`<button type="button" class="sort-chip${CUSTOMER_PRODUCT_SORT===v?' active':''}" aria-pressed="${CUSTOMER_PRODUCT_SORT===v}" onclick="setCustomerProductSort('${v}')">${l}</button>`).join('')}</div></div>`;
 }
 function storexBaseRenderCategoryPage(slug){
-  let list, title, desc;
+  let list, title, desc, catImg='';
   if(slug==='all'){
     list = sortCustomerProducts(PRODUCTS.filter(p=>p.status==='published'));
     title='All Products'; desc='Browse our full catalog';
@@ -2923,13 +2941,14 @@ function storexBaseRenderCategoryPage(slug){
   else{
     const cat = CATEGORIES.find(c=>c.slug===slug);
     if(!cat) return renderNotFound('Category not found','This category may have been removed.');
-    list = sortCustomerProducts(PRODUCTS.filter(p=>p.status==='published' && p.category===cat.id));
+    list = sortCustomerProducts(PRODUCTS.filter(p=>p.status==='published' && productInCategory(p,cat.id)));
     title = cat.name; desc = cat.description||'';
+    catImg = cat.image ? mediaSrc(cat.image) : '';
     applySEO(cat.seo, cat.name, cat.description);
   }
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / ${esc(title)}</div>
-    <div class="section-head" style="align-items:end;gap:12px;"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div></div>
+    ${catImg?`<div class="flash cat-top-banner" style="margin-bottom:22px;">${flashVisualHtml([catImg])}<div class="flash-info"><span class="flash-eyebrow">Category</span><h3>${esc(title)}</h3>${desc?`<p>${esc(desc)}</p>`:''}</div></div>`:`<div class="section-head" style="align-items:end;gap:12px;"><div><h2>${esc(title)}</h2><p>${esc(desc)}</p></div></div>`}
     ${sortChipsHtml()}
     ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F50D}</div><h3>No products found</h3><p>There's nothing here yet \u2014 check back soon.</p></div>`}
@@ -2940,19 +2959,21 @@ function storexBaseRenderCategoryPage(slug){
 function renderCollectionPage(routeKey){
   const filter = COLLECTION_ROUTE_TO_FILTER[routeKey] || 'all';
   const title = COLLECTION_FILTER_LABELS[filter] || 'Products';
-  const list = filteredProducts(filter); // stable existing order, ALL eligible products (never randomized here)
+  const list = applyCustomerSort(filteredProducts(filter)); // stable existing order unless the customer picks a sort
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / ${esc(title)}</div>
     <div class="section-head"><div><h2>${esc(title)}</h2><p>Browse the complete ${esc(title.toLowerCase())} collection</p></div></div>
+    ${sortChipsHtml()}
     ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F6CD}</div><h3>No products available</h3><p>Check back soon.</p></div>`}
   </div>`;
 }
 function renderRecentlyViewedPage(){
-  const list = recentlyViewedProducts(20); // already newest-first / chronological
+  const list = applyCustomerSort(recentlyViewedProducts(20)); // newest-first unless the customer picks a sort
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / Recently Viewed</div>
     <div class="section-head"><div><h2>Recently Viewed</h2><p>Products you recently viewed, newest first</p></div></div>
+    ${list.length>1?sortChipsHtml():''}
     ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` :
       `<div class="empty-state"><div class="icon">\u{1F440}</div><h3>No recently viewed products yet</h3><p>Browse products to see them here.</p></div>`}
   </div>`;
@@ -2990,19 +3011,19 @@ function renderFlashSalePage(slug){
   if(!f) return renderNotFound('Flash sale not found','This deal may have expired or been removed.');
   applySEO(f.seo, f.title, f.description||f.subtitle);
   const ended = f.end && new Date(f.end).getTime() < Date.now();
-  const items = (f.products||[]).map(entry=>{
-    if(entry.type==='existing'){ const p = PRODUCTS.find(x=>x.id===entry.productId); return p ? renderProductCard(p) : ''; }
-    const c = entry;
-    return `<div class="card">
+  const entries = f.products||[];
+  const realProducts = applyCustomerSort(entries.filter(e=>e.type==='existing').map(e=>PRODUCTS.find(x=>x.id===e.productId)).filter(p=>p&&p.status==='published'));
+  const customEntries = entries.filter(e=>e.type!=='existing');
+  // Flash sale cards show only the product info: no Buy Now / Add to Cart buttons.
+  const items = realProducts.map(p=>renderProductCard(p,{hideActions:true})).join('') + customEntries.map(c=>`<div class="card">
       ${c.badge?`<span class="card-badge">${esc(c.badge)}</span>`:''}
       <div class="card-img">${c.image?`<img src="${mediaSrc(c.image)}" alt="${esc(c.title)}">`:''}</div>
       <div class="card-body">
         <div class="card-title">${esc(c.title)}</div>
         ${c.desc?`<div class="card-desc">${esc(c.desc)}</div>`:''}
-        <button class="card-cta" onclick="toast('This flash-only item must be added as a normal product before ordering.')">Buy Now</button>
+        ${Number(c.price)>0?`<strong class="price">${money(Number(c.price))}</strong>`:''}
       </div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="crumb"><a href="#/">Home</a> / <a href="#/flash-sale">Flash Sale</a> / ${esc(f.title)}</div>
     <div class="flash" style="margin-bottom:26px;">
@@ -3014,6 +3035,7 @@ function renderFlashSalePage(slug){
         <button type="button" class="share-btn" style="align-self:flex-start;margin-top:8px;" onclick="shareFlashSale('${esc(f.slug)}')" aria-label="Share this flash sale"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share Flash Sale</button>
       </div>
     </div>
+    ${items&&(realProducts.length+customEntries.length)>1?sortChipsHtml():''}
     ${items? `<div class="grid prod-grid">${items}</div>` : `<div class="empty-state"><div class="icon">\u{1F6CD}</div><h3>No products in this flash sale yet</h3></div>`}
   </div>`;
 }
@@ -3021,14 +3043,15 @@ function renderFlashSalePage(slug){
 /* ================= SEARCH ================= */
 function renderSearchPage(q){
   const query = (q||'').toLowerCase();
-  const list = PRODUCTS.filter(p=>p.status==='published' && (
+  const list = applyCustomerSort(PRODUCTS.filter(p=>p.status==='published' && (
     p.title.toLowerCase().includes(query) ||
     (p.shortDesc||'').toLowerCase().includes(query) ||
     (p.fullDesc||'').toLowerCase().includes(query) ||
     (p.tags||[]).some(t=>t.toLowerCase().includes(query))
-  ));
+  )));
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 30px;">
     <div class="section-head"><div><h2>Search results for "${esc(q)}"</h2><p>${list.length} product${list.length!==1?'s':''} found</p></div></div>
+    ${list.length>1?sortChipsHtml():''}
     ${list.length? `<div class="grid prod-grid">${list.map(p=>renderProductCard(p,{hideActions:true})).join('')}</div>` : `<div class="empty-state"><div class="icon">\u{1F614}</div><h3>No results found</h3><p>Try a different search term.</p></div>`}
   </div>`;
 }
@@ -3419,10 +3442,10 @@ function adminProducts(){
   <div class="admin-card"><div class="form-grid" style="align-items:end;margin-bottom:12px;"><div class="field"><label>Product status</label><select onchange="ADMIN_PRODUCT_STATUS_FILTER=this.value;render()"><option value="all" ${ADMIN_PRODUCT_STATUS_FILTER==='all'?'selected':''}>All products</option><option value="published" ${ADMIN_PRODUCT_STATUS_FILTER==='published'?'selected':''}>Published</option><option value="hidden" ${ADMIN_PRODUCT_STATUS_FILTER==='hidden'?'selected':''}>Hidden</option></select></div><div class="field"><label>Sort products</label><select onchange="ADMIN_PRODUCT_STATUS_SORT=this.value;render()"><option value="default" ${ADMIN_PRODUCT_STATUS_SORT==='default'?'selected':''}>Default order</option><option value="status" ${ADMIN_PRODUCT_STATUS_SORT==='status'?'selected':''}>Status</option><option value="stock-low" ${ADMIN_PRODUCT_STATUS_SORT==='stock-low'?'selected':''}>Stock: Low to High</option><option value="stock-high" ${ADMIN_PRODUCT_STATUS_SORT==='stock-high'?'selected':''}>Stock: High to Low</option></select></div></div>
   ${list.length? `<table class="admin-table"><thead><tr><th>Position</th><th>Image</th><th>Title</th><th>Category</th><th>Status</th><th>Stock</th><th>Home sections</th><th>Actions</th></tr></thead><tbody>
     ${list.map(p=>{
-      const cat = CATEGORIES.find(c=>c.id===p.category);
+      const catNames = productCatIds(p).map(id=>(CATEGORIES.find(c=>c.id===id)||{}).name).filter(Boolean).join(', ');
       const flags = ['featured','trending','newArrival','bestSeller'].filter(f=>p[f]).map(f=>({featured:'Featured',trending:'Trending',newArrival:'New',bestSeller:'Best seller'}[f])).join(', ');
       const flagsTxt=['featured','trending','newArrival','bestSeller'].filter(f=>p[f]).map(f=>({featured:'Featured',trending:'Trending',newArrival:'New',bestSeller:'Best seller'}[f])+((p.sectionPos&&p.sectionPos[f])?' #'+p.sectionPos[f]:'')).join(', ');
-      return `<tr><td>${adminPositionControl('product',p.id,PRODUCTS.length)}</td><td><img src="${mediaSrc(p.mainImage||(p.images&&p.images[0]))||''}" alt=""></td><td>${esc(p.title)}</td><td>${cat?esc(cat.name):'—'}</td><td><span class="badge-status ${p.status==='published'?'on':'off'}">${esc(p.status||'')}</span></td><td>${Math.max(0,Number(p.stock)||0)}</td><td style="font-size:12px;color:var(--ink-soft);">${flagsTxt||'—'}</td><td><div class="row-actions"><button class="btn small ghost" onclick="openProductModal('${p.id}')">Edit</button><button class="btn small ghost" onclick="duplicateProduct('${p.id}')">Duplicate</button><button class="btn small danger" onclick="deleteProduct('${p.id}')">Delete</button></div></td></tr>`;
+      return `<tr><td>${adminPositionControl('product',p.id,PRODUCTS.length)}</td><td><img src="${mediaSrc(p.mainImage||(p.images&&p.images[0]))||''}" alt=""></td><td>${esc(p.title)}</td><td>${catNames?esc(catNames):'—'}</td><td><span class="badge-status ${p.status==='published'?'on':'off'}">${esc(p.status||'')}</span></td><td>${Math.max(0,Number(p.stock)||0)}</td><td style="font-size:12px;color:var(--ink-soft);">${flagsTxt||'—'}</td><td><div class="row-actions"><button class="btn small ghost" onclick="openProductModal('${p.id}')">Edit</button><button class="btn small ghost" onclick="duplicateProduct('${p.id}')">Duplicate</button><button class="btn small danger" onclick="deleteProduct('${p.id}')">Delete</button></div></td></tr>`;
     }).join('')}
   </tbody></table>` : `<div class="empty-state"><div class="icon">\u{1F4E6}</div><h3>No matching products</h3><p>Change the product status filter.</p></div>`}
   </div>`;
@@ -3443,7 +3466,8 @@ function openProductModal(id){
   const p = id ? PRODUCTS.find(x=>x.id===id) : {id:uid(),title:'',shortTitle:'',shortDesc:'',fullDesc:'',images:[],mainImage:null,category:'',tags:[],price:'',oldPrice:'',discount:'',badge:'',sku:'',status:'published',featured:false,trending:false,newArrival:false,bestSeller:false,order:PRODUCTS.length,seo:{slug:'',title:'',description:'',keywords:''},clicks:0,views:0};
   p.seo = p.seo || {slug:'',title:'',description:'',keywords:''};
   const isNew = !id;
-  const catOptions = CATEGORIES.map(c=>`<option value="${c.id}" ${p.category===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
+  const pCatIds = productCatIds(p);
+  const catChecks = CATEGORIES.length ? CATEGORIES.map(c=>`<label class="checkline" style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13.5px;cursor:pointer;"><input type="checkbox" name="categories" value="${esc(c.id)}" ${pCatIds.includes(c.id)?'checked':''}> ${esc(c.name)}</label>`).join('') : '<p style="font-size:13px;color:var(--ink-soft);margin:0;">No categories yet.</p>';
   showModal(`
     <h2>${isNew?'Add Product':'Edit Product'}</h2>
     <form id="product-form" onsubmit="event.preventDefault(); saveProductForm('${p.id}', ${isNew});">
@@ -3453,7 +3477,7 @@ function openProductModal(id){
         <div class="field"><label>SKU / reference</label><input type="text" name="sku" value="${esc(p.sku)}"></div>
         <div class="field full"><label>Short description</label><input type="text" name="shortDesc" value="${esc(p.shortDesc)}"></div>
         <div class="field full"><label>Full description</label><textarea name="fullDesc">${esc(p.fullDesc)}</textarea></div>
-        <div class="field"><label>Category</label><select name="category"><option value="">\u2014 None \u2014</option>${catOptions}</select></div>
+        <div class="field full"><label>Categories (select one or more)</label><div style="max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff;">${catChecks}</div></div>
         <div class="field"><label>Tags (comma separated)</label><input type="text" name="tags" value="${esc((p.tags||[]).join(', '))}"></div>
         <div class="field"><label>Badge (e.g. "Hot", "-20%")</label><input type="text" name="badge" value="${esc(p.badge)}"></div>
         <div class="field"><label>Original price (Rs.) *</label><input required type="number" min="0" step="0.01" name="originalPrice" value="${esc((p.originalPrice??p.oldPrice??p.price??''))}"></div><div class="field"><label>Special / discounted price (Rs.)</label><input type="number" min="0" step="0.01" name="specialPrice" value="${esc((p.specialPrice??p.price??''))}"></div><div class="field"><label>Stock quantity *</label><input required type="number" min="0" step="1" name="stock" value="${esc(p.stock??0)}"></div><div class="field"><label>Delivery charges (Rs.)</label><input type="number" min="0" step="0.01" name="deliveryCharges" value="${esc(p.deliveryCharges??0)}"></div><div class="field full"><label>Promotion</label><div class="form-grid"><div class="field full"><label>Promotion title (shown on product page)</label><input type="text" name="promotionTitle" value="${esc(p.promotion?.title??'')}" placeholder="e.g. Buy 2 Get 1 Free / Weekend Offer"></div><div class="field"><label>Free delivery after qty</label><input type="number" min="0" name="freeDeliveryQty" value="${esc(p.promotion?.freeDeliveryQty??0)}"></div><div class="field"><label>Percent off (%)</label><input type="number" min="0" max="100" step="0.01" name="percentOff" value="${esc(p.promotion?.percentOff??0)}"></div><div class="field"><label>Percent off after qty</label><input type="number" min="0" name="percentOffQty" value="${esc(p.promotion?.percentOffQty??0)}"></div><div class="field"><label>Buy quantity</label><input type="number" min="0" name="buyQty" value="${esc(p.promotion?.buyQty??0)}"></div><div class="field"><label>Free quantity</label><input type="number" min="0" name="freeQty" value="${esc(p.promotion?.freeQty??0)}"></div></div></div>
@@ -3573,7 +3597,7 @@ function saveProductForm(pid, isNew){
   Object.assign(draft, {
     title, shortTitle: fd.get('shortTitle').trim(),
     shortDesc: fd.get('shortDesc').trim(), fullDesc: fd.get('fullDesc').trim(),
-    category: fd.get('category'), tags: fd.get('tags').split(',').map(t=>t.trim()).filter(Boolean),
+    categories: fd.getAll('categories').filter(Boolean), category: (fd.getAll('categories').filter(Boolean)[0]||''), tags: fd.get('tags').split(',').map(t=>t.trim()).filter(Boolean),
     price:specialPrice, oldPrice:originalPrice, originalPrice, specialPrice, stock, deliveryCharges:Math.max(0,Number(fd.get('deliveryCharges')||0)),
     discount:autoDiscount, badge:autoDiscount?'-'+autoDiscount+'%':fd.get('badge').trim(),
     promotion:{title:String(fd.get('promotionTitle')||'').trim(),freeDelivery:Number(fd.get('freeDeliveryQty')||0)>0,freeDeliveryQty:Number(fd.get('freeDeliveryQty')||0),percentOff:Math.max(0,Number(fd.get('percentOff')||0)),percentOffQty:Math.max(0,Number(fd.get('percentOffQty')||0)),buyQty:Math.max(0,Number(fd.get('buyQty')||0)),freeQty:Math.max(0,Number(fd.get('freeQty')||0))},
@@ -3892,6 +3916,14 @@ function openCategoryModal(id){
         <div class="field"><label>Display order</label><input type="number" name="order" value="${esc(c.order)}"></div>
         <div class="field"><label>Status</label><select name="status"><option value="visible" ${c.status!=='hidden'?'selected':''}>Visible</option><option value="hidden" ${c.status==='hidden'?'selected':''}>Hidden</option></select></div><div class="field full"><label class="checkline"><input type="checkbox" name="homeFeatured" ${Array.isArray(SETTINGS.homeCategoryIds)&&SETTINGS.homeCategoryIds.includes(c.id)?'checked':''}> Show on Home (maximum 6 categories)</label></div>
         <div class="field full">
+          <label>Products in this category</label>
+          <input type="search" placeholder="Search products..." oninput="filterCatProductPicker(this.value)" style="margin-bottom:6px;">
+          <div id="cat-product-picker" style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff;">
+            ${PRODUCTS.length ? PRODUCTS.map(p=>`<label class="checkline cat-pick-row" data-name="${esc(String(p.title||'').toLowerCase())}" style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13.5px;cursor:pointer;"><input type="checkbox" name="catProducts" value="${esc(p.id)}" ${productInCategory(p,c.id)?'checked':''}> ${esc(p.title)}</label>`).join('') : '<p style="font-size:13px;color:var(--ink-soft);margin:0;">No products yet.</p>'}
+          </div>
+          <div class="upload-note">Ticked products are added to this category automatically. Unticking removes the product from it.</div>
+        </div>
+        <div class="field full">
           <label>Category image</label>
           <div class="upload-box">
             <input type="url" placeholder="Category Image URL yahan enter karein" onchange="if(this.value){ const input=this; handleImageUrlInput(input,url=>{ (${isNew}?window.__draftCategory:CATEGORIES.find(x=>x.id==='${c.id}')).image=url; const prev=document.getElementById('cat-img-prev-${c.id}'); if(prev){prev.src=url; prev.style.display='block';} }); }">
@@ -3914,6 +3946,10 @@ function openCategoryModal(id){
   `);
 }
 
+function filterCatProductPicker(q){
+  q=String(q||'').trim().toLowerCase();
+  document.querySelectorAll('#cat-product-picker .cat-pick-row').forEach(r=>{ r.style.display=(!q||r.getAttribute('data-name').includes(q))?'flex':'none'; });
+}
 function saveCategoryForm(id, isNew){
   const form = document.getElementById('category-form'); const fd = new FormData(form);
   const draft = isNew ? window.__draftCategory : CATEGORIES.find(x=>x.id===id);
@@ -3924,6 +3960,14 @@ function saveCategoryForm(id, isNew){
     seo: { title: fd.get('seoTitle').trim(), keywords: fd.get('seoKeywords').trim(), description: fd.get('seoDescription').trim() }
   });
   if(isNew){ CATEGORIES.push(draft); window.__draftCategory=null; }
+  const pickedIds = new Set(fd.getAll('catProducts'));
+  let productsChanged=false;
+  PRODUCTS.forEach(p=>{
+    const ids=productCatIds(p), has=ids.includes(draft.id), want=pickedIds.has(p.id);
+    if(want && !has){ ids.push(draft.id); p.categories=ids; p.category=ids[0]||''; productsChanged=true; }
+    else if(!want && has){ const next=ids.filter(x=>x!==draft.id); p.categories=next; p.category=next[0]||''; productsChanged=true; }
+  });
+  if(productsChanged) saveKey(KEYS.products, PRODUCTS);
   if(draft.homeFeatured){ if(!Array.isArray(SETTINGS.homeCategoryIds)) SETTINGS.homeCategoryIds=[]; if(!SETTINGS.homeCategoryIds.includes(draft.id)) SETTINGS.homeCategoryIds.push(draft.id); if(SETTINGS.homeCategoryIds.length>6){ SETTINGS.homeCategoryIds=SETTINGS.homeCategoryIds.slice(0,6); toast('Only 6 home categories are allowed.'); } }else if(Array.isArray(SETTINGS.homeCategoryIds)){ SETTINGS.homeCategoryIds=SETTINGS.homeCategoryIds.filter(x=>x!==draft.id); }
    saveKey(KEYS.categories, CATEGORIES); saveKey(KEYS.settings, SETTINGS); closeModal(); toast('Category saved');
 }
@@ -3949,7 +3993,6 @@ function openFlashSaleModal(id){
   f.display = Object.assign({height:360,infoBg:'',textColor:'#FFFFFF',accentColor:'#F57224',imageFit:'cover'},f.display||{});
   const isNew = !id;
   if(isNew) window.__draftFlash = f;
-  const existingOptions = PRODUCTS.map(p=>`<option value="${p.id}">${esc(p.title)}</option>`).join('');
   showModal(`
     <h2>${isNew?'Create Flash Sale':'Edit Flash Sale'}</h2>
     <form id="flash-form" onsubmit="event.preventDefault(); saveFlashForm('${f.id}', ${isNew});">
@@ -4008,10 +4051,10 @@ function openFlashSaleModal(id){
       </fieldset>
       <h3 style="margin:18px 0 8px;font-size:15px;">Products in this sale</h3>
       <div id="flash-products-list">${renderFlashProductsList(f)}</div>
-      <div style="display:flex;gap:10px;margin:10px 0;flex-wrap:wrap;">
-        <select id="flash-existing-select">${existingOptions||'<option>No products yet</option>'}</select>
-        <button type="button" class="btn small ghost" onclick="addExistingToFlash('${f.id}',${isNew})">+ Add existing product</button>
-        <button type="button" class="btn small ghost" onclick="addCustomFlashProduct('${f.id}',${isNew})">+ Add custom flash-only product</button>
+      <div style="margin:10px 0;">
+        <input type="search" placeholder="Search products..." oninput="filterFlashPicker(this.value)" style="margin-bottom:6px;">
+        <div id="flash-product-picker">${renderFlashPicker(f)}</div>
+        <button type="button" class="btn small ghost" style="margin-top:8px;" onclick="addExistingToFlash('${f.id}',${isNew})">+ Add selected products</button>
       </div>
       <div class="modal-close-row"><button type="button" class="btn ghost" onclick="closeModal()">Cancel</button><button type="submit" class="btn">Save Flash Sale</button></div>
     </form>
@@ -4028,19 +4071,24 @@ function renderFlashProductsList(f){
 
 function getFlashDraft(id, isNew){ return isNew ? window.__draftFlash : FLASHSALES.find(x=>x.id===id); }
 
-function addExistingToFlash(id, isNew){
-  const f = getFlashDraft(id,isNew); const sel = document.getElementById('flash-existing-select');
-  if(!sel.value) return;
-  f.products = f.products||[]; f.products.push({type:'existing', productId: sel.value});
-  document.getElementById('flash-products-list').innerHTML = renderFlashProductsList(f);
+function renderFlashPicker(f){
+  const used=new Set((f.products||[]).filter(e=>e.type==='existing').map(e=>e.productId));
+  const avail=PRODUCTS.filter(p=>!used.has(p.id));
+  if(!avail.length) return '<p style="font-size:13px;color:var(--ink-soft);margin:0;">All products are already in this sale.</p>';
+  return `<div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff;">${avail.map(p=>`<label class="checkline flash-pick-row" data-name="${esc(String(p.title||'').toLowerCase())}" style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13.5px;cursor:pointer;"><input type="checkbox" name="flashPick" value="${esc(p.id)}"> ${esc(p.title)}</label>`).join('')}</div>`;
 }
-
-function addCustomFlashProduct(id, isNew){
+function filterFlashPicker(q){
+  q=String(q||'').trim().toLowerCase();
+  document.querySelectorAll('#flash-product-picker .flash-pick-row').forEach(r=>{ r.style.display=(!q||r.getAttribute('data-name').includes(q))?'flex':'none'; });
+}
+function addExistingToFlash(id, isNew){
   const f = getFlashDraft(id,isNew);
-  const title = prompt('Custom product title:'); if(!title) return;
-  const price = Number(prompt('Price (optional):','')||0);
-  f.products = f.products||[]; f.products.push({type:'custom', title, price, image:null, desc:'', badge:''});
+  const picked=[...document.querySelectorAll('#flash-product-picker input[name="flashPick"]:checked')].map(i=>i.value);
+  if(!picked.length){ toast('Tick one or more products first'); return; }
+  f.products = f.products||[];
+  picked.forEach(pid=>{ if(!f.products.some(e=>e.type==='existing'&&e.productId===pid)) f.products.push({type:'existing', productId:pid}); });
   document.getElementById('flash-products-list').innerHTML = renderFlashProductsList(f);
+  document.getElementById('flash-product-picker').innerHTML = renderFlashPicker(f);
 }
 
 function removeFlashProduct(id, idx){
@@ -4048,6 +4096,7 @@ function removeFlashProduct(id, idx){
   const f = getFlashDraft(id, isNewCheck);
   f.products.splice(idx,1);
   document.getElementById('flash-products-list').innerHTML = renderFlashProductsList(f);
+  const picker=document.getElementById('flash-product-picker'); if(picker) picker.innerHTML = renderFlashPicker(f);
 }
 
 function saveFlashForm(id, isNew){
@@ -4827,13 +4876,13 @@ function renderCartPage(){
 
 /* ---------- Wishlist page ---------- */
 function renderWishlistPage(){
-  const items=WISHLIST.map(id=>PRODUCTS.find(p=>p.id===id)).filter(Boolean);
+  const items=applyCustomerSort(WISHLIST.map(id=>PRODUCTS.find(p=>p.id===id)).filter(Boolean));
   if(!items.length){
     return `${backButtonHtml()}<div class="container" style="padding:10px 20px 40px;"><div class="empty-cart"><div class="icon">♡</div><h3>Your wishlist is empty</h3><p>Tap the heart on any product to save it here.</p><a href="#/category/all" class="btn small" style="margin-top:10px;">Browse Products</a></div></div>`;
   }
   return `${backButtonHtml()}<div class="container" style="padding:10px 20px 40px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 16px;flex-wrap:wrap;gap:10px;"><h1 style="margin:0;">Your Wishlist</h1><button type="button" class="btn small ghost" onclick="if(confirm('Remove all wishlist items?'))clearWishlist();">Remove All</button></div>
-    <div class="wishlist-grid">${items.map(p=>{
+    ${items.length>1?sortChipsHtml():''}<div class="wishlist-grid">${items.map(p=>{
       const img=p.mainImage?mediaSrc(p.mainImage):(p.images&&p.images[0]?mediaSrc(p.images[0]):'');
       const stock=Math.max(0,Number(p.stock)||0);
       return `<div class="card">
@@ -4941,6 +4990,7 @@ function couponAppliesToLine(coupon, productId){
     const p=findProductForCart(productId);
     if(!p) return false;
     const categoryCandidates=[
+      ...productCatIds(p),
       p.category,
       p.categoryId,
       p.category_id,
