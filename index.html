@@ -3275,12 +3275,6 @@ function adminDashboard(){
       <button class="btn small ghost" onclick="setAdminView('homepage')">Customize Homepage</button>
       <button class="btn small ghost" onclick="setAdminView('theme')">Theme</button>
     </div>
-  </div>
-  <div class="admin-card">
-    <h3 style="margin-top:0;">Top products by Buy Now clicks</h3>
-    ${topClicks.length? `<table class="admin-table"><thead><tr><th>Product</th><th>Clicks</th><th>Views</th></tr></thead><tbody>
-      ${topClicks.map(p=>`<tr><td>${esc(p.title)}</td><td>${p.clicks||0}</td><td>${p.views||0}</td></tr>`).join('')}
-    </tbody></table>` : '<p style="color:var(--ink-soft);font-size:13.5px;">No data yet.</p>'}
   </div>`;
 }
 
@@ -4871,7 +4865,7 @@ function renderCartPage(){
         <div class="summary-row"><span>Delivery</span><span>${delivery?money(delivery):'FREE'}</span></div>
         <div class="summary-row total"><span>Total</span><span>${money(total)}</span></div>
         <div id="coupon-box">
-          <div class="coupon-row"><input id="coupon-input" type="text" placeholder="Enter coupon code" value="${esc(appliedCoupon?appliedCoupon.code:'')}" aria-label="Coupon code"><button type="button" class="btn small" onclick="applyCouponFromCart()">${appliedCoupon?'Update':'Apply'}</button>${appliedCoupon?`<button type="button" class="btn small ghost" onclick="removeCouponFromCart()">Remove</button>`:''}</div>
+          <div class="coupon-row"><input id="coupon-input" type="text" placeholder="Enter coupon code" value="${esc(appliedCoupon?appliedCoupon.code:'')}" aria-label="Coupon code"><button type="button" class="btn small" onclick="applyCouponFromCart()">${appliedCoupon?'Update':'Apply'}</button></div>
           <div id="coupon-msg" class="coupon-msg"></div>
         </div>
         <a href="#/checkout" class="btn" style="width:100%;justify-content:center;margin-top:12px;">Proceed to Checkout</a>
@@ -5758,6 +5752,19 @@ body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#f
 .sx-tag{color:#fff;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.2px}
 .sx-cp{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1.5px dashed #F57224;background:#FFF8F3;border-radius:10px;padding:10px 12px;margin:8px 0}
 .sx-cp-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}.sx-cp-done{color:#1a8f4f;font-weight:700;font-size:13px;white-space:nowrap}
+.sx-cpn{font-size:10.5px;font-weight:800;color:#1a8f4f;background:#E9F7EE;border-radius:4px;padding:1px 6px}
+.sx-pd-price{font-size:32px!important;font-weight:800;line-height:1.1}.sx-pd-note{font-size:13px;color:#1a8f4f;font-weight:700;margin:-4px 0 8px}
+html,body{max-width:100%;overflow-x:hidden}
+.container,.admin-card,.summary-card,.customer-card,.cart-page-grid>*,.cart-line>*{min-width:0;max-width:100%;box-sizing:border-box}
+.cart-page-grid{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr)!important}
+@media(max-width:900px){.cart-page-grid{grid-template-columns:minmax(0,1fr)!important}}
+.cart-line{grid-template-columns:72px minmax(0,1fr) auto!important}
+@media(max-width:480px){.cart-line{grid-template-columns:56px minmax(0,1fr)!important}}
+.cart-line>div:last-child{white-space:nowrap}
+.cart-line-actions{flex-wrap:wrap;justify-content:space-between}
+.coupon-row{flex-wrap:wrap}.coupon-row input{min-width:0;flex:1 1 140px}
+.card-title,.cart-line-title,.pd-title{overflow-wrap:anywhere}
+img,video,iframe,svg{max-width:100%}
 .sx-pdc *{box-sizing:border-box}.sx-pdc .coupon-row input{min-width:0;width:100%}.sx-pdc .coupon-row .btn{flex:none}.sx-cp{flex-wrap:wrap}.sx-pdc{width:100%;max-width:100%;margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}
 </style>
 <script id="sx-enh-js">
@@ -5819,6 +5826,7 @@ body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#f
   window.renderProductCard=function(p,o){
     var h=origCard.call(this,p,Object.assign({},o||{},{hideActions:true}));
     var tg=(p.tags||[]).filter(function(t){return DEFTAG[lc(t)]||SX_TAGCOL[lc(t)];}).slice(0,2).map(tagHtml).join('');
+    try{var cf=couponFor(p);if(cf){var u0=Number(p.specialPrice!=null?p.specialPrice:p.price)||0;h=h.replace(/<strong class="price">[^<]*<\/strong>/,'<strong class="price" style="color:#1a8f4f">'+money(u0-cf.r.discount)+'</strong><del style="font-size:12px;color:var(--ink-soft)">'+money(u0)+'</del><span class="sx-cpn">'+esc(cf.c.code)+'</span>');}}catch(e){}
     try{return h.replace(/(<a [^>]*class="card-img"[^>]*>[\s\S]*?<\/a>)/,'<div class="card-imgwrap">$1'+(tg?'<div class="sx-tags">'+tg+'</div>':'')+'</div>');}catch(e){return h;}
   };
   /* ---- sorting ---- */
@@ -5879,15 +5887,14 @@ body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#f
   var cq=function(){return (CART||[]).reduce(function(n,i){return n+(Number(i.qty)||0);},0);};
   var oAdd=window.addToCart;window.addToCart=function(id,q){var b=cq();var r=oAdd.apply(this,arguments);if(cq()>b)log(id,'cart_add');return r;};
   var oTog=window.toggleWishlist;window.toggleWishlist=function(id){var r=oTog.apply(this,arguments);log(id,isInWishlist(id)?'wishlist_add':'wishlist_remove');return r;};
-  /* product card clicks count as clicks */
-  document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('.card a[href^="#/p/"]');if(!a||e.target.closest('.wishlist-heart'))return;var k=decodeURIComponent(a.getAttribute('href').slice(4));var p=PRODUCTS.find(function(x){return String(x.id)===k||(x.seo&&x.seo.slug===k);});if(p)trackProductBuyClick(p.id);},true);
   window.sxAdminEngagement=function(){
     setTimeout(loadEng,0);
     return '<div class="admin-topbar"><h1>Cart &amp; Wishlist Activity</h1><button class="btn small ghost" onclick="render()">Refresh</button></div><div class="admin-card"><div id="sx-eng-body">Loading\u2026</div></div>';
   };
   function loadEng(){
     var el=document.getElementById('sx-eng-body');if(!el)return;
-    supabaseClient.from('storex_engagement_events').select('guest_id,product_id,event_type,created_at').order('created_at',{ascending:true}).limit(20000).then(function(r){
+    var fresh=supabaseClient.from('storex_product_analytics').select('product_id,views,clicks,updated_at').then(function(r){if(r.error){window.SX_PA_ERR='read: '+r.error.message;return;}PRODUCT_ANALYTICS=Object.create(null);(r.data||[]).forEach(function(x){PRODUCT_ANALYTICS[String(x.product_id)]={views:Number(x.views)||0,clicks:Number(x.clicks)||0};});});
+    fresh.then(function(){return supabaseClient.from('storex_engagement_events').select('guest_id,product_id,event_type,created_at').order('created_at',{ascending:true}).limit(20000);}).then(function(r){
       el=document.getElementById('sx-eng-body');if(!el)return;
       if(r.error){el.innerHTML='<b>Could not read activity.</b><p style="color:var(--ink-soft)">Run StoreX_Complete_Features_Migration.sql first. ('+esc(r.error.message)+')</p>';return;}
       var m={};
@@ -5923,7 +5930,7 @@ body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#f
     try{var l=cartLines();if(l.length){var b=best(l);if(b){var o={code:b.code};setAppliedCoupon(o);return o;}}}catch(e){}return c;};
   ['removeCouponFromCheckout','removeCouponFromCart'].forEach(function(n){var f=window[n];if(typeof f==='function')window[n]=function(){try{sessionStorage.setItem('sx.noauto','1');}catch(e){}return f.apply(this,arguments);};});
   var oBuy=window.startBuyNow;
-  window.startBuyNow=function(id,q){var r=oBuy.apply(this,arguments);try{var d=getBuyNowDraft(),p=PRODUCTS.find(function(x){return x.id===id;});if(d&&p&&!d.couponCode){var b=best([fakeLine(p,d.qty||q||1)]);if(b){d.couponCode=b.code;setBuyNowDraft(d);}}}catch(e){}return r;};
+  window.startBuyNow=function(id,q){var r=oBuy.apply(this,arguments);try{var d=getBuyNowDraft(),p=PRODUCTS.find(function(x){return x.id===id;});if(d&&p&&!d.couponCode){var ln=[fakeLine(p,d.qty||q||1)],ap=oGet(),ac=ap&&findLoadedCoupon(ap.code),b=(ac&&window.sxCouponCalc(ac,ln).ok)?ac:best(ln);if(b){d.couponCode=b.code;setBuyNowDraft(d);}}}catch(e){}return r;};
   window.sxClaim=function(code){claim(code);toast('Coupon '+code+' claimed \u2713 It will apply automatically at checkout.');render();};
   window.sxClaimPrivate=function(pid){
     var i=document.getElementById('sx-pc-in'),m=document.getElementById('sx-pc-msg'),code=String(i.value||'').trim().toUpperCase();
@@ -5936,28 +5943,78 @@ body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#f
     claim(c.code);var r=window.sxCouponCalc(c,[fakeLine(p,1)]);
     say(r.ok?'Coupon saved. You save about '+money(r.discount)+' on this item; it applies automatically at checkout.':'Coupon saved. It applies at checkout once the order meets its conditions'+(c.min_order?' (minimum '+money(c.min_order)+')':'')+'.',true);
   };
+  function couponFor(p){
+    try{
+      var fl=[fakeLine(p,1)],ap=oGet(),cl=claims();
+      function ok(c){var r=window.sxCouponCalc(c,fl);return r.ok&&r.discount>0?{c:c,r:r}:null;}
+      if(ap&&ap.code){var c0=findLoadedCoupon(ap.code),x0=c0&&ok(c0);if(x0)return x0;}
+      var b=null;COUPONS.forEach(function(c){if(cl.indexOf(String(c.code).toUpperCase())<0)return;var x=ok(c);if(x&&(!b||x.r.discount>b.r.discount))b=x;});return b;
+    }catch(e){return null;}
+  }
+  window.sxSelect=function(code){
+    claim(code);setAppliedCoupon({code:String(code)});try{sessionStorage.removeItem('sx.noauto');}catch(e){}
+    if(/^\/buy-now\//.test(route())){var d=getBuyNowDraft();if(d){d.couponCode=String(code);setBuyNowDraft(d);}}
+    toast('Coupon '+code+' selected \u2713');render();
+  };
   function pubCard(c,lines){
-    var done=claims().indexOf(String(c.code).toUpperCase())>-1,r=lines?window.sxCouponCalc(c,lines):null;
-    return '<div class="sx-cp"><div><b>'+esc(c.title||c.description||label(c))+'</b><div class="sx-cp-sub">'+label(c)+(c.min_order?' \u00b7 min order '+money(c.min_order):'')+(c.applicable_scope&&c.applicable_scope!=='all'?' \u00b7 selected '+c.applicable_scope:'')+(c.ends_at?' \u00b7 until '+String(c.ends_at).slice(0,10):'')+'</div>'+(r&&r.ok?'<div class="sx-cp-sub" style="color:#1a8f4f">You save '+money(r.discount)+(r.freeShipping?' + free delivery':'')+'</div>':'')+'</div>'
-      +(done?'<span class="sx-cp-done">Claimed \u2713</span>':'<button type="button" class="btn small" onclick="sxClaim(\''+String(c.code).replace(/'/g,'')+'\')">Claim Coupon</button>')+'</div>';
+    var code=String(c.code).toUpperCase(),done=claims().indexOf(code)>-1,ap=oGet(),sel=!!(ap&&String(ap.code).toUpperCase()===code),r=lines?window.sxCouponCalc(c,lines):null,q=String(c.code).replace(/'/g,'');
+    var btn=!done?'<button type="button" class="btn small" onclick="sxClaim(\''+q+'\')">Claim Coupon</button>':sel?'<span class="sx-cp-done">Selected \u2713</span>':'<button type="button" class="btn small" onclick="sxSelect(\''+q+'\')">Use this coupon</button>';
+    return '<div class="sx-cp"><div style="min-width:0"><b>'+esc(c.title||c.description||label(c))+'</b><div class="sx-cp-sub">'+label(c)+(c.min_order?' \u00b7 min order '+money(c.min_order):'')+(c.applicable_scope&&c.applicable_scope!=='all'?' \u00b7 selected '+c.applicable_scope:'')+(c.ends_at?' \u00b7 until '+String(c.ends_at).slice(0,10):'')+'</div>'
+      +(r&&r.ok?'<div class="sx-cp-sub" style="color:#1a8f4f">You save '+money(r.discount)+(r.freeShipping?' + free delivery':'')+'</div>':(r&&c.min_order?'<div class="sx-cp-sub">Order at least '+money(c.min_order)+' to use this</div>':''))+'</div>'+btn+'</div>';
+  }
+  function listFor(lines){var cl=claims();return COUPONS.filter(function(c){return (c.visibility!=='private'||cl.indexOf(String(c.code).toUpperCase())>-1)&&nowOk(c)&&lines.some(function(x){return couponAppliesToLine(c,x.info.p.id);});});}
+  function injectList(anchorSel,lines){
+    var a=document.querySelector(anchorSel);if(!a||document.getElementById('sx-pubc')||!lines.length)return;
+    var list=listFor(lines);if(!list.length)return;
+    var d=document.createElement('div');d.id='sx-pubc';d.className='admin-card';d.style.marginTop='12px';
+    d.innerHTML='<h3 style="margin:0 0 8px">Your Coupons &amp; Public Offers</h3>'+list.map(function(c){return pubCard(c,lines);}).join('');
+    var host=a.closest('.admin-card')||a.closest('.coupon-row').parentElement;host.parentNode.insertBefore(d,host.nextSibling);
   }
   function enhance(){
     document.querySelectorAll('.tag-pill:not([data-sx])').forEach(function(el){el.dataset.sx=1;var k=lc(el.textContent);if(DEFTAG[k]||SX_TAGCOL[k]){el.style.background=tagColor(k);el.style.color='#fff';el.style.border='none';}});
-    var ci=document.getElementById('checkout-coupon-input');
-    if(ci&&!document.getElementById('sx-pubc')){
-      var l=cartLines(),list=COUPONS.filter(function(c){return c.visibility!=='private'&&nowOk(c)&&l.some(function(x){return couponAppliesToLine(c,x.info.p.id);});});
-      if(list.length){var d=document.createElement('div');d.id='sx-pubc';d.className='admin-card';d.style.marginTop='12px';d.innerHTML='<h3 style="margin:0 0 8px">Public Coupons</h3>'+list.map(function(c){return pubCard(c,l);}).join('');var host=ci.closest('.admin-card');host.parentNode.insertBefore(d,host.nextSibling);}
-    }
-    var q=document.getElementById('pd-qty');
-    if(q&&!document.getElementById('sx-pdc')){
+    injectList('#checkout-coupon-input',cartLines());
+    injectList('#coupon-input',cartLines());
+    if(document.getElementById('bn-coupon-input')){var d=getBuyNowDraft(),bp=d&&PRODUCTS.find(function(x){return x.id===d.productId;});if(bp)injectList('#bn-coupon-input',[fakeLine(bp,d.qty||1)]);}
+    var h1=document.querySelector('h1.pd-title');
+    if(h1){
       var k=decodeURIComponent((location.hash.match(/#\/p\/([^/?]+)/)||[])[1]||''),p=PRODUCTS.find(function(x){return String(x.id)===k||(x.seo&&x.seo.slug===k);});
-      if(p){var fl=[fakeLine(p,1)],ls=COUPONS.filter(function(c){return c.visibility!=='private'&&nowOk(c)&&couponAppliesToLine(c,p.id);});
-        var s=document.createElement('div');s.id='sx-pdc';s.className='sx-pdc';
+      var pr=h1.parentElement.querySelector('strong.price');
+      if(pr&&p&&!pr.dataset.sx){
+        pr.dataset.sx=1;pr.classList.add('sx-pd-price');var cf=couponFor(p);
+        if(cf){var u=Number(p.specialPrice!=null?p.specialPrice:p.price)||0;pr.textContent=money(u-cf.r.discount);pr.style.color='#1a8f4f';
+          var dl=document.createElement('del');dl.style.cssText='color:var(--ink-soft);font-size:16px';dl.textContent=money(u);pr.after(dl);
+          var nt=document.createElement('div');nt.className='sx-pd-note';nt.textContent='Coupon '+cf.c.code+' applied \u2014 you save '+money(cf.r.discount);pr.parentElement.after(nt);
+          var tt=document.getElementById('pd-total-price');if(tt&&cf.c.discount_type==='percent'){tt.dataset.unitPrice=String(u-cf.r.discount);tt.textContent=money(u-cf.r.discount);}}
+      }
+      var q=document.getElementById('pd-qty');
+      if(q&&p&&!document.getElementById('sx-pdc')){
+        var fl=[fakeLine(p,1)],ls=listFor(fl),s=document.createElement('div');s.id='sx-pdc';s.className='sx-pdc';
         s.innerHTML='<b>Coupons &amp; Offers</b>'+ls.map(function(c){return pubCard(c,fl);}).join('')+'<div class="coupon-row" style="margin:8px 0 0"><input id="sx-pc-in" type="text" placeholder="Have a coupon code?" aria-label="Coupon code"><button type="button" class="btn small" onclick="sxClaimPrivate(\''+String(p.id).replace(/'/g,'')+'\')">Apply</button></div><div id="sx-pc-msg" class="coupon-msg"></div>';
-        var b=(q.closest('#pd-qty-stepper')||q).parentElement;b.parentNode.insertBefore(s,b);}
+        var b=(q.closest('#pd-qty-stepper')||q).parentElement;b.parentNode.insertBefore(s,b);
+      }
     }
   }
   var raf=0;new MutationObserver(function(){cancelAnimationFrame(raf);raf=requestAnimationFrame(enhance);}).observe(document.body,{childList:true,subtree:true});
+  /* ---- auto refresh when admin changes data ---- */
+  (function(){
+    var base=null,busy=false;
+    function hash(t){var h=5381;for(var i=0;i<t.length;i++)h=((h<<5)+h+t.charCodeAt(i))|0;return String(h);}
+    async function snap(){
+      var parts=[];
+      var a=await supabaseClient.from('sx_settings').select('key,updated_at');
+      if(!a.error&&a.data)parts.push(JSON.stringify(a.data));else{var b=await supabaseClient.rpc('storex_public_state');if(b.error)return null;parts.push(JSON.stringify(b.data));}
+      var c=await supabaseClient.from('storex_coupons').select('*');if(!c.error)parts.push(JSON.stringify(c.data));
+      return hash(parts.join('|'));
+    }
+    function busyForm(){var f=document.activeElement;if(f&&/INPUT|TEXTAREA|SELECT/.test(f.tagName))return true;return [].some.call(document.querySelectorAll('form input:not([type=hidden]):not([type=checkbox]),form textarea'),function(i){return String(i.value||'').trim()!=='';});}
+    async function tick(){
+      if(busy||document.hidden||typeof supabaseClient==='undefined'||!supabaseClient||!SUPABASE_READY||SUPABASE_ADMIN||/admin-of-storex/.test(location.hash))return;
+      busy=true;try{var h=await snap();if(h){if(base===null)base=h;else if(h!==base){if(!busyForm()){base=h;window.StoreXRealtimeReload?window.StoreXRealtimeReload():location.reload();}}}}catch(e){}busy=false;
+    }
+    setInterval(tick,15000);document.addEventListener('visibilitychange',function(){if(!document.hidden)tick();});setTimeout(tick,4000);
+  })();
+  var oAC=window.applyCouponFromCart;
+  if(typeof oAC==='function')window.applyCouponFromCart=function(){var i=document.getElementById('coupon-input');if(i&&!String(i.value).trim()){return window.removeCouponFromCart();}return oAC.apply(this,arguments);};
   loadCfg(0);enhance();
 })();
 </script>
