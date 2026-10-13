@@ -5726,8 +5726,11 @@ body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#f
 .card .card-imgwrap .wishlist-heart:active{transform:scale(.9)}
 .card .card-imgwrap .wishlist-heart.active{background:rgba(255,255,255,.92);color:#E0245E;border-color:#E0245E}
 .card .card-imgwrap .wishlist-heart.active svg{fill:currentColor}
-.sx-dl{position:absolute;right:10px;bottom:10px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(20,20,20,.45);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:3;backdrop-filter:blur(3px);transition:background .2s,transform .15s}
-.sx-dl:hover,.sx-dl:focus-visible{background:rgba(245,114,36,.85);outline:none}
+.sx-dl{position:absolute;right:10px;bottom:10px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.9);color:#222;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.18);transition:background .2s,color .2s,transform .15s}
+.pd-slide-count{display:none!important}
+.sx-dl{opacity:.5}
+.sx-dl:hover,.sx-dl:focus-visible,.sx-dl:active{opacity:1}
+.sx-dl:hover,.sx-dl:focus-visible{background:#F57224;color:#fff;outline:none}
 .sx-dl:active{transform:scale(.92)}
 .sx-dl svg{width:20px;height:20px}
 .customer-card .field input,.customer-card .field select,.customer-card .field textarea,.trk-card .field input{background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:10px 12px;min-height:44px;font-size:14px;width:100%;box-sizing:border-box;transition:border-color .2s,box-shadow .2s}
@@ -5931,7 +5934,7 @@ img,video,iframe,svg{max-width:100%}
   ['removeCouponFromCheckout','removeCouponFromCart'].forEach(function(n){var f=window[n];if(typeof f==='function')window[n]=function(){try{sessionStorage.setItem('sx.noauto','1');}catch(e){}return f.apply(this,arguments);};});
   var oBuy=window.startBuyNow;
   window.startBuyNow=function(id,q){var r=oBuy.apply(this,arguments);try{var d=getBuyNowDraft(),p=PRODUCTS.find(function(x){return x.id===id;});if(d&&p&&!d.couponCode){var ln=[fakeLine(p,d.qty||q||1)],ap=oGet(),ac=ap&&findLoadedCoupon(ap.code),b=(ac&&window.sxCouponCalc(ac,ln).ok)?ac:best(ln);if(b){d.couponCode=b.code;setBuyNowDraft(d);}}}catch(e){}return r;};
-  window.sxClaim=function(code){claim(code);toast('Coupon '+code+' claimed \u2713 It will apply automatically at checkout.');render();};
+  window.sxClaim=function(code){claim(code);toast('Coupon '+code+' claimed \u2713 It will apply automatically at checkout.');keepScroll();};
   window.sxClaimPrivate=function(pid){
     var i=document.getElementById('sx-pc-in'),m=document.getElementById('sx-pc-msg'),code=String(i.value||'').trim().toUpperCase();
     var c=findLoadedCoupon(code),p=PRODUCTS.find(function(x){return String(x.id)===String(pid);}),say=function(t,ok){m.textContent=t;m.className='coupon-msg '+(ok?'ok':'err');};
@@ -5943,6 +5946,7 @@ img,video,iframe,svg{max-width:100%}
     claim(c.code);var r=window.sxCouponCalc(c,[fakeLine(p,1)]);
     say(r.ok?'Coupon saved. You save about '+money(r.discount)+' on this item; it applies automatically at checkout.':'Coupon saved. It applies at checkout once the order meets its conditions'+(c.min_order?' (minimum '+money(c.min_order)+')':'')+'.',true);
   };
+  function keepScroll(){var y=window.pageYOffset||document.documentElement.scrollTop;render();var f=function(){window.scrollTo(0,y);};f();requestAnimationFrame(function(){f();requestAnimationFrame(f);});setTimeout(f,120);setTimeout(f,350);}
   function couponFor(p){
     try{
       var fl=[fakeLine(p,1)],ap=oGet(),cl=claims();
@@ -5954,7 +5958,7 @@ img,video,iframe,svg{max-width:100%}
   window.sxSelect=function(code){
     claim(code);setAppliedCoupon({code:String(code)});try{sessionStorage.removeItem('sx.noauto');}catch(e){}
     if(/^\/buy-now\//.test(route())){var d=getBuyNowDraft();if(d){d.couponCode=String(code);setBuyNowDraft(d);}}
-    toast('Coupon '+code+' selected \u2713');render();
+    toast('Coupon '+code+' selected \u2713');keepScroll();
   };
   function pubCard(c,lines){
     var code=String(c.code).toUpperCase(),done=claims().indexOf(code)>-1,ap=oGet(),sel=!!(ap&&String(ap.code).toUpperCase()===code),r=lines?window.sxCouponCalc(c,lines):null,q=String(c.code).replace(/'/g,'');
