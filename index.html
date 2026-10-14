@@ -3168,7 +3168,7 @@ function storexBaseRenderAdminSidebar(){
     ${item('products','Products')}
     ${item('categories','Categories')}
     ${item('orders','Orders')}
-    ${item('analytics','Analytics')}${item('engagement','Cart & Wishlist')}${item('sorting','Sorting & Tags')}
+    ${item('analytics','Analytics')}${item('engagement','Cart & Wishlist')}${item('sorting','Sorting & Badges')}
     ${item('coupons','Coupons')}
     <div class="group-label">Marketing</div>
     ${item('flashsales','Flash Sales')}
@@ -3474,8 +3474,8 @@ function openProductModal(id){
         <div class="field full"><label>Short description</label><input type="text" name="shortDesc" value="${esc(p.shortDesc)}"></div>
         <div class="field full"><label>Full description</label><textarea name="fullDesc">${esc(p.fullDesc)}</textarea></div>
         <div class="field full"><label>Categories (select one or more)</label><div style="max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff;">${catChecks}</div></div>
-        <div class="field"><label>Tags (comma separated)</label><input type="text" name="tags" value="${esc((p.tags||[]).join(', '))}"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${sxAllTags().map(t=>`<button type="button" class="btn small ghost" onclick="sxAddTag(this,'${esc(t)}')">+ ${esc(t)}</button>`).join('')}</div></div>
-        <div class="field"><label>Badge (e.g. "Hot", "-20%")</label><input type="text" name="badge" value="${esc(p.badge)}"></div>
+        <div class="field"><label>Tags (comma separated)</label><input type="text" name="tags" value="${esc((p.tags||[]).join(', '))}"></div>
+        <div class="field"><label>Badges (comma separated, e.g. Hot, New, Sale)</label><input type="text" name="badge" value="${esc(p.badge)}"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${sxAllTags().map(t=>`<button type="button" class="btn small ghost" onclick="sxAddTag(this,'${esc(t)}')">+ ${esc(t)}</button>`).join('')}</div></div>
         <div class="field"><label>Original price (Rs.) *</label><input required type="number" min="0" step="0.01" name="originalPrice" value="${esc((p.originalPrice??p.oldPrice??p.price??''))}"></div><div class="field"><label>Special / discounted price (Rs.)</label><input type="number" min="0" step="0.01" name="specialPrice" value="${esc((p.specialPrice??p.price??''))}"></div><div class="field"><label>Stock quantity *</label><input required type="number" min="0" step="1" name="stock" value="${esc(p.stock??0)}"></div><div class="field"><label>Delivery charges (Rs.)</label><input type="number" min="0" step="0.01" name="deliveryCharges" value="${esc(p.deliveryCharges??0)}"></div><div class="field full"><label>Promotion</label><div class="form-grid"><div class="field full"><label>Promotion title (shown on product page)</label><input type="text" name="promotionTitle" value="${esc(p.promotion?.title??'')}" placeholder="e.g. Buy 2 Get 1 Free / Weekend Offer"></div><div class="field"><label>Free delivery after qty</label><input type="number" min="0" name="freeDeliveryQty" value="${esc(p.promotion?.freeDeliveryQty??0)}"></div><div class="field"><label>Percent off (%)</label><input type="number" min="0" max="100" step="0.01" name="percentOff" value="${esc(p.promotion?.percentOff??0)}"></div><div class="field"><label>Percent off after qty</label><input type="number" min="0" name="percentOffQty" value="${esc(p.promotion?.percentOffQty??0)}"></div><div class="field"><label>Buy quantity</label><input type="number" min="0" name="buyQty" value="${esc(p.promotion?.buyQty??0)}"></div><div class="field"><label>Free quantity</label><input type="number" min="0" name="freeQty" value="${esc(p.promotion?.freeQty??0)}"></div></div></div>
         <div class="field"><label>Status</label><select name="status"><option value="published" ${p.status==='published'?'selected':''}>Published</option><option value="hidden" ${p.status==='hidden'?'selected':''}>Hidden</option></select></div>
         <div class="field"><label>Display order</label><input type="number" name="order" value="${esc(p.order)}"></div>
@@ -3593,9 +3593,9 @@ function saveProductForm(pid, isNew){
   Object.assign(draft, {
     title, shortTitle: fd.get('shortTitle').trim(),
     shortDesc: fd.get('shortDesc').trim(), fullDesc: fd.get('fullDesc').trim(),
-    categories: fd.getAll('categories').filter(Boolean), category: (fd.getAll('categories').filter(Boolean)[0]||''), tags: sxNormTags(fd.get('tags')),
+    categories: fd.getAll('categories').filter(Boolean), category: (fd.getAll('categories').filter(Boolean)[0]||''), tags: fd.get('tags').split(',').map(t=>t.trim()).filter(Boolean),
     price:specialPrice, oldPrice:originalPrice, originalPrice, specialPrice, stock, deliveryCharges:Math.max(0,Number(fd.get('deliveryCharges')||0)),
-    discount:autoDiscount, badge:autoDiscount?'-'+autoDiscount+'%':fd.get('badge').trim(),
+    discount:autoDiscount, badge:sxBadgeSave(fd.get('badge'),autoDiscount),
     promotion:{title:String(fd.get('promotionTitle')||'').trim(),freeDelivery:Number(fd.get('freeDeliveryQty')||0)>0,freeDeliveryQty:Number(fd.get('freeDeliveryQty')||0),percentOff:Math.max(0,Number(fd.get('percentOff')||0)),percentOffQty:Math.max(0,Number(fd.get('percentOffQty')||0)),buyQty:Math.max(0,Number(fd.get('buyQty')||0)),freeQty:Math.max(0,Number(fd.get('freeQty')||0))},
     status: fd.get('status'), order: Number(fd.get('order'))||0,
     featured: fd.get('featured')==='on', trending: fd.get('trending')==='on', newArrival: fd.get('newArrival')==='on', bestSeller: fd.get('bestSeller')==='on',
@@ -5752,6 +5752,7 @@ body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#f
 .card .sx-out{background:#f1f1f1;color:#888;border:1.5px solid #e5e5e5;cursor:not-allowed}
 @media (max-width:380px){.card .sx-cart svg{display:none}.card .sx-btn{font-size:12px}}
 .sx-tags{position:absolute;top:8px;left:8px;display:flex;gap:4px;flex-wrap:wrap;max-width:70%;z-index:2}
+.sx-pdb{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.sx-pdb .sx-tag{font-size:12px;padding:3px 10px}
 .sx-tag{color:#fff;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.2px}
 .sx-cp{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1.5px dashed #F57224;background:#FFF8F3;border-radius:10px;padding:10px 12px;margin:8px 0}
 .sx-cp-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}.sx-cp-done{color:#1a8f4f;font-weight:700;font-size:13px;white-space:nowrap}
@@ -5819,16 +5820,18 @@ img,video,iframe,svg{max-width:100%}
   var lc=function(s){return String(s||'').trim().toLowerCase();};
   var $q=function(s,r){return (r||document).querySelector(s);};
   /* ---- tags ---- */
+  window.sxBadges=function(p){var seen={},out=[];String((p&&p.badge)||'').split(',').forEach(function(t){t=t.trim();var k=lc(t);if(k&&!/^-?\d+(\.\d+)?%$/.test(k)&&!seen[k]){seen[k]=1;out.push(t);}});return out;};
+  window.sxBadgeSave=function(str,disc){var l=window.sxNormTags(str).filter(function(t){return !/^-?\d+(\.\d+)?%$/.test(t);});if(disc)l.unshift('-'+disc+'%');return l.join(', ');};
   window.sxNormTags=function(str){var seen={},out=[];String(str||'').split(',').forEach(function(t){t=t.trim();var k=lc(t);if(k&&!seen[k]){seen[k]=1;out.push(t);}});return out;};
-  window.sxAllTags=function(){var seen={},out=[];Object.keys(DEFTAG).concat(Object.keys(SX_TAGCOL)).forEach(function(t){seen[t]=1;out.push(t);});(PRODUCTS||[]).forEach(function(p){(p.tags||[]).forEach(function(t){var k=lc(t);if(k&&!seen[k]){seen[k]=1;out.push(k);}});});return out;};
-  window.sxAddTag=function(btn,t){var i=btn.closest('.field').querySelector('input[name=tags]');var cur=window.sxNormTags(i.value);if(!cur.some(function(x){return lc(x)===lc(t);}))cur.push(t);i.value=cur.join(', ');};
+  window.sxAllTags=function(){var seen={},out=[];Object.keys(DEFTAG).concat(Object.keys(SX_TAGCOL)).forEach(function(t){seen[t]=1;out.push(t);});(PRODUCTS||[]).forEach(function(p){window.sxBadges(p).forEach(function(t){var k=lc(t);if(k&&!seen[k]){seen[k]=1;out.push(k);}});});return out;};
+  window.sxAddTag=function(btn,t){var i=btn.closest('.field').querySelector('input[name=badge]');var cur=window.sxNormTags(i.value);if(!cur.some(function(x){return lc(x)===lc(t);}))cur.push(t);i.value=cur.join(', ');};
   function tagColor(t){var k=lc(t);return SX_TAGCOL[k]||DEFTAG[k]||'#475467';}
-  function tagHtml(t){return '<span class="sx-tag" style="background:'+tagColor(t)+'">'+esc(t)+'</span>';}
+  function tagHtml(t){return '<span class="sx-tag">'+esc(t)+'</span>';}
   /* ---- product card: tags + heart, no action buttons ---- */
   var origCard=window.renderProductCard;
   window.renderProductCard=function(p,o){
     var h=origCard.call(this,p,Object.assign({},o||{},{hideActions:true}));
-    var tg=(p.tags||[]).filter(function(t){return DEFTAG[lc(t)]||SX_TAGCOL[lc(t)];}).slice(0,2).map(tagHtml).join('');
+    var tg=window.sxBadges(p).slice(0,2).map(tagHtml).join('');
     try{var cf=couponFor(p);if(cf){var u0=Number(p.specialPrice!=null?p.specialPrice:p.price)||0;h=h.replace(/<strong class="price">[^<]*<\/strong>/,'<strong class="price" style="color:#1a8f4f">'+money(u0-cf.r.discount)+'</strong><del style="font-size:12px;color:var(--ink-soft)">'+money(u0)+'</del><span class="sx-cpn">'+esc(cf.c.code)+'</span>');}}catch(e){}
     try{return h.replace(/(<a [^>]*class="card-img"[^>]*>[\s\S]*?<\/a>)/,'<div class="card-imgwrap">$1'+(tg?'<div class="sx-tags">'+tg+'</div>':'')+'</div>');}catch(e){return h;}
   };
@@ -5840,10 +5843,10 @@ img,video,iframe,svg{max-width:100%}
     var opt=(SX_SORT||DEFOPTS).find(function(o){return o.id===CUSTOMER_PRODUCT_SORT;});
     if(!opt) return oSort(list);
     var arr=list.slice(),tags=(opt.tags||[]).map(lc),cats=(opt.categories||[]).map(String);
-    if(tags.length||cats.length) arr=arr.filter(function(p){var parts=[];if(tags.length)parts.push((p.tags||[]).map(lc).some(function(t){return tags.indexOf(t)>-1;}));if(cats.length)parts.push(productCatIds(p).map(String).some(function(c){return cats.indexOf(c)>-1;}));return opt.match==='and'?parts.every(Boolean):parts.some(Boolean);});
+    if(tags.length||cats.length) arr=arr.filter(function(p){var parts=[];if(tags.length)parts.push(window.sxBadges(p).map(lc).some(function(t){return tags.indexOf(t)>-1;}));if(cats.length)parts.push(productCatIds(p).map(String).some(function(c){return cats.indexOf(c)>-1;}));return opt.match==='and'?parts.every(Boolean):parts.some(Boolean);});
     var pr=function(p){return Number(p.specialPrice!=null?p.specialPrice:p.price)||0;},tm=function(p){return p.created_at?new Date(p.created_at).getTime():Number(p.order)||0;};
     var inS=function(p){return Math.max(0,Number(p.stock)||0)>0?1:0;};
-    var m=opt.method,f={'newest':function(a,b){return tm(b)-tm(a);},'oldest':function(a,b){return tm(a)-tm(b);},'price-low':function(a,b){return pr(a)-pr(b);},'price-high':function(a,b){return pr(b)-pr(a);},'name-az':function(a,b){return String(a.title||'').localeCompare(String(b.title||''));},'name-za':function(a,b){return String(b.title||'').localeCompare(String(a.title||''));},'discount':function(a,b){return (Number(b.discount)||0)-(Number(a.discount)||0);},'promotion':function(a,b){return promotionScore(b)-promotionScore(a);},'featured':function(a,b){var g=function(p){return (p.featured||p.isFeatured||(p.tags||[]).map(lc).indexOf('featured')>-1)?1:0;};return g(b)-g(a);},'popular':function(a,b){return analyticsCounts(b).views-analyticsCounts(a).views;}}[m];
+    var m=opt.method,f={'newest':function(a,b){return tm(b)-tm(a);},'oldest':function(a,b){return tm(a)-tm(b);},'price-low':function(a,b){return pr(a)-pr(b);},'price-high':function(a,b){return pr(b)-pr(a);},'name-az':function(a,b){return String(a.title||'').localeCompare(String(b.title||''));},'name-za':function(a,b){return String(b.title||'').localeCompare(String(a.title||''));},'discount':function(a,b){return (Number(b.discount)||0)-(Number(a.discount)||0);},'promotion':function(a,b){return promotionScore(b)-promotionScore(a);},'featured':function(a,b){var g=function(p){return (p.featured||p.isFeatured||window.sxBadges(p).map(lc).indexOf('featured')>-1)?1:0;};return g(b)-g(a);},'popular':function(a,b){return analyticsCounts(b).views-analyticsCounts(a).views;}}[m];
     return arr.sort(function(a,b){return inS(b)-inS(a)||(f?f(a,b):0)||(a.order||0)-(b.order||0);});
   };
   function sxDraft(){if(!SX_DRAFT)SX_DRAFT=JSON.parse(JSON.stringify(SX_SORT||DEFOPTS));return SX_DRAFT;}
@@ -5853,28 +5856,27 @@ img,video,iframe,svg{max-width:100%}
   window.sxDel=function(i){sxDraft().splice(i,1);render();};
   window.sxAddOpt=function(){sxDraft().push({id:'c'+Date.now().toString(36),label:'New option',method:'filter',enabled:true,tags:[],categories:[],match:'or'});render();};
   window.sxRestore=function(){SX_DRAFT=JSON.parse(JSON.stringify(DEFOPTS));render();};
-  window.sxTc=function(t,v){SX_TAGCOL[t]=v;};
+  
   window.sxSaveCfg=async function(){
     if(!SUPABASE_ADMIN){toast('Admin session required.');return;}
     var ts=new Date().toISOString();
-    var r=await supabaseClient.from('sx_settings').upsert([{key:'sx_sort_options',value:sxDraft(),updated_at:ts},{key:'sx_tag_colors',value:SX_TAGCOL,updated_at:ts}],{onConflict:'key'});
+    var r=await supabaseClient.from('sx_settings').upsert([{key:'sx_sort_options',value:sxDraft(),updated_at:ts}],{onConflict:'key'});
     if(r.error){toast('Save failed: '+r.error.message+' (run the SQL migration)');return;}
-    SX_SORT=JSON.parse(JSON.stringify(SX_DRAFT));toast('Sorting & tag settings saved \u2713');render();
+    SX_SORT=JSON.parse(JSON.stringify(SX_DRAFT));toast('Sorting settings saved \u2713');render();
   };
   window.sxAdminSorting=function(){
     var o=sxDraft();
     var rows=o.map(function(x,i){return '<div class="admin-card" style="margin-bottom:10px"><div class="form-grid">'
      +'<div class="field"><label>Customer-facing name</label><input type="text" value="'+esc(x.label)+'" onchange="sxSo('+i+',\'label\',this.value)"></div>'
      +'<div class="field"><label>Sorting method</label><select onchange="sxSo('+i+',\'method\',this.value)">'+METHODS.map(function(m){return '<option value="'+m[0]+'"'+(x.method===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('')+'</select></div>'
-     +'<div class="field"><label>Only show products with tags (comma separated)</label><input type="text" value="'+esc((x.tags||[]).join(', '))+'" onchange="sxSo('+i+',\'tags\',this.value)"></div>'
+     +'<div class="field"><label>Only show products with badges (comma separated)</label><input type="text" value="'+esc((x.tags||[]).join(', '))+'" onchange="sxSo('+i+',\'tags\',this.value)"></div>'
      +'<div class="field"><label>Only show categories</label><select multiple size="4" onchange="sxSoCats('+i+',this)">'+CATEGORIES.map(function(c){return '<option value="'+esc(c.id)+'"'+((x.categories||[]).map(String).indexOf(String(c.id))>-1?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')+'</select></div>'
      +'<div class="field"><label>When both tags and categories are set</label><select onchange="sxSo('+i+',\'match\',this.value)"><option value="or"'+(x.match!=='and'?' selected':'')+'>Either (OR)</option><option value="and"'+(x.match==='and'?' selected':'')+'>Both (AND)</option></select></div>'
      +'<div class="field"><label class="checkline"><input type="checkbox" '+(x.enabled!==false?'checked':'')+' onchange="sxSo('+i+',\'enabled\',this.checked)"> Enabled</label></div></div>'
      +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small ghost" onclick="sxMove('+i+',-1)">\u2191 Up</button><button class="btn small ghost" onclick="sxMove('+i+',1)">\u2193 Down</button><button class="btn small ghost" onclick="sxDel('+i+')">Delete</button></div></div>';}).join('');
-    var tc=window.sxAllTags().map(function(t){return '<label style="display:flex;align-items:center;gap:8px;margin:6px 0"><input type="color" value="'+tagColor(t)+'" onchange="sxTc(\''+t.replace(/[^a-z0-9 _-]/gi,'')+'\',this.value)"> '+tagHtml(t)+'</label>';}).join('');
-    return '<div class="admin-topbar"><h1>Sorting &amp; Tags</h1><button class="btn small" onclick="sxSaveCfg()">Save all</button></div>'+rows
+    return '<div class="admin-topbar"><h1>Sorting &amp; Badges</h1><button class="btn small" onclick="sxSaveCfg()">Save all</button></div>'+rows
      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"><button class="btn small" onclick="sxAddOpt()">+ Add sorting option</button><button class="btn small ghost" onclick="sxRestore()">Restore defaults</button></div>'
-     +'<div class="admin-card"><h3 style="margin-top:0">Tag colors</h3>'+tc+'<p style="color:var(--ink-soft);font-size:12.5px">Tags are assigned in the product editor (comma separated; capitalization duplicates are removed). Colors apply on cards and product pages.</p></div>';
+     +'<p style="color:var(--ink-soft);font-size:12.5px">Badges are set in the Badge field in the product editor (comma separated; capitalization duplicates are merged).</p>';
   };
   function loadCfg(n){
     if(typeof supabaseClient==='undefined'||!supabaseClient||!SUPABASE_READY){if((n||0)<30)setTimeout(function(){loadCfg((n||0)+1);},800);return;}
@@ -5975,13 +5977,13 @@ img,video,iframe,svg{max-width:100%}
     var host=a.closest('.admin-card')||a.closest('.coupon-row').parentElement;host.parentNode.insertBefore(d,host.nextSibling);
   }
   function enhance(){
-    document.querySelectorAll('.tag-pill:not([data-sx])').forEach(function(el){el.dataset.sx=1;var k=lc(el.textContent);if(DEFTAG[k]||SX_TAGCOL[k]){el.style.background=tagColor(k);el.style.color='#fff';el.style.border='none';}});
     injectList('#checkout-coupon-input',cartLines());
     injectList('#coupon-input',cartLines());
     if(document.getElementById('bn-coupon-input')){var d=getBuyNowDraft(),bp=d&&PRODUCTS.find(function(x){return x.id===d.productId;});if(bp)injectList('#bn-coupon-input',[fakeLine(bp,d.qty||1)]);}
     var h1=document.querySelector('h1.pd-title');
     if(h1){
       var k=decodeURIComponent((location.hash.match(/#\/p\/([^/?]+)/)||[])[1]||''),p=PRODUCTS.find(function(x){return String(x.id)===k||(x.seo&&x.seo.slug===k);});
+      if(p&&!document.getElementById('sx-pdb')&&window.sxBadges(p).length){var bd=document.createElement('div');bd.id='sx-pdb';bd.className='sx-pdb';bd.innerHTML=window.sxBadges(p).map(tagHtml).join('');h1.after(bd);}
       var pr=h1.parentElement.querySelector('strong.price');
       if(pr&&p&&!pr.dataset.sx){
         pr.dataset.sx=1;pr.classList.add('sx-pd-price');var cf=couponFor(p);
@@ -6023,5 +6025,89 @@ img,video,iframe,svg{max-width:100%}
 })();
 </script>
 
+<style id="sx-theme">
+/* ===== StoreX Fancy Theme ===== */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+:root{--primary:#F57224;--primary-dark:#D9591A;--ink:#14122B;--ink-soft:#6A6880;--paper:#FBF8F5;--line:#ECE6DF;--card:#fff;--radius:16px;--grad:linear-gradient(135deg,#FF9A4D 0%,#F57224 48%,#E8431E 100%);--glow:0 10px 28px rgba(245,114,36,.32);--shadow:0 6px 24px rgba(20,18,43,.07);--shadow-lg:0 18px 44px rgba(20,18,43,.14);--midnight:#14122B}
+html{scroll-behavior:smooth}
+::selection{background:#F57224;color:#fff}
+body{font-family:'Plus Jakarta Sans','Inter',system-ui,sans-serif;color:var(--ink);background:radial-gradient(900px 500px at 8% -5%,rgba(255,154,77,.16),transparent 60%),radial-gradient(800px 480px at 100% 10%,rgba(124,58,237,.07),transparent 60%),var(--paper);background-attachment:fixed}
+h1,h2,h3,h4,.display{font-family:'Sora','Space Grotesk',system-ui,sans-serif;letter-spacing:-.02em}
+/* header */
+#site-header{background:rgba(255,255,255,.97)!important;border-bottom:none!important;box-shadow:0 4px 24px rgba(20,18,43,.07);position:sticky}
+#site-header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--grad)}
+.header-row{padding:12px 0}
+.logo-wrap,.logo-fallback{font-family:'Sora',sans-serif;font-weight:800}
+.icon-btn{border-radius:50%!important;background:#fff;border:1px solid var(--line);transition:transform .2s,box-shadow .2s,background .2s}
+.icon-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow);background:#FFF3EA}
+.icon-badge{background:var(--grad)!important;box-shadow:0 2px 8px rgba(232,67,30,.45)}
+.search-wrap input,.search-form input{border-radius:999px!important;border:1.5px solid var(--line)!important;background:#F6F2EE!important;transition:all .2s}
+.search-wrap input:focus,.search-form input:focus{background:#fff!important;border-color:var(--primary)!important;box-shadow:0 0 0 4px rgba(245,114,36,.14)!important}
+.main-nav a{font-weight:600;border-radius:999px;transition:background .2s,color .2s}
+.main-nav a:hover{background:#FFF1E6;color:var(--primary-dark)}
+/* hero */
+.hero{background:var(--midnight)!important;border-radius:0 0 36px 36px;box-shadow:var(--shadow-lg);margin-bottom:8px}
+.hero-overlay{background:linear-gradient(100deg,rgba(20,18,43,.88) 0%,rgba(20,18,43,.45) 55%,rgba(245,114,36,.18) 100%)!important}
+.hero h1,.hero h2{font-weight:800;letter-spacing:-.03em;text-shadow:0 4px 24px rgba(0,0,0,.35)}
+.hero p{opacity:.92}
+.hs-btn,.btn,.card-cta{border-radius:999px!important;font-weight:700;transition:transform .2s,box-shadow .2s,background .2s}
+.btn:not(.ghost):not(.danger){background:var(--grad)!important;color:#fff!important;border:none!important;box-shadow:0 6px 18px rgba(245,114,36,.3)}
+.btn:not(.ghost):not(.danger):hover,.hs-btn:hover{transform:translateY(-2px);box-shadow:var(--glow)}
+.btn.ghost{background:#fff!important;border:1.5px solid var(--line)!important;color:var(--ink)!important}
+.btn.ghost:hover{border-color:var(--primary)!important;color:var(--primary-dark)!important;transform:translateY(-1px)}
+.hs-btn{background:var(--grad);color:#fff;border:none;box-shadow:var(--glow)}
+/* sections */
+.section{padding-top:34px;padding-bottom:12px}
+.section-head h2,.section h2{font-size:clamp(22px,3.2vw,32px);font-weight:800;position:relative;padding-bottom:10px}
+.section-head h2::after,.section>h2::after{content:"";position:absolute;left:0;bottom:0;width:54px;height:4px;border-radius:4px;background:var(--grad)}
+.section-head a{color:var(--primary-dark);font-weight:700}
+/* cards */
+.card{border:1px solid rgba(236,230,223,.9)!important;border-radius:20px!important;background:#fff;box-shadow:var(--shadow);overflow:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s;animation:sxUp .5s backwards}
+.card:hover{transform:translateY(-6px);box-shadow:var(--shadow-lg)}
+.card-img{overflow:hidden;background:#F4EFEA}
+.card-img img{transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+.card:hover .card-img img{transform:scale(1.07)}
+.card-title{font-weight:700}
+.card .price,.price{font-family:'Sora',sans-serif;font-weight:800;color:var(--ink)}
+.badge-status.on{background:#E7F8EE;color:#14803F;border-radius:999px;font-weight:700}
+.sx-tag{background:var(--grad)!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(232,67,30,.35);letter-spacing:.4px;padding:3px 10px!important}
+.sx-pdb .sx-tag{box-shadow:none}
+@keyframes sxUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.cat-card{border-radius:20px!important;border:1px solid var(--line)!important;box-shadow:var(--shadow);transition:transform .3s,box-shadow .3s;overflow:hidden}
+.cat-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-lg)}
+.flash,.spotlight-card,.promo-banner{border-radius:24px!important;overflow:hidden;box-shadow:var(--shadow-lg)}
+.countdown{font-family:'Sora',sans-serif;font-weight:800}
+/* product page */
+.pd-title{font-weight:800;font-size:clamp(24px,4vw,36px)}
+.pd-slider-wrap,.pd-main-img{border-radius:24px;overflow:hidden;box-shadow:var(--shadow-lg)}
+.tag-pill{background:#fff;border:1px solid var(--line);border-radius:999px}
+.qty-stepper{border-radius:999px!important;border:1.5px solid var(--line)!important;overflow:hidden;background:#fff}
+.sx-pdc,.sx-cp{border-radius:16px}
+.sx-cp{background:linear-gradient(135deg,#FFF6EE,#FFFFFF);border:1.5px dashed #F5A36B}
+/* forms & panels */
+.customer-card,.summary-card,.trk-card,.trk-box,.login-card,.admin-card,.modal-box{border-radius:20px!important;border:1px solid var(--line)!important;box-shadow:var(--shadow);background:#fff}
+.customer-card .field input,.customer-card .field select,.customer-card .field textarea,.field input,.field select,.field textarea{border-radius:12px!important}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary)!important;box-shadow:0 0 0 4px rgba(245,114,36,.14)!important}
+.cart-line{border-radius:16px}
+.summary-row.total,.summary-row:last-child{font-family:'Sora',sans-serif}
+.trk-dot{background:var(--grad)!important}
+.toast{border-radius:999px!important;background:var(--midnight)!important;box-shadow:var(--shadow-lg)}
+.sort-chip{border-radius:999px!important;font-weight:600;transition:all .2s}
+.sort-chip.active{background:var(--grad)!important;color:#fff!important;border-color:transparent!important;box-shadow:0 4px 14px rgba(245,114,36,.35)}
+.back-btn{border-radius:999px!important}
+.mobile-drawer-panel{border-radius:0 24px 24px 0}
+/* footer */
+#site-footer{background:radial-gradient(700px 300px at 85% 0%,rgba(245,114,36,.22),transparent 65%),linear-gradient(180deg,#1B1838,#0E0C20)!important;color:#fff!important;border-radius:36px 36px 0 0;margin-top:48px;position:relative}
+#site-footer::before{content:"";position:absolute;top:0;left:12%;right:12%;height:3px;border-radius:3px;background:var(--grad)}
+#site-footer h4{font-family:'Sora',sans-serif;font-weight:700;color:#fff}
+#site-footer a{color:rgba(255,255,255,.85);transition:color .2s,padding .2s}
+#site-footer a:hover{color:#FFB27A}
+#site-footer p{color:#fff}
+.footer-bottom{border-top:1px solid rgba(255,255,255,.12)}
+/* admin keeps layout, gets the polish */
+.admin-sidebar{background:linear-gradient(180deg,#1B1838,#0E0C20)!important}
+.admin-topbar h1{font-weight:800}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
 </body>
 </html>
