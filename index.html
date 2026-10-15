@@ -93,7 +93,7 @@ const SEO_CONFIG = {
   keywords: "StoreX, StoreX, online shopping, trending products, best products, product discovery, electronics, gadgets, mobile accessories, fashion, beauty products, home and living, kitchen products, lifestyle products, accessories, online deals, trending deals, shopping deals, useful products, Pakistan online shopping",
   robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
   language: "en",
-  themeColor: "#F57224",
+  themeColor: "#4A2F16",
   socialTitle: "StoreX | Discover Products, Deals & Trending Finds",
   socialDescription: "Discover trending products, electronics, fashion, beauty, home essentials, gadgets and more at StoreX."
 };
@@ -827,7 +827,40 @@ website hosting (not inside the HTML):
 </script>
 <!-- StoreX enhancement: site analytics requires the companion Supabase migration file supplied with this build. -->
 <body>
-<div id="app"></div>
+<div id="StoreX-loading" aria-live="polite" role="status">
+  <div class="StoreX-loading-demo">
+    <div class="StoreX-loading-hero"></div>
+    <div class="StoreX-loading-overlay"></div>
+    <div class="StoreX-loading-content">
+      <img class="StoreX-loading-logo" src="https://i.ibb.co/20d0YX78/1789053253807.png" alt="StoreX">
+      <h1>Shop the Deals</h1>
+      <p>Shop. Explore. Find Your Favorites.</p>
+      <button type="button" class="StoreX-loading-shop" onclick="try{document.getElementById('StoreX-loading')?.classList.add('is-hidden');location.hash='#/category/all';}catch(_){}">Shop Now</button>
+      <div class="StoreX-loading-text" id="StoreX-loading-text">Please wait while the website is loading.</div>
+    </div>
+  </div>
+</div>
+<style>
+#StoreX-loading{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:opacity .22s ease,visibility .22s ease;}
+#StoreX-loading.is-hidden{opacity:0;visibility:hidden;pointer-events:none;}
+.StoreX-loading-card{text-align:center;padding:28px 24px;min-width:260px;max-width:90vw;}
+.StoreX-loading-image-wrap{display:flex;justify-content:center;margin-bottom:18px;}
+.StoreX-loading-image{width:min(220px,65vw);height:auto;max-height:90px;object-fit:contain;border-radius:12px;display:block;}
+.StoreX-loading-text{font:500 13px/1.4 Arial,sans-serif;color:rgba(255,255,255,.92);margin-top:16px;}
+/* StoreX demo loading screen */
+#StoreX-loading{background:#fff;}
+.StoreX-loading-demo{position:relative;width:100%;height:100%;min-height:100vh;overflow:hidden;display:grid;place-items:center;}
+.StoreX-loading-hero{position:absolute;inset:0;background-image:url("https://i.ibb.co/G49FQ5xP/file-00000000e96c81faaf9169926ac5bd36.png");background-size:cover;background-position:center;}
+.StoreX-loading-overlay{position:absolute;inset:0;background:rgba(0,0,0,.30);}
+.StoreX-loading-content{position:relative;z-index:2;width:min(92vw,760px);padding:28px 20px;text-align:center;color:#fff;display:flex;flex-direction:column;align-items:center;}
+.StoreX-loading-logo{width:min(280px,78vw);height:auto;max-height:100px;object-fit:contain;margin:0 auto 22px;display:block;}
+.StoreX-loading-content h1{margin:0 0 8px;font:800 clamp(30px,6vw,52px)/1.08 Arial,sans-serif;}
+.StoreX-loading-content p{margin:0 0 20px;font:500 clamp(15px,2.5vw,20px)/1.4 Arial,sans-serif;}
+.StoreX-loading-shop{border:0;border-radius:7px;background:#F6A15A;color:#fff;padding:12px 24px;font:700 15px Arial,sans-serif;cursor:pointer;box-shadow:0 5px 18px rgba(0,0,0,.16);}
+@media(max-width:700px){.StoreX-loading-hero{background-image:url("https://i.ibb.co/FL22c0Nw/file-000000002b24824386351d44be0c160c.png");background-position:center top}.StoreX-loading-logo{width:min(280px,78vw);max-height:90px}.StoreX-loading-content{padding:24px 16px}.StoreX-loading-content h1{font-size:32px}.StoreX-loading-content p{font-size:15px}.StoreX-loading-shop{padding:11px 22px;}}
+}
+</style>
+<script>(function(){try{const r=location.hash.replace(/^#/,'')||'/';const el=document.getElementById('StoreX-loading-text');if(!el)return;if(r.startsWith('/p/')||r.startsWith('/product/'))el.textContent='Please wait, the product is loading.';else if(r.startsWith('/f/')||r.startsWith('/flash-sale/'))el.textContent='Please wait, the flash sale is loading.';}catch(_){}})();</script><div id="app"></div>
 <script>
 /* ============================================================
    StoreX — single-file storefront + admin (client-side persistence)
@@ -3135,7 +3168,7 @@ function storexBaseRenderAdminSidebar(){
     ${item('products','Products')}
     ${item('categories','Categories')}
     ${item('orders','Orders')}
-    ${item('analytics','Analytics')}${item('engagement','Cart & Wishlist')}${item('sorting','Sorting & Badges')}
+    ${item('analytics','Analytics')}${item('engagement','Cart & Wishlist')}${item('sorting','Sorting & Tags')}
     ${item('coupons','Coupons')}
     <div class="group-label">Marketing</div>
     ${item('flashsales','Flash Sales')}
@@ -3441,8 +3474,8 @@ function openProductModal(id){
         <div class="field full"><label>Short description</label><input type="text" name="shortDesc" value="${esc(p.shortDesc)}"></div>
         <div class="field full"><label>Full description</label><textarea name="fullDesc">${esc(p.fullDesc)}</textarea></div>
         <div class="field full"><label>Categories (select one or more)</label><div style="max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff;">${catChecks}</div></div>
-        <div class="field"><label>Tags (comma separated)</label><input type="text" name="tags" value="${esc((p.tags||[]).join(', '))}"></div>
-        <div class="field"><label>Badges (comma separated, e.g. Hot, New, Sale)</label><input type="text" name="badge" value="${esc(p.badge)}"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${sxAllTags().map(t=>`<button type="button" class="btn small ghost" onclick="sxAddTag(this,'${esc(t)}')">+ ${esc(t)}</button>`).join('')}</div></div>
+        <div class="field"><label>Tags (comma separated)</label><input type="text" name="tags" value="${esc((p.tags||[]).join(', '))}"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${sxAllTags().map(t=>`<button type="button" class="btn small ghost" onclick="sxAddTag(this,'${esc(t)}')">+ ${esc(t)}</button>`).join('')}</div></div>
+        <div class="field"><label>Badge (e.g. "Hot", "-20%")</label><input type="text" name="badge" value="${esc(p.badge)}"></div>
         <div class="field"><label>Original price (Rs.) *</label><input required type="number" min="0" step="0.01" name="originalPrice" value="${esc((p.originalPrice??p.oldPrice??p.price??''))}"></div><div class="field"><label>Special / discounted price (Rs.)</label><input type="number" min="0" step="0.01" name="specialPrice" value="${esc((p.specialPrice??p.price??''))}"></div><div class="field"><label>Stock quantity *</label><input required type="number" min="0" step="1" name="stock" value="${esc(p.stock??0)}"></div><div class="field"><label>Delivery charges (Rs.)</label><input type="number" min="0" step="0.01" name="deliveryCharges" value="${esc(p.deliveryCharges??0)}"></div><div class="field full"><label>Promotion</label><div class="form-grid"><div class="field full"><label>Promotion title (shown on product page)</label><input type="text" name="promotionTitle" value="${esc(p.promotion?.title??'')}" placeholder="e.g. Buy 2 Get 1 Free / Weekend Offer"></div><div class="field"><label>Free delivery after qty</label><input type="number" min="0" name="freeDeliveryQty" value="${esc(p.promotion?.freeDeliveryQty??0)}"></div><div class="field"><label>Percent off (%)</label><input type="number" min="0" max="100" step="0.01" name="percentOff" value="${esc(p.promotion?.percentOff??0)}"></div><div class="field"><label>Percent off after qty</label><input type="number" min="0" name="percentOffQty" value="${esc(p.promotion?.percentOffQty??0)}"></div><div class="field"><label>Buy quantity</label><input type="number" min="0" name="buyQty" value="${esc(p.promotion?.buyQty??0)}"></div><div class="field"><label>Free quantity</label><input type="number" min="0" name="freeQty" value="${esc(p.promotion?.freeQty??0)}"></div></div></div>
         <div class="field"><label>Status</label><select name="status"><option value="published" ${p.status==='published'?'selected':''}>Published</option><option value="hidden" ${p.status==='hidden'?'selected':''}>Hidden</option></select></div>
         <div class="field"><label>Display order</label><input type="number" name="order" value="${esc(p.order)}"></div>
@@ -3560,9 +3593,9 @@ function saveProductForm(pid, isNew){
   Object.assign(draft, {
     title, shortTitle: fd.get('shortTitle').trim(),
     shortDesc: fd.get('shortDesc').trim(), fullDesc: fd.get('fullDesc').trim(),
-    categories: fd.getAll('categories').filter(Boolean), category: (fd.getAll('categories').filter(Boolean)[0]||''), tags: fd.get('tags').split(',').map(t=>t.trim()).filter(Boolean),
+    categories: fd.getAll('categories').filter(Boolean), category: (fd.getAll('categories').filter(Boolean)[0]||''), tags: sxNormTags(fd.get('tags')),
     price:specialPrice, oldPrice:originalPrice, originalPrice, specialPrice, stock, deliveryCharges:Math.max(0,Number(fd.get('deliveryCharges')||0)),
-    discount:autoDiscount, badge:sxBadgeSave(fd.get('badge'),autoDiscount),
+    discount:autoDiscount, badge:autoDiscount?'-'+autoDiscount+'%':fd.get('badge').trim(),
     promotion:{title:String(fd.get('promotionTitle')||'').trim(),freeDelivery:Number(fd.get('freeDeliveryQty')||0)>0,freeDeliveryQty:Number(fd.get('freeDeliveryQty')||0),percentOff:Math.max(0,Number(fd.get('percentOff')||0)),percentOffQty:Math.max(0,Number(fd.get('percentOffQty')||0)),buyQty:Math.max(0,Number(fd.get('buyQty')||0)),freeQty:Math.max(0,Number(fd.get('freeQty')||0))},
     status: fd.get('status'), order: Number(fd.get('order'))||0,
     featured: fd.get('featured')==='on', trending: fd.get('trending')==='on', newArrival: fd.get('newArrival')==='on', bestSeller: fd.get('bestSeller')==='on',
@@ -5719,7 +5752,6 @@ body.is-admin,body.is-admin .admin-shell,body.is-admin .admin-main{background:#f
 .card .sx-out{background:#f1f1f1;color:#888;border:1.5px solid #e5e5e5;cursor:not-allowed}
 @media (max-width:380px){.card .sx-cart svg{display:none}.card .sx-btn{font-size:12px}}
 .sx-tags{position:absolute;top:8px;left:8px;display:flex;gap:4px;flex-wrap:wrap;max-width:70%;z-index:2}
-.sx-pdb{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.sx-pdb .sx-tag{font-size:12px;padding:3px 10px}
 .sx-tag{color:#fff;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.2px}
 .sx-cp{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1.5px dashed #F57224;background:#FFF8F3;border-radius:10px;padding:10px 12px;margin:8px 0}
 .sx-cp-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}.sx-cp-done{color:#1a8f4f;font-weight:700;font-size:13px;white-space:nowrap}
@@ -5787,18 +5819,16 @@ img,video,iframe,svg{max-width:100%}
   var lc=function(s){return String(s||'').trim().toLowerCase();};
   var $q=function(s,r){return (r||document).querySelector(s);};
   /* ---- tags ---- */
-  window.sxBadges=function(p){var seen={},out=[];String((p&&p.badge)||'').split(',').forEach(function(t){t=t.trim();var k=lc(t);if(k&&!/^-?\d+(\.\d+)?%$/.test(k)&&!seen[k]){seen[k]=1;out.push(t);}});return out;};
-  window.sxBadgeSave=function(str,disc){var l=window.sxNormTags(str).filter(function(t){return !/^-?\d+(\.\d+)?%$/.test(t);});if(disc)l.unshift('-'+disc+'%');return l.join(', ');};
   window.sxNormTags=function(str){var seen={},out=[];String(str||'').split(',').forEach(function(t){t=t.trim();var k=lc(t);if(k&&!seen[k]){seen[k]=1;out.push(t);}});return out;};
-  window.sxAllTags=function(){var seen={},out=[];Object.keys(DEFTAG).concat(Object.keys(SX_TAGCOL)).forEach(function(t){seen[t]=1;out.push(t);});(PRODUCTS||[]).forEach(function(p){window.sxBadges(p).forEach(function(t){var k=lc(t);if(k&&!seen[k]){seen[k]=1;out.push(k);}});});return out;};
-  window.sxAddTag=function(btn,t){var i=btn.closest('.field').querySelector('input[name=badge]');var cur=window.sxNormTags(i.value);if(!cur.some(function(x){return lc(x)===lc(t);}))cur.push(t);i.value=cur.join(', ');};
+  window.sxAllTags=function(){var seen={},out=[];Object.keys(DEFTAG).concat(Object.keys(SX_TAGCOL)).forEach(function(t){seen[t]=1;out.push(t);});(PRODUCTS||[]).forEach(function(p){(p.tags||[]).forEach(function(t){var k=lc(t);if(k&&!seen[k]){seen[k]=1;out.push(k);}});});return out;};
+  window.sxAddTag=function(btn,t){var i=btn.closest('.field').querySelector('input[name=tags]');var cur=window.sxNormTags(i.value);if(!cur.some(function(x){return lc(x)===lc(t);}))cur.push(t);i.value=cur.join(', ');};
   function tagColor(t){var k=lc(t);return SX_TAGCOL[k]||DEFTAG[k]||'#475467';}
-  function tagHtml(t){return '<span class="sx-tag">'+esc(t)+'</span>';}
+  function tagHtml(t){return '<span class="sx-tag" style="background:'+tagColor(t)+'">'+esc(t)+'</span>';}
   /* ---- product card: tags + heart, no action buttons ---- */
   var origCard=window.renderProductCard;
   window.renderProductCard=function(p,o){
     var h=origCard.call(this,p,Object.assign({},o||{},{hideActions:true}));
-    var tg=window.sxBadges(p).slice(0,2).map(tagHtml).join('');
+    var tg=(p.tags||[]).filter(function(t){return DEFTAG[lc(t)]||SX_TAGCOL[lc(t)];}).slice(0,2).map(tagHtml).join('');
     try{var cf=couponFor(p);if(cf){var u0=Number(p.specialPrice!=null?p.specialPrice:p.price)||0;h=h.replace(/<strong class="price">[^<]*<\/strong>/,'<strong class="price" style="color:#1a8f4f">'+money(u0-cf.r.discount)+'</strong><del style="font-size:12px;color:var(--ink-soft)">'+money(u0)+'</del><span class="sx-cpn">'+esc(cf.c.code)+'</span>');}}catch(e){}
     try{return h.replace(/(<a [^>]*class="card-img"[^>]*>[\s\S]*?<\/a>)/,'<div class="card-imgwrap">$1'+(tg?'<div class="sx-tags">'+tg+'</div>':'')+'</div>');}catch(e){return h;}
   };
@@ -5810,10 +5840,10 @@ img,video,iframe,svg{max-width:100%}
     var opt=(SX_SORT||DEFOPTS).find(function(o){return o.id===CUSTOMER_PRODUCT_SORT;});
     if(!opt) return oSort(list);
     var arr=list.slice(),tags=(opt.tags||[]).map(lc),cats=(opt.categories||[]).map(String);
-    if(tags.length||cats.length) arr=arr.filter(function(p){var parts=[];if(tags.length)parts.push(window.sxBadges(p).map(lc).some(function(t){return tags.indexOf(t)>-1;}));if(cats.length)parts.push(productCatIds(p).map(String).some(function(c){return cats.indexOf(c)>-1;}));return opt.match==='and'?parts.every(Boolean):parts.some(Boolean);});
+    if(tags.length||cats.length) arr=arr.filter(function(p){var parts=[];if(tags.length)parts.push((p.tags||[]).map(lc).some(function(t){return tags.indexOf(t)>-1;}));if(cats.length)parts.push(productCatIds(p).map(String).some(function(c){return cats.indexOf(c)>-1;}));return opt.match==='and'?parts.every(Boolean):parts.some(Boolean);});
     var pr=function(p){return Number(p.specialPrice!=null?p.specialPrice:p.price)||0;},tm=function(p){return p.created_at?new Date(p.created_at).getTime():Number(p.order)||0;};
     var inS=function(p){return Math.max(0,Number(p.stock)||0)>0?1:0;};
-    var m=opt.method,f={'newest':function(a,b){return tm(b)-tm(a);},'oldest':function(a,b){return tm(a)-tm(b);},'price-low':function(a,b){return pr(a)-pr(b);},'price-high':function(a,b){return pr(b)-pr(a);},'name-az':function(a,b){return String(a.title||'').localeCompare(String(b.title||''));},'name-za':function(a,b){return String(b.title||'').localeCompare(String(a.title||''));},'discount':function(a,b){return (Number(b.discount)||0)-(Number(a.discount)||0);},'promotion':function(a,b){return promotionScore(b)-promotionScore(a);},'featured':function(a,b){var g=function(p){return (p.featured||p.isFeatured||window.sxBadges(p).map(lc).indexOf('featured')>-1)?1:0;};return g(b)-g(a);},'popular':function(a,b){return analyticsCounts(b).views-analyticsCounts(a).views;}}[m];
+    var m=opt.method,f={'newest':function(a,b){return tm(b)-tm(a);},'oldest':function(a,b){return tm(a)-tm(b);},'price-low':function(a,b){return pr(a)-pr(b);},'price-high':function(a,b){return pr(b)-pr(a);},'name-az':function(a,b){return String(a.title||'').localeCompare(String(b.title||''));},'name-za':function(a,b){return String(b.title||'').localeCompare(String(a.title||''));},'discount':function(a,b){return (Number(b.discount)||0)-(Number(a.discount)||0);},'promotion':function(a,b){return promotionScore(b)-promotionScore(a);},'featured':function(a,b){var g=function(p){return (p.featured||p.isFeatured||(p.tags||[]).map(lc).indexOf('featured')>-1)?1:0;};return g(b)-g(a);},'popular':function(a,b){return analyticsCounts(b).views-analyticsCounts(a).views;}}[m];
     return arr.sort(function(a,b){return inS(b)-inS(a)||(f?f(a,b):0)||(a.order||0)-(b.order||0);});
   };
   function sxDraft(){if(!SX_DRAFT)SX_DRAFT=JSON.parse(JSON.stringify(SX_SORT||DEFOPTS));return SX_DRAFT;}
@@ -5823,27 +5853,28 @@ img,video,iframe,svg{max-width:100%}
   window.sxDel=function(i){sxDraft().splice(i,1);render();};
   window.sxAddOpt=function(){sxDraft().push({id:'c'+Date.now().toString(36),label:'New option',method:'filter',enabled:true,tags:[],categories:[],match:'or'});render();};
   window.sxRestore=function(){SX_DRAFT=JSON.parse(JSON.stringify(DEFOPTS));render();};
-  
+  window.sxTc=function(t,v){SX_TAGCOL[t]=v;};
   window.sxSaveCfg=async function(){
     if(!SUPABASE_ADMIN){toast('Admin session required.');return;}
     var ts=new Date().toISOString();
-    var r=await supabaseClient.from('sx_settings').upsert([{key:'sx_sort_options',value:sxDraft(),updated_at:ts}],{onConflict:'key'});
+    var r=await supabaseClient.from('sx_settings').upsert([{key:'sx_sort_options',value:sxDraft(),updated_at:ts},{key:'sx_tag_colors',value:SX_TAGCOL,updated_at:ts}],{onConflict:'key'});
     if(r.error){toast('Save failed: '+r.error.message+' (run the SQL migration)');return;}
-    SX_SORT=JSON.parse(JSON.stringify(SX_DRAFT));toast('Sorting settings saved \u2713');render();
+    SX_SORT=JSON.parse(JSON.stringify(SX_DRAFT));toast('Sorting & tag settings saved \u2713');render();
   };
   window.sxAdminSorting=function(){
     var o=sxDraft();
     var rows=o.map(function(x,i){return '<div class="admin-card" style="margin-bottom:10px"><div class="form-grid">'
      +'<div class="field"><label>Customer-facing name</label><input type="text" value="'+esc(x.label)+'" onchange="sxSo('+i+',\'label\',this.value)"></div>'
      +'<div class="field"><label>Sorting method</label><select onchange="sxSo('+i+',\'method\',this.value)">'+METHODS.map(function(m){return '<option value="'+m[0]+'"'+(x.method===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('')+'</select></div>'
-     +'<div class="field"><label>Only show products with badges (comma separated)</label><input type="text" value="'+esc((x.tags||[]).join(', '))+'" onchange="sxSo('+i+',\'tags\',this.value)"></div>'
+     +'<div class="field"><label>Only show products with tags (comma separated)</label><input type="text" value="'+esc((x.tags||[]).join(', '))+'" onchange="sxSo('+i+',\'tags\',this.value)"></div>'
      +'<div class="field"><label>Only show categories</label><select multiple size="4" onchange="sxSoCats('+i+',this)">'+CATEGORIES.map(function(c){return '<option value="'+esc(c.id)+'"'+((x.categories||[]).map(String).indexOf(String(c.id))>-1?' selected':'')+'>'+esc(c.name)+'</option>';}).join('')+'</select></div>'
      +'<div class="field"><label>When both tags and categories are set</label><select onchange="sxSo('+i+',\'match\',this.value)"><option value="or"'+(x.match!=='and'?' selected':'')+'>Either (OR)</option><option value="and"'+(x.match==='and'?' selected':'')+'>Both (AND)</option></select></div>'
      +'<div class="field"><label class="checkline"><input type="checkbox" '+(x.enabled!==false?'checked':'')+' onchange="sxSo('+i+',\'enabled\',this.checked)"> Enabled</label></div></div>'
      +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small ghost" onclick="sxMove('+i+',-1)">\u2191 Up</button><button class="btn small ghost" onclick="sxMove('+i+',1)">\u2193 Down</button><button class="btn small ghost" onclick="sxDel('+i+')">Delete</button></div></div>';}).join('');
-    return '<div class="admin-topbar"><h1>Sorting &amp; Badges</h1><button class="btn small" onclick="sxSaveCfg()">Save all</button></div>'+rows
+    var tc=window.sxAllTags().map(function(t){return '<label style="display:flex;align-items:center;gap:8px;margin:6px 0"><input type="color" value="'+tagColor(t)+'" onchange="sxTc(\''+t.replace(/[^a-z0-9 _-]/gi,'')+'\',this.value)"> '+tagHtml(t)+'</label>';}).join('');
+    return '<div class="admin-topbar"><h1>Sorting &amp; Tags</h1><button class="btn small" onclick="sxSaveCfg()">Save all</button></div>'+rows
      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"><button class="btn small" onclick="sxAddOpt()">+ Add sorting option</button><button class="btn small ghost" onclick="sxRestore()">Restore defaults</button></div>'
-     +'<p style="color:var(--ink-soft);font-size:12.5px">Badges are set in the Badge field in the product editor (comma separated; capitalization duplicates are merged).</p>';
+     +'<div class="admin-card"><h3 style="margin-top:0">Tag colors</h3>'+tc+'<p style="color:var(--ink-soft);font-size:12.5px">Tags are assigned in the product editor (comma separated; capitalization duplicates are removed). Colors apply on cards and product pages.</p></div>';
   };
   function loadCfg(n){
     if(typeof supabaseClient==='undefined'||!supabaseClient||!SUPABASE_READY){if((n||0)<30)setTimeout(function(){loadCfg((n||0)+1);},800);return;}
@@ -5944,13 +5975,13 @@ img,video,iframe,svg{max-width:100%}
     var host=a.closest('.admin-card')||a.closest('.coupon-row').parentElement;host.parentNode.insertBefore(d,host.nextSibling);
   }
   function enhance(){
+    document.querySelectorAll('.tag-pill:not([data-sx])').forEach(function(el){el.dataset.sx=1;var k=lc(el.textContent);if(DEFTAG[k]||SX_TAGCOL[k]){el.style.background=tagColor(k);el.style.color='#fff';el.style.border='none';}});
     injectList('#checkout-coupon-input',cartLines());
     injectList('#coupon-input',cartLines());
     if(document.getElementById('bn-coupon-input')){var d=getBuyNowDraft(),bp=d&&PRODUCTS.find(function(x){return x.id===d.productId;});if(bp)injectList('#bn-coupon-input',[fakeLine(bp,d.qty||1)]);}
     var h1=document.querySelector('h1.pd-title');
     if(h1){
       var k=decodeURIComponent((location.hash.match(/#\/p\/([^/?]+)/)||[])[1]||''),p=PRODUCTS.find(function(x){return String(x.id)===k||(x.seo&&x.seo.slug===k);});
-      if(p&&!document.getElementById('sx-pdb')&&window.sxBadges(p).length){var bd=document.createElement('div');bd.id='sx-pdb';bd.className='sx-pdb';bd.innerHTML=window.sxBadges(p).map(tagHtml).join('');h1.after(bd);}
       var pr=h1.parentElement.querySelector('strong.price');
       if(pr&&p&&!pr.dataset.sx){
         pr.dataset.sx=1;pr.classList.add('sx-pd-price');var cf=couponFor(p);
@@ -5992,115 +6023,374 @@ img,video,iframe,svg{max-width:100%}
 })();
 </script>
 
-<style id="sx-theme">
-/* ===== StoreX Fancy Theme ===== */
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-:root{--primary:#F57224;--primary-dark:#D9591A;--ink:#14122B;--ink-soft:#6A6880;--paper:#FBF8F5;--line:#ECE6DF;--card:#fff;--radius:16px;--grad:linear-gradient(135deg,#FF9A4D 0%,#F57224 48%,#E8431E 100%);--glow:0 10px 28px rgba(245,114,36,.32);--shadow:0 6px 24px rgba(20,18,43,.07);--shadow-lg:0 18px 44px rgba(20,18,43,.14);--midnight:#14122B}
-html{scroll-behavior:smooth}
-::selection{background:#F57224;color:#fff}
-body{font-family:'Plus Jakarta Sans','Inter',system-ui,sans-serif;color:var(--ink);background:radial-gradient(900px 500px at 8% -5%,rgba(255,154,77,.16),transparent 60%),radial-gradient(800px 480px at 100% 10%,rgba(124,58,237,.07),transparent 60%),var(--paper);background-attachment:fixed}
-h1,h2,h3,h4,.display{font-family:'Sora','Space Grotesk',system-ui,sans-serif;letter-spacing:-.02em}
-/* header */
-#site-header{background:rgba(255,255,255,.97)!important;border-bottom:none!important;box-shadow:0 4px 24px rgba(20,18,43,.07);position:sticky}
-#site-header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--grad)}
-.header-row{padding:12px 0}
-.logo-wrap,.logo-fallback{font-family:'Sora',sans-serif;font-weight:800}
-.icon-btn{border-radius:50%!important;background:#fff;border:1px solid var(--line);transition:transform .2s,box-shadow .2s,background .2s}
-.icon-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow);background:#FFF3EA}
-.icon-badge{background:var(--grad)!important;box-shadow:0 2px 8px rgba(232,67,30,.45)}
-.search-wrap input,.search-form input{border-radius:999px!important;border:1.5px solid var(--line)!important;background:#F6F2EE!important;transition:all .2s}
-.search-wrap input:focus,.search-form input:focus{background:#fff!important;border-color:var(--primary)!important;box-shadow:0 0 0 4px rgba(245,114,36,.14)!important}
-.main-nav a{font-weight:600;border-radius:999px;transition:background .2s,color .2s}
-.main-nav a:hover{background:#FFF1E6;color:var(--primary-dark)}
-/* hero */
-.hero{background:var(--midnight)!important;border-radius:0 0 36px 36px;box-shadow:var(--shadow-lg);margin-bottom:8px}
-.hero-overlay{background:none!important;display:none!important}
-.hero::before,.hero::after{display:none!important}
-.hero h1,.hero h2{font-weight:800;letter-spacing:-.03em}
-.hero p{opacity:.92}
-.hs-btn,.btn,.card-cta{border-radius:999px!important;font-weight:700;transition:transform .2s,box-shadow .2s,background .2s}
-.btn:not(.ghost):not(.danger){background:var(--grad)!important;color:#fff!important;border:none!important;box-shadow:0 6px 18px rgba(245,114,36,.3)}
-.btn:not(.ghost):not(.danger):hover,.hs-btn:hover{transform:translateY(-2px);box-shadow:var(--glow)}
-.btn.ghost{background:#fff!important;border:1.5px solid var(--line)!important;color:var(--ink)!important}
-.btn.ghost:hover{border-color:var(--primary)!important;color:var(--primary-dark)!important;transform:translateY(-1px)}
-.hs-btn{background:var(--grad);color:#fff;border:none;box-shadow:var(--glow)}
-/* sections */
-.section{padding-top:34px;padding-bottom:12px}
-.section-head h2,.section h2{font-size:clamp(22px,3.2vw,32px);font-weight:800;position:relative;padding-bottom:10px}
-.section-head h2::after,.section>h2::after{content:"";position:absolute;left:0;bottom:0;width:54px;height:4px;border-radius:4px;background:var(--grad)}
-.section-head a{color:var(--primary-dark);font-weight:700}
-/* cards */
-.card{border:1px solid rgba(236,230,223,.9)!important;border-radius:20px!important;background:#fff;box-shadow:var(--shadow);overflow:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s;animation:sxUp .5s backwards}
-.card:hover{transform:translateY(-6px);box-shadow:var(--shadow-lg)}
-.card-img{overflow:hidden;background:#F4EFEA}
-.card-img img{transition:transform .6s cubic-bezier(.2,.8,.2,1)}
-.card:hover .card-img img{transform:scale(1.07)}
-.card-title{font-weight:700}
-.card .price,.price{font-family:'Sora',sans-serif;font-weight:800;color:var(--ink)}
-.badge-status.on{background:#E7F8EE;color:#14803F;border-radius:999px;font-weight:700}
-.sx-tag{background:var(--grad)!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(232,67,30,.35);letter-spacing:.4px;padding:3px 10px!important}
-.sx-pdb .sx-tag{box-shadow:none}
-@keyframes sxUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-.cat-card{border-radius:20px!important;border:1px solid var(--line)!important;box-shadow:var(--shadow);transition:transform .3s,box-shadow .3s;overflow:hidden}
-.cat-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-lg)}
-.flash,.spotlight-card,.promo-banner{border-radius:24px!important;overflow:hidden;box-shadow:var(--shadow-lg)}
-.countdown{font-family:'Sora',sans-serif;font-weight:800}
-/* product page */
-.pd-title{font-weight:800;font-size:clamp(24px,4vw,36px)}
-.pd-slider-wrap,.pd-main-img{border-radius:24px;overflow:hidden;box-shadow:var(--shadow-lg)}
-.tag-pill{background:#fff;border:1px solid var(--line);border-radius:999px}
-.qty-stepper{border-radius:999px!important;border:1.5px solid var(--line)!important;overflow:hidden;background:#fff}
-.sx-pdc,.sx-cp{border-radius:16px}
-.sx-cp{background:linear-gradient(135deg,#FFF6EE,#FFFFFF);border:1.5px dashed #F5A36B}
-/* forms & panels */
-.customer-card,.summary-card,.trk-card,.trk-box,.login-card,.admin-card,.modal-box{border-radius:20px!important;border:1px solid var(--line)!important;box-shadow:var(--shadow);background:#fff}
-.customer-card .field input,.customer-card .field select,.customer-card .field textarea,.field input,.field select,.field textarea{border-radius:12px!important}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary)!important;box-shadow:0 0 0 4px rgba(245,114,36,.14)!important}
-.cart-line{border-radius:16px}
-.summary-row.total,.summary-row:last-child{font-family:'Sora',sans-serif}
-.trk-dot{background:var(--grad)!important}
-.toast{border-radius:999px!important;background:var(--midnight)!important;box-shadow:var(--shadow-lg)}
-.sort-chip{border-radius:999px!important;font-weight:600;transition:all .2s}
-.sort-chip.active{background:var(--grad)!important;color:#fff!important;border-color:transparent!important;box-shadow:0 4px 14px rgba(245,114,36,.35)}
-.back-btn{border-radius:999px!important}
-.mobile-drawer-panel{border-radius:0 24px 24px 0}
-/* footer */
-#site-footer{background:radial-gradient(700px 300px at 85% 0%,rgba(245,114,36,.22),transparent 65%),linear-gradient(180deg,#1B1838,#0E0C20)!important;color:#fff!important;border-radius:36px 36px 0 0;margin-top:48px;position:relative}
-#site-footer::before{content:"";position:absolute;top:0;left:12%;right:12%;height:3px;border-radius:3px;background:var(--grad)}
-#site-footer h4{font-family:'Sora',sans-serif;font-weight:700;color:#fff}
-#site-footer a{color:rgba(255,255,255,.85);transition:color .2s,padding .2s}
-#site-footer a:hover{color:#FFB27A}
-#site-footer p{color:#fff}
-.footer-bottom{border-top:1px solid rgba(255,255,255,.12)}
-/* admin keeps layout, gets the polish */
-.admin-sidebar{background:linear-gradient(180deg,#1B1838,#0E0C20)!important}
-.admin-topbar h1{font-weight:800}
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style id="StoreXLuxuryGoldTheme">
+/* ==================================================================
+   StoreX LUXURY GOLD THEME  (frontend look only)
+   - Sirf customer website par lagta hai (admin panel par nahi).
+   - Fonts badalne ke liye sirf neeche ki 2 lines (--sx-display, --sx-body) edit karein.
+   - Products, Supabase, cart, checkout ka code bilkul untouched hai.
+================================================================== */
+#app:has(>#site-header){
+  --sx-display:'Playfair Display','Times New Roman',Times,serif;
+  --sx-body:'Poppins','Segoe UI',Arial,sans-serif;
+  --sx-ink:#2B1A0E;
+  --sx-brown:#4A2F16;
+  --sx-gold:#B57A22;
+  --sx-gold-light:#E9BF72;
+  --sx-cream:#FFF8EC;
+  --sx-sand:#F6E3C4;
+  --sx-grad:linear-gradient(135deg,#7A4A0E 0%,#B57A22 100%);
+  --sx-grad-dark:linear-gradient(135deg,#2A1A0D 0%,#5B3A1B 100%);
+  --primary:#A9701D;
+  --primary-dark:#7A4C0E;
+  --ink:#2B1A0E;
+  --ink-soft:#7A6652;
+  --paper:#FBF1E3;
+  --line:#EBD9BF;
+  --card:#FFF8EC;
+  --header-bg:#3A2412;
+  --header-text:#F7E7CC;
+  font-family:var(--sx-body);
+  font-weight:600;
+  color:var(--sx-ink);
+}
+body:has(#site-header){
+  background:
+    radial-gradient(900px 500px at 8% 18%,rgba(233,191,114,.22),transparent 60%),
+    radial-gradient(800px 500px at 95% 55%,rgba(233,191,114,.18),transparent 60%),
+    #FBF1E3;
+  font-family:'Poppins','Segoe UI',Arial,sans-serif;
+  font-weight:600;
+}
+#app:has(>#site-header) button,#app:has(>#site-header) input,#app:has(>#site-header) select,#app:has(>#site-header) textarea{font-family:var(--sx-body);font-weight:600;}
+#app:has(>#site-header) h1,#app:has(>#site-header) h2,#app:has(>#site-header) h3,#app:has(>#site-header) h4,#app:has(>#site-header) .display,#app:has(>#site-header) .logo-fallback,#app:has(>#site-header) .pd-title,#app:has(>#site-header) .flash-info h3,#app:has(>#site-header) .promo-banner-inner h3{
+  font-family:var(--sx-display);font-weight:800;letter-spacing:-.01em;color:inherit;
+}
+#app:has(>#site-header) :focus-visible{outline:2px solid var(--sx-gold);outline-offset:2px;}
 
-/* ===== fit pages inside screen and boxes; no splash screen ===== */
-#StoreX-loading,.StoreX-loading-demo{display:none!important}
-html.StoreX-lock,body.StoreX-lock,body.is-loading{overflow:auto!important}
-.customer-card,.trk-card{padding:clamp(14px,4.5vw,24px)!important;overflow:hidden}
-.trk-box,.invoice-preview{padding:clamp(12px,3.5vw,18px)}
-.customer-card h1,.customer-card h2,.trk-card h1,.trk-card h2{font-size:clamp(22px,6vw,32px);line-height:1.15;margin-top:0;overflow-wrap:anywhere}
-.customer-card .btn,.trk-card .btn,.trk-btn{max-width:100%}
-.customer-card .row-actions,.customer-card [style*="justify-content:flex-end"],.trk-card .row-actions{flex-wrap:wrap;gap:8px}
-.customer-card .field input,.customer-card .field select,.customer-card .field textarea,.trk-card .field input{width:100%;max-width:100%}
-.trk-grid,.invoice-admin-grid,.form-grid{min-width:0}
-.trk-grid>*,.form-grid>*{min-width:0}
-.invoice-mini-paper,.invoice-preview *{max-width:100%}
-.customer-card table,.trk-card table{display:block;overflow-x:auto;max-width:100%}
-.breadcrumb,.crumb{overflow-wrap:anywhere}
-#site-footer{overflow:hidden}
-/* admin: rows wrap instead of overflowing, nothing hides under the menu button */
-.admin-main{min-width:0;max-width:100%;overflow-x:hidden}
-.section-list-item{flex-wrap:wrap;min-width:0}
-.section-list-item>*{min-width:0;overflow-wrap:anywhere}
-.row-actions{flex-wrap:wrap}
-.row-actions .btn,.section-list-item .btn{white-space:nowrap}
-.admin-card{overflow-x:auto}
-.admin-table{display:block;max-width:100%;overflow-x:auto}
-@media(max-width:900px){.admin-topbar{padding-left:54px;flex-wrap:wrap;gap:10px}.admin-main{padding:72px 14px 26px!important}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* ---------- Header: dark floating bar ---------- */
+#app:has(>#site-header) #site-header{
+  background:var(--sx-grad-dark);
+  color:var(--header-text);
+  border:0;
+  width:min(1280px,calc(100% - 20px));
+  margin:10px auto 0;
+  border-radius:28px;
+  box-shadow:0 16px 40px rgba(60,35,10,.35);
+  top:10px;
+}
+#app:has(>#site-header) .header-row{padding:12px 6px;}
+#app:has(>#site-header) .logo-fallback{
+  font-size:28px;font-weight:800;
+  background:linear-gradient(180deg,#F8DFA6,#C9922E);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+#app:has(>#site-header) .logo-fallback .x{color:inherit;}
+#app:has(>#site-header) .main-nav{gap:26px;}
+#app:has(>#site-header) .main-nav a{color:#F7E7CC;font-weight:700;font-size:14.5px;border-bottom:2px solid transparent;}
+#app:has(>#site-header) .main-nav a:hover{color:var(--sx-gold-light);border-color:var(--sx-gold-light);}
+#app:has(>#site-header) .search-form input{
+  background:rgba(255,255,255,.12);color:#fff;
+  border:1px solid rgba(255,255,255,.2);border-right:none;
+  border-radius:999px 0 0 999px;padding:11px 18px;font-weight:600;
+}
+#app:has(>#site-header) .search-form input::placeholder{color:rgba(247,231,204,.75);}
+#app:has(>#site-header) .search-form input:focus{border-color:var(--sx-gold-light);background:rgba(255,255,255,.18);}
+#app:has(>#site-header) .search-form button{
+  background:rgba(255,255,255,.12);color:#F7E7CC;
+  border:1px solid rgba(255,255,255,.2);border-left:none;
+  border-radius:0 999px 999px 0;padding:0 18px;
+}
+#app:has(>#site-header) .search-form button:hover{background:var(--sx-gold);color:#fff;}
+#app:has(>#site-header) .icon-btn,#app:has(>#site-header) .mobile-toggle,#app:has(>#site-header) .mobile-search-toggle{color:#F7E7CC!important;}
+#app:has(>#site-header) .icon-btn{background:rgba(255,255,255,.1);border-radius:50%;}
+#app:has(>#site-header) .icon-btn:hover{background:rgba(255,255,255,.2);}
+#app:has(>#site-header) .icon-badge{background:var(--sx-gold-light);color:#3A2412;}
+#app:has(>#site-header) .search-suggestions{background:var(--sx-cream);border-color:var(--line);border-radius:18px;}
+#app:has(>#site-header) .search-suggestion{background:var(--sx-cream);color:var(--sx-ink);}
+#app:has(>#site-header) .search-suggestion:hover{background:var(--sx-sand);color:var(--sx-brown);}
+
+/* ---------- Hero ---------- */
+#app:has(>#site-header) .hero{
+  background:linear-gradient(120deg,#FBEBD0 0%,#EDCB92 55%,#C8934A 100%);
+  color:var(--sx-ink);
+  margin-top:-38px;           /* header ke neeche tak phailta hai, jaise reference */
+  padding-top:38px;
+}
+@media (min-width:821px){
+  #app:has(>#site-header) .hero{height:auto!important;min-height:440px!important;max-height:none!important;}
+  #app:has(>#site-header) .hero-inner{height:auto!important;min-height:440px!important;padding:96px 28px 56px!important;}
+}
+@media (max-width:820px){
+  #app:has(>#site-header) .hero{min-height:380px!important;}
+  #app:has(>#site-header) .hero-inner{padding:84px 20px 32px!important;min-height:380px!important;}
+}
+#app:has(>#site-header) .hero-overlay{
+  background:linear-gradient(90deg,rgba(251,241,227,.94) 0%,rgba(251,241,227,.80) 38%,rgba(251,241,227,0) 72%)!important;
+}
+@media (max-width:720px){
+  #app:has(>#site-header) .hero-overlay{background:linear-gradient(180deg,rgba(251,241,227,.55),rgba(251,241,227,.88))!important;}
+}
+#app:has(>#site-header) .hero h1{
+  font-family:var(--sx-display);font-weight:800;color:var(--sx-ink);
+  font-size:clamp(36px,5.4vw,64px);line-height:1.04;max-width:620px;margin:0 0 14px;
+}
+#app:has(>#site-header) .hero h1 .sx-gold{
+  display:block;
+  background:linear-gradient(180deg,#D9A441,#9A6416);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+#app:has(>#site-header) .hero p{color:#4A3523;font-weight:600;font-size:17px;max-width:460px;}
+#app:has(>#site-header) .hero .btn{
+  background:var(--sx-grad-dark);color:#fff;border-radius:999px;
+  padding:14px 28px;font-weight:700;box-shadow:0 10px 24px rgba(58,36,18,.35);
+}
+#app:has(>#site-header) .hero .btn::after{content:"\2192";margin-left:2px;}
+#app:has(>#site-header) .sx-pill{
+  align-self:inherit;display:inline-block;margin:0 0 16px;padding:7px 16px;border-radius:999px;
+  background:rgba(255,255,255,.55);border:1px solid rgba(181,122,34,.35);
+  color:#7A4C0E;font-size:13px;font-weight:700;
+}
+#app:has(>#site-header) .hero-inner.align-center .sx-pill{align-self:center;}
+#app:has(>#site-header) .sx-hero-badges{display:flex;flex-wrap:wrap;gap:12px 22px;margin-top:30px;}
+#app:has(>#site-header) .sx-hero-badge{display:flex;align-items:center;gap:10px;}
+#app:has(>#site-header) .sx-hero-badge i{
+  width:42px;height:42px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,255,255,.7);border:1px solid rgba(181,122,34,.3);color:#7A4C0E;
+}
+#app:has(>#site-header) .sx-hero-badge svg{width:20px;height:20px;}
+#app:has(>#site-header) .sx-hero-badge b{display:block;font-size:13px;line-height:1.2;color:var(--sx-ink);font-weight:700;}
+#app:has(>#site-header) .sx-hero-badge span{display:block;font-size:11.5px;color:#7A6652;font-weight:600;}
+@media (max-width:520px){#app:has(>#site-header) .sx-hero-badges{gap:10px 14px;margin-top:20px;}#app:has(>#site-header) .sx-hero-badge i{width:34px;height:34px;}#app:has(>#site-header) .sx-hero-badge span{display:none;}}
+
+/* ---------- Section headings ---------- */
+#app:has(>#site-header) .section{padding:34px 0;}
+#app:has(>#site-header) .section-head h2{font-size:clamp(28px,3.4vw,42px);line-height:1.1;margin:0 0 6px;color:var(--sx-ink);}
+#app:has(>#site-header) .section-head h2 .sx-gold{
+  background:linear-gradient(180deg,#D9A441,#9A6416);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+#app:has(>#site-header) .section-head p{color:var(--ink-soft);font-weight:600;font-size:14.5px;}
+#app:has(>#site-header) .section-head a{color:var(--sx-brown);font-weight:700;}
+#app:has(>#site-header) .section-head a::after{content:" \2192";}
+
+/* ---------- Categories ---------- */
+#app:has(>#site-header) .h-scroll.cat-scroll{gap:20px!important;padding:6px 4px 14px;}
+#app:has(>#site-header) .h-scroll > .cat-card{
+  flex:0 0 96px!important;width:96px!important;max-width:96px!important;
+  background:transparent;border:0;box-shadow:none;overflow:visible;
+  align-items:center!important;gap:8px;padding:0!important;
+}
+#app:has(>#site-header) .cat-card .cat-icon{
+  width:76px!important;height:76px!important;aspect-ratio:1/1!important;
+  border-radius:22px!important;margin:0 auto!important;
+  background:linear-gradient(160deg,#FFFDF7,#F6E3C4);
+  border:1px solid rgba(181,122,34,.28);
+  box-shadow:0 8px 20px rgba(120,80,30,.14);
+  color:var(--sx-brown);
+}
+#app:has(>#site-header) .cat-card:hover .cat-icon{border-color:var(--sx-gold);box-shadow:0 10px 24px rgba(120,80,30,.26);}
+#app:has(>#site-header) .cat-name{font-size:12.5px;font-weight:700;color:var(--sx-ink);text-align:center;min-height:0!important;padding:0!important;}
+#app:has(>#site-header) .cat-card.sx-all .cat-icon{background:var(--sx-grad-dark);color:#F7E7CC;border-color:transparent;}
+#app:has(>#site-header) .cat-card.sx-all svg{width:30px;height:30px;}
+#app:has(>#site-header) .cat-grid > .cat-card{background:var(--sx-cream);border:1px solid var(--line);border-radius:22px;padding:10px!important;}
+#app:has(>#site-header) .cat-grid > .cat-card .cat-icon{width:100%!important;height:auto!important;}
+#app:has(>#site-header) .hs-btn{background:var(--sx-grad-dark);color:#F7E7CC;border:0;box-shadow:0 6px 16px rgba(58,36,18,.35);width:40px;height:40px;}
+
+/* ---------- Product cards ---------- */
+#app:has(>#site-header) .card{
+  background:linear-gradient(180deg,#FFF9EE 0%,#FBEBD3 100%);
+  border:1px solid rgba(190,140,70,.28);border-radius:26px;padding:10px;
+  box-shadow:0 14px 34px rgba(120,80,30,.14);
+}
+#app:has(>#site-header) .card:hover{border-color:rgba(181,122,34,.6);box-shadow:0 18px 40px rgba(120,80,30,.24);}
+#app:has(>#site-header) .card .card-img,#app:has(>#site-header) .grid .card-img,#app:has(>#site-header) .search-results-grid .card-img{
+  border-radius:20px;overflow:hidden;
+  background:radial-gradient(circle at 50% 38%,#FFFFFF 0%,#F6E3C4 100%)!important;
+}
+@media (min-width:821px){
+  #app:has(>#site-header) .grid .card-img,#app:has(>#site-header) .search-results-grid .card-img{
+    height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:1/1!important;
+  }
+  #app:has(>#site-header) .grid,#app:has(>#site-header) .search-results-grid,#app:has(>#site-header) .grid.prod-grid{
+    grid-template-columns:repeat(auto-fill,minmax(210px,1fr))!important;gap:20px!important;justify-content:stretch!important;
+  }
+}
+@media (max-width:720px){
+  #app:has(>#site-header) .grid,#app:has(>#site-header) .search-results-grid,#app:has(>#site-header) .grid.prod-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;}
+}
+@media (min-width:721px){
+  #app:has(>#site-header) .h-scroll > .card{flex:0 0 235px!important;width:235px!important;}
+  #app:has(>#site-header) .h-scroll{gap:20px;}
+}
+@media (max-width:720px){#app:has(>#site-header) .h-scroll > .card{flex-basis:46vw!important;width:46vw!important;max-width:220px!important;}}
+#app:has(>#site-header) .card .card-body,#app:has(>#site-header) .grid .card-body,#app:has(>#site-header) .h-scroll > .card .card-body{padding:12px 6px 6px!important;gap:6px!important;}
+#app:has(>#site-header) .card-title,#app:has(>#site-header) .grid .card-title,#app:has(>#site-header) .h-scroll > .card .card-title{
+  font-family:var(--sx-body);font-weight:700!important;font-size:15px!important;color:var(--sx-ink);min-height:2.4em!important;line-height:1.25!important;
+}
+#app:has(>#site-header) .card-desc{color:var(--ink-soft);font-weight:600;}
+#app:has(>#site-header) .price,#app:has(>#site-header) .h-scroll > .card .price,#app:has(>#site-header) .grid.prod-grid > .card .price{font-family:var(--sx-body);font-size:18px!important;font-weight:800;color:var(--sx-ink);}
+#app:has(>#site-header) .card del{color:#A8927A!important;font-weight:600;}
+/* discount badge -> image ke upar top-left (reference jaisa) */
+#app:has(>#site-header) .card > .card-body .badge-status{
+  position:absolute;top:20px;left:20px;z-index:3;
+  background:linear-gradient(135deg,#B8641A,#7F3A08);color:#fff;
+  border-radius:999px;padding:4px 11px;font-size:12px;font-weight:800;
+}
+/* tags (Bestseller, Trending ...) -> image ke neeche left */
+#app:has(>#site-header) .card .sx-tags{top:auto;bottom:10px;left:10px;max-width:75%;}
+#app:has(>#site-header) .card .sx-tag{border-radius:999px;text-transform:none;font-size:11px;font-weight:700;padding:3px 10px;letter-spacing:0;}
+/* wishlist heart -> top-right */
+#app:has(>#site-header) .card .card-imgwrap .wishlist-heart{
+  top:10px!important;bottom:auto!important;right:10px!important;
+  background:rgba(255,255,255,.92)!important;color:#8A5A14!important;border:0!important;
+  filter:none!important;box-shadow:0 4px 12px rgba(90,58,27,.2);backdrop-filter:none;
+}
+#app:has(>#site-header) .card .card-imgwrap .wishlist-heart.active{color:#E0245E!important;}
+/* buttons */
+#app:has(>#site-header) .card .sx-actions,#app:has(>#site-header) .card .card-actions-row{padding:4px 2px 4px;gap:8px;}
+#app:has(>#site-header) .card .sx-btn,#app:has(>#site-header) .card-cta{border-radius:999px;font-weight:700;min-height:42px;}
+#app:has(>#site-header) .card .sx-buy,#app:has(>#site-header) .card-cta{background:var(--sx-grad);border:0;color:#fff;box-shadow:0 8px 18px rgba(122,76,14,.28);}
+#app:has(>#site-header) .card .sx-buy:hover,#app:has(>#site-header) .card-cta:hover{background:linear-gradient(135deg,#5E3708,#966013);}
+#app:has(>#site-header) .card .sx-cart,#app:has(>#site-header) .card-cta.ghost{background:#FFF8EC;color:var(--sx-brown);border:1.5px solid var(--sx-gold);box-shadow:none;}
+#app:has(>#site-header) .card .sx-cart:hover,#app:has(>#site-header) .card .sx-cart.done{background:var(--sx-sand);}
+#app:has(>#site-header) .card .sx-out{background:#EFE3D0;color:#9A8870;border:0;box-shadow:none;}
+
+/* ---------- Buttons / forms (poori store) ---------- */
+#app:has(>#site-header) .btn:not(.ghost):not(.secondary):not(.danger){background:var(--sx-grad);border-radius:999px;font-weight:700;}
+#app:has(>#site-header) .btn:not(.ghost):not(.secondary):not(.danger):hover{background:linear-gradient(135deg,#5E3708,#966013);}
+#app:has(>#site-header) .btn.ghost{border-radius:999px;}
+#app:has(>#site-header) .summary-card,#app:has(>#site-header) .customer-card,#app:has(>#site-header) .sx-pdc,#app:has(>#site-header) .admin-card{border-radius:22px;background:var(--sx-cream);border-color:var(--line);}
+#app:has(>#site-header) .coupon-row input,#app:has(>#site-header) .customer-card .field input,#app:has(>#site-header) .customer-card .field select,#app:has(>#site-header) .customer-card .field textarea{border-radius:14px;background:#fff;}
+#app:has(>#site-header) .back-btn,#app:has(>#site-header) .share-btn{border-radius:999px;background:var(--sx-cream);}
+#app:has(>#site-header) .pd-main-img,#app:has(>#site-header) .pd-slider{border-radius:26px;background:radial-gradient(circle at 50% 38%,#fff,#F6E3C4);}
+#app:has(>#site-header) .qty-stepper{border-radius:999px;}
+#app:has(>#site-header) .tag-pill{background:var(--sx-sand);color:var(--sx-brown);font-weight:700;}
+#app:has(>#site-header) .trending-searches button{border-radius:999px;}
+
+/* ---------- Banners / flash sale (admin ke colors untouched) ---------- */
+#app:has(>#site-header) .promo-banner,#app:has(>#site-header) .flash,#app:has(>#site-header) .flash-carousel,#app:has(>#site-header) .flash-slide .flash,#app:has(>#site-header) .spotlight-card{border-radius:28px;}
+#app:has(>#site-header) .promo-banner,#app:has(>#site-header) .flash{box-shadow:0 18px 40px rgba(90,58,27,.22);}
+#app:has(>#site-header) .spotlight-card{background:var(--sx-cream);border-color:var(--line);}
+#app:has(>#site-header) .social-card{border-radius:22px;background:var(--sx-cream);}
+#app:has(>#site-header) .social-btn{background:var(--sx-grad);}
+#app:has(>#site-header) .flash-dots button.active{background:var(--sx-gold);}
+
+/* ---------- Trust strip (footer se pehle) ---------- */
+#app:has(>#site-header) .sx-trust{
+  width:min(1240px,calc(100% - 28px));margin:36px auto 0;padding:18px 24px;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:18px;
+  background:rgba(255,248,236,.8);border:1px solid var(--line);border-radius:26px;
+  box-shadow:0 10px 28px rgba(120,80,30,.1);
+}
+#app:has(>#site-header) .sx-trust div{display:flex;align-items:center;gap:12px;min-width:0;}
+#app:has(>#site-header) .sx-trust i{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--sx-sand);color:#7A4C0E;}
+#app:has(>#site-header) .sx-trust svg{width:21px;height:21px;}
+#app:has(>#site-header) .sx-trust b{display:block;font-size:13.5px;font-weight:700;color:var(--sx-ink);line-height:1.2;}
+#app:has(>#site-header) .sx-trust span{display:block;font-size:12px;color:var(--ink-soft);font-weight:600;line-height:1.3;}
+@media (max-width:820px){#app:has(>#site-header) .sx-trust{grid-template-columns:repeat(2,1fr);padding:16px;}}
+
+/* ---------- Footer ---------- */
+#app:has(>#site-header) #site-footer{
+  background:var(--sx-grad-dark);color:#F3E3C6;
+  margin-top:28px;border-radius:38px 38px 0 0;
+}
+#app:has(>#site-header) .footer-grid h4{font-family:var(--sx-display);font-size:19px;font-weight:800;color:var(--sx-gold-light);}
+#app:has(>#site-header) .footer-grid a{color:#F3E3C6;font-weight:600;}
+#app:has(>#site-header) .footer-grid a:hover{color:var(--sx-gold-light);}
+#app:has(>#site-header) .footer-bottom{color:#E8D5B3;border-top-color:rgba(233,191,114,.28);}
+#app:has(>#site-header) #site-footer .share-btn{background:transparent;color:#F3E3C6;border-color:rgba(233,191,114,.45);}
+
+/* ---------- Mobile drawer ---------- */
+#app:has(>#site-header) .mobile-drawer-panel{background:var(--sx-cream);}
+#app:has(>#site-header) .mobile-drawer-panel a{color:var(--sx-ink);font-weight:700;border-bottom-color:var(--line);}
+#app:has(>#site-header) .mobile-drawer-close{color:var(--sx-brown);}
+
+@media (max-width:820px){
+  #app:has(>#site-header) #site-header{width:calc(100% - 14px);margin-top:7px;top:7px;border-radius:22px;}
+  #app:has(>#site-header) .logo-fallback{font-size:24px;}
+  #app:has(>#site-header) .section-head h2{font-size:28px;}
+}
+@media (prefers-reduced-motion:reduce){#app:has(>#site-header) *{scroll-behavior:auto!important;transition:none!important;}}
+
 </style>
+<script id="StoreXLuxuryGoldThemeJS">
+/* ==================================================================
+   StoreX LUXURY THEME - sirf design ke chhote add-ons (pill, badges,
+   gold heading word, "All" category, trust strip).
+   Products / Supabase / cart ka koi code yahan touch nahi hota.
+================================================================== */
+(function(){
+  'use strict';
+  var ICON={
+    truck:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11v10H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>',
+    shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+    medal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>',
+    pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+    help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0116 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>',
+    grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>'
+  };
+  function siteName(){try{return (typeof SETTINGS!=='undefined'&&SETTINGS&&SETTINGS.siteName)||'StoreX';}catch(e){return 'StoreX';}}
+  function goldLast(el){
+    if(el.dataset.sx) return; el.dataset.sx='1';
+    if(el.children.length) return;                       // sirf plain text headings
+    var t=(el.textContent||'').trim(), w=t.split(/\s+/);
+    if(w.length<2) return;
+    var last=w.pop(), s=document.createElement('span');
+    s.className='sx-gold'; s.textContent=last;
+    el.textContent=w.join(' ')+' '; el.appendChild(s);
+  }
+  function enhance(){
+    var hdr=document.getElementById('site-header'); if(!hdr) return;     // admin par kuch nahi
+    var main=document.querySelector('#site-header ~ main'); if(!main) return;
+
+    var h1=main.querySelector('.hero h1');
+    if(h1 && !h1.dataset.sx){
+      goldLast(h1);
+      var pill=document.createElement('div'); pill.className='sx-pill'; pill.textContent='Welcome to '+siteName();
+      h1.parentNode.insertBefore(pill,h1);
+    }
+    var hi=main.querySelector('.hero-inner');
+    if(hi && !hi.querySelector('.sx-hero-badges')){
+      var b=document.createElement('div'); b.className='sx-hero-badges';
+      b.innerHTML=
+        '<div class="sx-hero-badge"><i>'+ICON.truck+'</i><div><b>Fast Delivery</b><span>Across Pakistan</span></div></div>'+
+        '<div class="sx-hero-badge"><i>'+ICON.shield+'</i><div><b>Secure Payments</b><span>100% Safe</span></div></div>'+
+        '<div class="sx-hero-badge"><i>'+ICON.medal+'</i><div><b>Top Quality</b><span>Trusted Products</span></div></div>';
+      hi.appendChild(b);
+    }
+    main.querySelectorAll('.section-head h2:not([data-sx])').forEach(goldLast);
+
+    var cs=main.querySelector('.cat-scroll');
+    if(cs && !cs.querySelector('.sx-all')){
+      var a=document.createElement('a'); a.className='cat-card sx-all'; a.href='#/category/all';
+      a.innerHTML='<div class="cat-icon">'+ICON.grid+'</div><div class="cat-name">All</div>';
+      cs.insertBefore(a,cs.firstChild);
+    }
+
+    var ft=document.getElementById('site-footer');
+    if(ft && !(ft.previousElementSibling && ft.previousElementSibling.classList.contains('sx-trust'))){
+      var t=document.createElement('div'); t.className='sx-trust';
+      t.innerHTML=
+        '<div><i>'+ICON.truck+'</i><p style="margin:0"><b>Fast Delivery</b><span>Across Pakistan</span></p></div>'+
+        '<div><i>'+ICON.shield+'</i><p style="margin:0"><b>Secure Checkout</b><span>100% safe &amp; secure</span></p></div>'+
+        '<div><i>'+ICON.pin+'</i><p style="margin:0"><b>Track Your Order</b><span>Check status anytime</span></p></div>'+
+        '<div><i>'+ICON.help+'</i><p style="margin:0"><b>Customer Support</b><span>We\u2019re here to help</span></p></div>';
+      ft.parentNode.insertBefore(t,ft);
+    }
+  }
+  var raf=0;
+  function schedule(){cancelAnimationFrame(raf);raf=requestAnimationFrame(function(){try{enhance();}catch(e){console.warn('theme',e);}});}
+  function start(){
+    var app=document.getElementById('app'); if(!app){setTimeout(start,100);return;}
+    new MutationObserver(schedule).observe(app,{childList:true,subtree:true});
+    schedule();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
+
+</script>
 </body>
 </html>
