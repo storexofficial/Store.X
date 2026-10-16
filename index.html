@@ -47,20 +47,41 @@
 <script>
 /* ================= StoreX PERFORMANCE ENGINE ================= */
 window.StoreXPerf=window.StoreXPerf||{};
-StoreXPerf.compressImageForWeb=async function(file){
+StoreXPerf.compressImageForWeb=async function(file,opts){
   if(!file||!file.type||!file.type.startsWith('image/')) return file;
   if(file.type==='image/svg+xml'||file.type==='image/gif') return file;
-  const MAX_DIM=2400, QUALITY=.92;
+  /* Storage-saving defaults: max 1600px on the long side, WebP, aims for <= ~180 KB
+     (quality steps down, then the size, until the target is met). */
+  const o=Object.assign({maxDim:1600,quality:.8,minQuality:.56,targetKB:180,minDim:640},opts||{});
   try{
-    const bitmap=await createImageBitmap(file);
-    const scale=Math.min(1,MAX_DIM/Math.max(bitmap.width,bitmap.height));
-    const w=Math.max(1,Math.round(bitmap.width*scale)),h=Math.max(1,Math.round(bitmap.height*scale));
-    const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
-    const ctx=canvas.getContext('2d',{alpha:true,desynchronized:true}); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-    ctx.drawImage(bitmap,0,0,w,h); bitmap.close();
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',QUALITY));
-    if(!blob||blob.size>=file.size*.98) return file;
-    return new File([blob],(file.name||'image').replace(/\.[^.]+$/i,'.webp'),{type:'image/webp',lastModified:Date.now()});
+    let bitmap;
+    try{ bitmap=await createImageBitmap(file,{imageOrientation:'from-image'}); }catch(_){ bitmap=await createImageBitmap(file); }
+    let scale=Math.min(1,o.maxDim/Math.max(bitmap.width,bitmap.height));
+    let q=o.quality, best=null;
+    const encode=async(sc,qual)=>{
+      const w=Math.max(1,Math.round(bitmap.width*sc)),h=Math.max(1,Math.round(bitmap.height*sc));
+      const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+      const ctx=canvas.getContext('2d',{alpha:true}); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+      ctx.drawImage(bitmap,0,0,w,h);
+      let blob=await new Promise(r=>canvas.toBlob(r,'image/webp',qual));
+      if(!blob||blob.type!=='image/webp'){ // very old browsers: JPEG with white background
+        const c2=document.createElement('canvas'); c2.width=w; c2.height=h; const x2=c2.getContext('2d');
+        x2.fillStyle='#fff'; x2.fillRect(0,0,w,h); x2.drawImage(bitmap,0,0,w,h);
+        blob=await new Promise(r=>c2.toBlob(r,'image/jpeg',qual));
+      }
+      return blob;
+    };
+    for(let i=0;i<8;i++){
+      const blob=await encode(scale,q);
+      if(blob&&(!best||blob.size<best.size)) best=blob;
+      if(!blob||blob.size<=o.targetKB*1024) break;
+      if(q>o.minQuality+.001) q=Math.max(o.minQuality,q-.08);
+      else{ scale*=.85; if(Math.max(bitmap.width,bitmap.height)*scale<o.minDim) break; }
+    }
+    bitmap.close&&bitmap.close();
+    if(!best||best.size>=file.size) return file; // original already smaller: keep it
+    const ext=best.type==='image/webp'?'.webp':'.jpg';
+    return new File([best],(file.name||'image').replace(/\.[^.]+$/i,'')+ext,{type:best.type,lastModified:Date.now()});
   }catch(e){console.warn('Image optimization skipped:',e);return file;}
 };
 StoreXPerf.fastPublicState=async function(){
@@ -74,7 +95,7 @@ StoreXPerf.fastPublicState=async function(){
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="google-site-verification" content="WUxkcFCLbPaCLZE-jpALSdJ6fkcY30Ak4EnuW7x_ihY">
 <meta name="google-adsense-account" content="ca-pub-3181836233458586">
-<title>StoreX — Discover Products</title>
+<title>StoreX | Premium Watches, Smart Earbuds &amp; Fashion in Pakistan</title>
 <link id="site-favicon" rel="icon" type="image/png" href="https://i.ibb.co/C5kzjZ2p/1001577882-removebg-preview.png">
 <link id="site-apple-icon" rel="apple-touch-icon" href="https://i.ibb.co/C5kzjZ2p/1001577882-removebg-preview.png">
 
@@ -87,15 +108,17 @@ StoreXPerf.fastPublicState=async function(){
 <script>
 const SEO_CONFIG = {
   siteName: "StoreX",
-  siteUrl: "https://StoreX/",
-  defaultTitle: "StoreX | Discover Products, Deals & Trending Finds",
-  defaultDescription: "StoreX is an online product discovery store featuring trending products, electronics, fashion, beauty, home and living essentials, gadgets, accessories and more. Discover useful products, compare options and visit trusted shopping destinations through our product links.",
-  keywords: "StoreX, StoreX, online shopping, trending products, best products, product discovery, electronics, gadgets, mobile accessories, fashion, beauty products, home and living, kitchen products, lifestyle products, accessories, online deals, trending deals, shopping deals, useful products, Pakistan online shopping",
+  siteUrl: (/^https?:/.test(location.protocol) ? (location.origin + location.pathname.replace(/index\.html$/,'')) : "https://StoreX/"),
+  owner: "Asim Ali Asif",
+  defaultTitle: "StoreX | Premium Watches, Smart Earbuds & Fashion in Pakistan",
+  defaultDescription: "StoreX is an online store owned by Asim Ali Asif, offering premium men's watches, wireless smart earbuds, jackets, shirts and trending accessories at unbeatable prices with fast delivery across Pakistan, free delivery on selected items and easy order tracking.",
+  keywords: "StoreX, StoreX Pakistan, Asim Ali Asif, online shopping Pakistan, buy watches online Pakistan, men's watches, black chain watch, old money watch, wireless earbuds, smart earbuds, TWS earbuds, men's jackets, men's shirts, fashion accessories, trending products, online deals, discount coupons, free delivery Pakistan, track order, cash on delivery, best prices",
   robots: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
   language: "en",
   themeColor: "#4A2F16",
-  socialTitle: "StoreX | Discover Products, Deals & Trending Finds",
-  socialDescription: "Discover trending products, electronics, fashion, beauty, home essentials, gadgets and more at StoreX."
+  socialTitle: "StoreX | Premium Watches, Smart Earbuds & Fashion in Pakistan",
+  socialDescription: "Shop premium watches, smart earbuds and fashion at unbeatable prices. StoreX is owned by Asim Ali Asif. Fast delivery across Pakistan.",
+  socialImage: "https://i.ibb.co/20d0YX78/1789053253807.png"
 };
 
 (function applyStaticSEO(){
@@ -119,6 +142,26 @@ const SEO_CONFIG = {
   setMeta("og:description", c.socialDescription, "property");
   setMeta("og:type", "website", "property");
   setMeta("og:url", c.siteUrl, "property");
+  setMeta("og:site_name", c.siteName, "property");
+  setMeta("og:locale", "en_PK", "property");
+  setMeta("og:image", c.socialImage, "property");
+  setMeta("og:image:alt", c.siteName + " - online store", "property");
+  setMeta("twitter:image", c.socialImage);
+  setMeta("author", c.owner);
+  setMeta("creator", c.owner);
+  setMeta("publisher", c.owner);
+  setMeta("copyright", "\u00a9 " + c.siteName + " - owned by " + c.owner);
+  setMeta("application-name", c.siteName);
+  setMeta("apple-mobile-web-app-title", c.siteName);
+  setMeta("apple-mobile-web-app-capable", "yes");
+  setMeta("mobile-web-app-capable", "yes");
+  setMeta("format-detection", "telephone=no");
+  setMeta("geo.region", "PK");
+  setMeta("geo.placename", "Pakistan");
+  setMeta("distribution", "global");
+  setMeta("rating", "general");
+  setMeta("googlebot", c.robots);
+  setMeta("bingbot", c.robots);
   setMeta("twitter:card", "summary_large_image");
   setMeta("twitter:title", c.socialTitle);
   setMeta("twitter:description", c.socialDescription);
@@ -139,6 +182,9 @@ const SEO_CONFIG = {
 <!-- ================= END StoreX SEO CONFIGURATION ================= -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://i.ibb.co">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -770,17 +816,24 @@ img[loading="lazy"]{content-visibility:auto;}
   "@graph": [
     {
       "@type": "WebSite",
-      "@id": "https://StoreX/#website",
-      "url": "https://StoreX/",
+      "@id": "#website",
       "name": "StoreX",
-      "description": "A product discovery website featuring trending products, electronics, gadgets, fashion, beauty, home and living products, accessories and more.",
-      "inLanguage": "en"
+      "alternateName": ["StoreX Pakistan", "StoreX Online Store"],
+      "description": "StoreX is an online store owned by Asim Ali Asif offering premium watches, smart earbuds, fashion and trending accessories with delivery across Pakistan.",
+      "inLanguage": "en-PK",
+      "publisher": { "@id": "#organization" }
     },
     {
-      "@type": "Organization",
-      "@id": "https://StoreX/#organization",
+      "@type": ["Organization", "OnlineStore"],
+      "@id": "#organization",
       "name": "StoreX",
-      "url": "https://StoreX/"
+      "description": "StoreX is an online store owned by Asim Ali Asif, selling premium watches, wireless earbuds and fashion essentials across Pakistan.",
+      "logo": "https://i.ibb.co/20d0YX78/1789053253807.png",
+      "image": "https://i.ibb.co/20d0YX78/1789053253807.png",
+      "areaServed": { "@type": "Country", "name": "Pakistan" },
+      "currenciesAccepted": "PKR",
+      "founder": { "@type": "Person", "name": "Asim Ali Asif" },
+      "owner": { "@type": "Person", "name": "Asim Ali Asif" }
     }
   ]
 }
@@ -820,13 +873,17 @@ website hosting (not inside the HTML):
 <script id="StoreXInstantCache">
 (function(){
   try{
-    var raw=localStorage.getItem("StoreX.customer.snapshot.v5");
+    if(sessionStorage.getItem("sx.freshReload")){ window.__sxFreshLoad=true; sessionStorage.removeItem("sx.freshReload"); }
+  }catch(e){}
+  try{
+    var raw=window.__sxFreshLoad?null:localStorage.getItem("StoreX.customer.snapshot.v5");
     if(raw){ var item=JSON.parse(raw); if(item&&item.data) window.StoreXWarmSnapshot=item.data; }
   }catch(e){}
 })();
 </script>
 <!-- StoreX enhancement: site analytics requires the companion Supabase migration file supplied with this build. -->
 <body>
+<noscript><div style="max-width:760px;margin:30px auto;padding:20px;font-family:Arial,sans-serif;line-height:1.6"><h1>StoreX - Online Store in Pakistan</h1><p>StoreX is an online store owned by Asim Ali Asif. We sell premium men's watches, wireless smart earbuds, jackets, shirts and trending accessories at unbeatable prices, with fast delivery across Pakistan and free delivery on selected items.</p><p>Please enable JavaScript to browse products, apply coupons, place orders and track your order.</p></div></noscript>
 <div id="StoreX-loading" aria-live="polite" role="status">
   <div class="StoreX-loading-demo">
     <div class="StoreX-loading-hero"></div>
@@ -1221,7 +1278,7 @@ async function handleLocalFileInput(input,callback){
     const url=await uploadImageToSupabase(file);
     await rememberMediaUrl(url,file.name||'image');
     callback(url);
-    toast('Original image uploaded to Supabase ✓');
+    toast('Image optimized & uploaded ✓');
   }catch(e){
     console.error(e); toast('Image upload failed: '+(e.message||'Unknown error'));
   }finally{input.disabled=false; input.value='';}
@@ -2013,7 +2070,7 @@ async function boot(){
   window.FV_CACHE_FIRST_RENDERED = false;
   try{
     const cached=window.StoreXCustomerCache&&window.StoreXCustomerCache.read();
-    if(window.StoreXCustomerCache&&window.StoreXCustomerCache.isUsable(cached)){
+    if(!window.__sxFreshLoad && window.StoreXCustomerCache&&window.StoreXCustomerCache.isUsable(cached)){
       const c=cached.data||{};
       if(c.settings) SETTINGS=c.settings;
       if(Array.isArray(c.products)) PRODUCTS=c.products;
@@ -2169,8 +2226,10 @@ function applyStoreXRouteSEO(pageTitle, pageDescription, pageKeywords, canonical
 function applySEO(seo, fallbackTitle, fallbackDesc){
   const siteName = (SETTINGS&&SETTINGS.siteName)||'StoreX';
   document.title = (seo&&seo.title) ? seo.title : (fallbackTitle? fallbackTitle+' | '+siteName : siteName);
-  setMetaTag('description', (seo&&seo.description) || fallbackDesc || (SETTINGS&&SETTINGS.footer&&SETTINGS.footer.about) || '');
-  setMetaTag('keywords', (seo&&seo.keywords) || '');
+  const _desc=(seo&&seo.description) || fallbackDesc || SEO_CONFIG.defaultDescription;
+  setMetaTag('description', _desc);
+  setMetaTag('keywords', (seo&&seo.keywords) || SEO_CONFIG.keywords);
+  try{ window.sxSeoSync && window.sxSeoSync(document.title,_desc); }catch(e){}
 }
 function resetDefaultSEO(){ applySEO(null, ''); }
 
@@ -2442,7 +2501,7 @@ function renderFooter(){
   const topCats=chosenCats.length?chosenCats:visCats.slice(0,3);
   const cats=(topCats.map(c=>`<a href="#/category/${esc(c.slug)}">${esc(c.name)}</a>`).join('')||'<span style="color:#71757B;font-size:13px;">No categories yet</span>')+'<a href="#/all-categories" style="font-weight:700;">View all categories &rarr;</a>';
   const pageLinks=[...new Map(PAGES.filter(p=>p.status==='published').map(p=>[p.slug,p])).values()].map(p=>`<a href="#/page/${esc(p.slug)}">${esc(p.title)}</a>`).join('');
-  return `<footer id="site-footer"><div class="container footer-grid"><div><h4>${esc(SETTINGS.siteName)}</h4><p style="font-size:13.5px;color:#FFFFFF;max-width:320px;">${esc(s.about||'')}</p></div><div><h4>Categories</h4>${cats}</div><div><h4>Quick Links</h4><a href="#/">Home</a><a href="#/flash-sale">Flash Sale</a></div><div><h4>Information</h4>${pageLinks||'<span style="color:#71757B;font-size:13px;">No pages yet</span>'}</div></div><div class="container footer-bottom"><span>${esc(s.copyright||'')}</span><div class="footer-share"><span>Secure direct ordering</span><button type="button" class="share-btn" onclick="shareStorefront()" aria-label="Share this website"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share Website</button></div></div></footer>`;
+  return `<footer id="site-footer"><div class="container footer-grid"><div><h4>${esc(SETTINGS.siteName)}</h4><p style="font-size:13.5px;color:#FFFFFF;max-width:320px;">${esc(s.about||'')}</p><p class="sx-owner-desc" style="font-size:12.5px;color:#FFFFFF;max-width:320px;opacity:.92;margin-top:8px;">${esc(s.description||'StoreX is an online store owned by Asim Ali Asif. We offer premium watches, wireless earbuds and fashion essentials with fast delivery across Pakistan.')}</p></div><div><h4>Categories</h4>${cats}</div><div><h4>Quick Links</h4><a href="#/">Home</a><a href="#/flash-sale">Flash Sale</a></div><div><h4>Information</h4>${pageLinks||'<span style="color:#71757B;font-size:13px;">No pages yet</span>'}</div></div><div class="container footer-bottom"><span>${esc(s.copyright||'')}</span><div class="footer-share"><span>Secure direct ordering</span><button type="button" class="share-btn" onclick="shareStorefront()" aria-label="Share this website"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 3.9M15.4 6.6 8.6 10.5"></path></svg>Share Website</button></div></div></footer>`;
 }
 
 /* ================= HOME / SECTIONS ================= */
@@ -2505,11 +2564,21 @@ function renderHero(){
       <h1>${esc(h.heading)}</h1>
       <p>${esc(h.subheading)}</p>
       ${h.buttonText? `<a class="btn" style="${btnStyle}" href="${esc(h.buttonUrl||'#/')}">${esc(h.buttonText)}</a>`:''}
+      ${heroExtraButtonsHtml(h,btnAlignMap)}
     </div>
   </section>`;
 }
 
 
+function heroExtraButtonsHtml(h,alignMap){
+  const list=(Array.isArray(h.buttons)?h.buttons:[]).filter(b=>b&&b.enabled!==false&&String(b.text||'').trim());
+  if(!list.length) return '';
+  return `<div class="hero-extra-btns" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-self:${(alignMap&&alignMap[h.buttonAlign])||'flex-start'}">${list.map(b=>{
+    const bg=b.bg||'#F57224', fg=b.color||'#FFFFFF';
+    const st=b.outline?`background:transparent;color:${esc(bg)};border:2px solid ${esc(bg)}`:`background:${esc(bg)};color:${esc(fg)}`;
+    return `<a class="btn" style="${st};padding:${Number(b.padY)||12}px ${Number(b.padX)||22}px" href="${esc(b.url||'#/')}"${b.newTab?' target="_blank" rel="noopener"':''}>${esc(b.text)}</a>`;
+  }).join('')}</div>`;
+}
 function initHeroSlider(){
   if(HERO_SLIDER_TIMER){ clearInterval(HERO_SLIDER_TIMER); HERO_SLIDER_TIMER=null; }
   const wrap = document.querySelector('.hero-bg');
@@ -4471,7 +4540,8 @@ function adminTheme(){
         <button class="btn" type="submit">Save Button Settings</button>
       </div>
     </form>
-  </div>`;
+  </div>
+  ${window.sxHeroAdminCard?window.sxHeroAdminCard(h):''}`;
 }
 
 /* ---------- Navigation ---------- */
@@ -4652,6 +4722,7 @@ function adminSettings(){
         <div class="field"><label>Site Name</label><input type="text" name="siteName" value="${esc(s.siteName)}"></div>
         <div class="field"><label>Google Analytics ID</label><input type="text" name="gaId" value="${esc(s.gaId)}"></div>
         <div class="field full"><label>Footer About Text</label><textarea name="footerAbout">${esc(s.footer.about)}</textarea></div>
+        <div class="field full"><label>Website Description (owner info &mdash; shown in footer)</label><textarea name="footerDescription">${esc(s.footer.description||'StoreX is an online store owned by Asim Ali Asif. We offer premium watches, wireless earbuds and fashion essentials with fast delivery across Pakistan.')}</textarea></div>
         <div class="field full"><label>Footer Copyright</label><input type="text" name="footerCopyright" value="${esc(s.footer.copyright)}"></div>
         <div class="field full"><label>Footer categories (pick up to 3; a "View all categories" link is added automatically)</label><div class="form-grid">${[0,1,2].map(i=>`<div class="field"><label>Category ${i+1}</label><select name="footerCat${i}"><option value="">${i===0?'Auto (first categories)':'— None —'}</option>${CATEGORIES.filter(c=>c.status!=='hidden').sort((a,b)=>(a.order||0)-(b.order||0)).map(c=>`<option value="${esc(c.id)}" ${((s.footer.categoryIds||[])[i])===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`).join('')}</div></div>
       </div>
@@ -4675,6 +4746,7 @@ function saveGeneralSettings(form){
   SETTINGS.siteName=fd.get('siteName').trim();
   SETTINGS.gaId=fd.get('gaId').trim();
   SETTINGS.footer.about=fd.get('footerAbout').trim();
+  SETTINGS.footer.description=String(fd.get('footerDescription')||'').trim();
   SETTINGS.footer.copyright=fd.get('footerCopyright').trim();
   SETTINGS.footer.categoryIds=[...new Set([0,1,2].map(i=>String(fd.get('footerCat'+i)||'')).filter(Boolean))];
   saveKey(KEYS.settings,SETTINGS);toast('Settings saved');
@@ -5829,7 +5901,7 @@ img,video,iframe,svg{max-width:100%}
   window.renderProductCard=function(p,o){
     var h=origCard.call(this,p,Object.assign({},o||{},{hideActions:true}));
     var tg=(p.tags||[]).filter(function(t){return DEFTAG[lc(t)]||SX_TAGCOL[lc(t)];}).slice(0,2).map(tagHtml).join('');
-    try{var cf=couponFor(p);if(cf){var u0=Number(p.specialPrice!=null?p.specialPrice:p.price)||0;h=h.replace(/<strong class="price">[^<]*<\/strong>/,'<strong class="price" style="color:#1a8f4f">'+money(u0-cf.r.discount)+'</strong><del style="font-size:12px;color:var(--ink-soft)">'+money(u0)+'</del><span class="sx-cpn">'+esc(cf.c.code)+'</span>');}}catch(e){}
+    try{var cf=couponFor(p);if(cf){var u0=Number(p.specialPrice!=null?p.specialPrice:p.price)||0;var og0=Math.max(Number(p.originalPrice!=null?p.originalPrice:(p.oldPrice!=null?p.oldPrice:p.price))||0,u0);var fin0=Math.max(0,u0-cf.r.discount);var pc0=og0>fin0?Math.round((og0-fin0)/og0*100):0;h=h.replace(/<strong class="price">[\s\S]*?<\/strong>(<del[^>]*>[\s\S]*?<\/del><span class="badge-status on">[\s\S]*?<\/span>)?/,'<strong class="price" style="color:#1a8f4f">'+money(fin0)+'</strong>'+(og0>fin0?'<del style="font-size:12px;color:var(--ink-soft)">'+money(og0)+'</del><span class="badge-status on">-'+pc0+'%</span>':''));}}catch(e){}
     try{return h.replace(/(<a [^>]*class="card-img"[^>]*>[\s\S]*?<\/a>)/,'<div class="card-imgwrap">$1'+(tg?'<div class="sx-tags">'+tg+'</div>':'')+'</div>');}catch(e){return h;}
   };
   /* ---- sorting ---- */
@@ -5966,7 +6038,7 @@ img,video,iframe,svg{max-width:100%}
     return '<div class="sx-cp"><div style="min-width:0"><b>'+esc(c.title||c.description||label(c))+'</b><div class="sx-cp-sub">'+label(c)+(c.min_order?' \u00b7 min order '+money(c.min_order):'')+(c.applicable_scope&&c.applicable_scope!=='all'?' \u00b7 selected '+c.applicable_scope:'')+(c.ends_at?' \u00b7 until '+String(c.ends_at).slice(0,10):'')+'</div>'
       +(r&&r.ok?'<div class="sx-cp-sub" style="color:#1a8f4f">You save '+money(r.discount)+(r.freeShipping?' + free delivery':'')+'</div>':(r&&c.min_order?'<div class="sx-cp-sub">Order at least '+money(c.min_order)+' to use this</div>':''))+'</div>'+btn+'</div>';
   }
-  function listFor(lines){var cl=claims();return COUPONS.filter(function(c){return (c.visibility!=='private'||cl.indexOf(String(c.code).toUpperCase())>-1)&&nowOk(c)&&lines.some(function(x){return couponAppliesToLine(c,x.info.p.id);});});}
+  function listFor(lines){return COUPONS.filter(function(c){return c.visibility!=='private'&&nowOk(c)&&lines.some(function(x){return couponAppliesToLine(c,x.info.p.id);});});}
   function injectList(anchorSel,lines){
     var a=document.querySelector(anchorSel);if(!a||document.getElementById('sx-pubc')||!lines.length)return;
     var list=listFor(lines);if(!list.length)return;
@@ -5986,7 +6058,7 @@ img,video,iframe,svg{max-width:100%}
       if(pr&&p&&!pr.dataset.sx){
         pr.dataset.sx=1;pr.classList.add('sx-pd-price');var cf=couponFor(p);
         if(cf){var u=Number(p.specialPrice!=null?p.specialPrice:p.price)||0;pr.textContent=money(u-cf.r.discount);pr.style.color='#1a8f4f';
-          var dl=document.createElement('del');dl.style.cssText='color:var(--ink-soft);font-size:16px';dl.textContent=money(u);pr.after(dl);
+          var og=Math.max(Number(p.originalPrice!=null?p.originalPrice:(p.oldPrice!=null?p.oldPrice:p.price))||0,u);[].slice.call(pr.parentElement.querySelectorAll('del')).forEach(function(x){x.remove();});var dl=document.createElement('del');dl.style.cssText='color:var(--ink-soft);font-size:16px';dl.textContent=money(og);pr.after(dl);
           var nt=document.createElement('div');nt.className='sx-pd-note';nt.textContent='Coupon '+cf.c.code+' applied \u2014 you save '+money(cf.r.discount);pr.parentElement.after(nt);
           var tt=document.getElementById('pd-total-price');if(tt&&cf.c.discount_type==='percent'){tt.dataset.unitPrice=String(u-cf.r.discount);tt.textContent=money(u-cf.r.discount);}}
       }
@@ -6330,6 +6402,13 @@ body:has(#site-header){
     medal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>',
     pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
     help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0116 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>',
+    star:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>',
+    gift:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v9h14v-9M12 8c-2-4-6-3-5 0 .6 1.5 3 1 5 0zm0 0c2-4 6-3 5 0-.6 1.5-3 1-5 0z"/></svg>',
+    heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg>',
+    clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>',
+    refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 00-14-4M4 5v3h3M4 13a8 8 0 0014 4M20 19v-3h-3"/></svg>',
+    lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
     grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>'
   };
   function siteName(){try{return (typeof SETTINGS!=='undefined'&&SETTINGS&&SETTINGS.siteName)||'StoreX';}catch(e){return 'StoreX';}}
@@ -6346,20 +6425,29 @@ body:has(#site-header){
     var hdr=document.getElementById('site-header'); if(!hdr) return;     // admin par kuch nahi
     var main=document.querySelector('#site-header ~ main'); if(!main) return;
 
+    var hs=(typeof SETTINGS!=='undefined'&&SETTINGS&&SETTINGS.hero)||{};
     var h1=main.querySelector('.hero h1');
     if(h1 && !h1.dataset.sx){
       goldLast(h1);
-      var pill=document.createElement('div'); pill.className='sx-pill'; pill.textContent='Welcome to '+siteName();
-      h1.parentNode.insertBefore(pill,h1);
+      if(hs.pillEnabled!==false){
+        var pill=document.createElement('div'); pill.className='sx-pill';
+        pill.textContent=(hs.pillText&&String(hs.pillText).trim())||('Welcome to '+siteName());
+        h1.parentNode.insertBefore(pill,h1);
+      }
     }
     var hi=main.querySelector('.hero-inner');
     if(hi && !hi.querySelector('.sx-hero-badges')){
-      var b=document.createElement('div'); b.className='sx-hero-badges';
-      b.innerHTML=
-        '<div class="sx-hero-badge"><i>'+ICON.truck+'</i><div><b>Fast Delivery</b><span>Across Pakistan</span></div></div>'+
-        '<div class="sx-hero-badge"><i>'+ICON.shield+'</i><div><b>Secure Payments</b><span>100% Safe</span></div></div>'+
-        '<div class="sx-hero-badge"><i>'+ICON.medal+'</i><div><b>Top Quality</b><span>Trusted Products</span></div></div>';
-      hi.appendChild(b);
+      var list=Array.isArray(hs.badges)?hs.badges:[
+        {icon:'truck',title:'Fast Delivery',subtitle:'Across Pakistan',enabled:true},
+        {icon:'shield',title:'Secure Payments',subtitle:'100% Safe',enabled:true},
+        {icon:'medal',title:'Top Quality',subtitle:'Trusted Products',enabled:true}];
+      list=list.filter(function(x){return x&&x.enabled!==false&&String(x.title||'').trim();});
+      if(list.length){
+        var b=document.createElement('div'); b.className='sx-hero-badges';
+        var X=function(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+        b.innerHTML=list.map(function(x){return '<div class="sx-hero-badge"><i>'+(ICON[x.icon]||ICON.medal)+'</i><div><b>'+X(x.title)+'</b>'+(x.subtitle?'<span>'+X(x.subtitle)+'</span>':'')+'</div></div>';}).join('');
+        hi.appendChild(b);
+      }
     }
     main.querySelectorAll('.section-head h2:not([data-sx])').forEach(goldLast);
 
@@ -6392,5 +6480,178 @@ body:has(#site-header){
 })();
 
 </script>
+<!-- ===== StoreX update bundle: page boxes, hero editor, sort scroll, SEO sync, fresh reload ===== -->
+<style id="StoreXBoxLayoutFix">
+/* Every customer page card (checkout, delivery, review, track order, my orders...) now has real padding,
+   so labels, inputs and text sit INSIDE the box instead of touching its border. */
+#app .customer-card{
+  box-sizing:border-box;width:100%;max-width:100%;
+  padding:clamp(16px,4.6vw,28px);margin:0 0 16px;
+  background:var(--sx-cream,#FFF8EC);border:1px solid var(--line,#EADBC3);border-radius:22px;
+  box-shadow:0 6px 22px rgba(74,47,22,.06);overflow:hidden;
+}
+#app .customer-card>h1,#app .customer-card>h2{margin-top:0;overflow-wrap:anywhere;}
+#app .customer-card .form-grid{gap:14px 16px;}
+#app .customer-card .form-grid>.field.full{grid-column:1/-1;}
+#app .customer-card .field{min-width:0;margin-bottom:0;}
+#app .customer-card .field label{display:block;margin:0 0 6px;padding:0 2px;line-height:1.3;}
+#app .customer-card .field input,#app .customer-card .field select,#app .customer-card .field textarea{max-width:100%;box-sizing:border-box;}
+#app .customer-card .admin-card{margin:14px 0 0;padding:clamp(14px,4vw,20px);}
+#app .customer-card .admin-card>b{display:block;margin-bottom:2px;}
+#app .customer-card .summary-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;}
+#app .customer-card .form-actions{margin-top:16px;}
+#app .customer-card .modal-close-row{margin-top:18px;padding-top:16px;}
+#app .customer-card .trk-forgot{margin-top:16px;padding-top:16px;border-top:1px solid var(--line,#EADBC3);}
+#app .customer-card .trk-forgot .btn{max-width:100%;white-space:normal;text-align:center;}
+#app .customer-card .coupon-row{margin:10px 0 0;}
+#app .customer-card .sx-cp{margin:10px 0 0;}
+#app .customer-card div[style*="margin:14px 0"]{box-sizing:border-box;}
+#app .trk-head{padding:4px 2px 14px;}
+#app .trk-head h1,#app .crumb{overflow-wrap:anywhere;}
+#order-page-body>.customer-card,#all-orders-list .customer-card{margin-bottom:14px;}
+.hero-extra-btns .btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;}
+</style>
+
+<script id="StoreXUpdateBundle">
+(function(){
+  'use strict';
+
+  /* ================= 1. Sorting: keep the chip bar where it is ================= */
+  (function(){
+    var orig=window.setCustomerProductSort;
+    if(typeof orig!=='function') return;
+    window.setCustomerProductSort=function(v){
+      var bar=document.querySelector('.sort-chips');
+      var x=bar?bar.scrollLeft:0;
+      var r=orig.apply(this,arguments);
+      var put=function(){var b=document.querySelector('.sort-chips');if(b&&Math.abs(b.scrollLeft-x)>1)b.scrollLeft=x;};
+      put();
+      requestAnimationFrame(function(){put();requestAnimationFrame(put);});
+      setTimeout(put,60);setTimeout(put,180);setTimeout(put,400);
+      return r;
+    };
+  })();
+
+  /* ================= 2. Hero text boxes + buttons: admin editor ================= */
+  var HERO_ICONS=[['truck','Truck / Delivery'],['shield','Shield / Secure'],['medal','Medal / Quality'],['pin','Location pin'],['help','Support headset'],['star','Star'],['gift','Gift'],['heart','Heart'],['clock','Clock'],['tag','Price tag'],['refresh','Returns'],['lock','Lock']];
+  function defBadges(){return [
+    {icon:'truck',title:'Fast Delivery',subtitle:'Across Pakistan',enabled:true},
+    {icon:'shield',title:'Secure Payments',subtitle:'100% Safe',enabled:true},
+    {icon:'medal',title:'Top Quality',subtitle:'Trusted Products',enabled:true}];}
+  function hx(v,d){v=String(v||'').trim();return /^#[0-9a-f]{6}$/i.test(v)?v:d;}
+  function H(){return SETTINGS.hero;}
+  function badges(){var h=H();if(!Array.isArray(h.badges))h.badges=defBadges();return h.badges;}
+  function buttons(){var h=H();if(!Array.isArray(h.buttons))h.buttons=[];return h.buttons;}
+  window.sxHeroSet=function(k,v){H()[k]=v;};
+  window.sxHBSet=function(i,k,v){badges()[i][k]=v;};
+  window.sxHBAdd=function(){badges().push({icon:'star',title:'New text box',subtitle:'',enabled:true});render();};
+  window.sxHBDel=function(i){badges().splice(i,1);render();};
+  window.sxHBMove=function(i,d){var a=badges(),j=i+d;if(j<0||j>=a.length)return;var t=a[i];a[i]=a[j];a[j]=t;render();};
+  window.sxHBtnSet=function(i,k,v){buttons()[i][k]=v;};
+  window.sxHBtnAdd=function(){buttons().push({text:'New Button',url:'#/category/all',bg:'#7A4C0E',color:'#FFFFFF',outline:false,newTab:false,enabled:true});render();};
+  window.sxHBtnDel=function(i){buttons().splice(i,1);render();};
+  window.sxHBtnMove=function(i,d){var a=buttons(),j=i+d;if(j<0||j>=a.length)return;var t=a[i];a[i]=a[j];a[j]=t;render();};
+  window.sxHeroTextSave=function(){
+    try{saveKey(KEYS.settings,SETTINGS);toast('Hero text boxes & buttons saved \u2713');}catch(e){toast('Save failed: '+(e.message||e));}
+  };
+  window.sxHeroAdminCard=function(h){
+    var bl=Array.isArray(h.badges)?h.badges:defBadges();
+    var btl=Array.isArray(h.buttons)?h.buttons:[];
+    var iconOpts=function(cur){return HERO_ICONS.map(function(x){return '<option value="'+x[0]+'"'+(cur===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('');};
+    var row='display:flex;gap:6px;flex-wrap:wrap;margin-top:8px';
+    var badgeRows=bl.map(function(b,i){return '<div class="admin-card" style="margin:10px 0;background:#FAF9F7"><div class="form-grid">'
+      +'<div class="field"><label>Title</label><input type="text" value="'+esc(b.title||'')+'" onchange="sxHBSet('+i+',\'title\',this.value)"></div>'
+      +'<div class="field"><label>Small text under title</label><input type="text" value="'+esc(b.subtitle||'')+'" onchange="sxHBSet('+i+',\'subtitle\',this.value)"></div>'
+      +'<div class="field"><label>Icon</label><select onchange="sxHBSet('+i+',\'icon\',this.value)">'+iconOpts(b.icon)+'</select></div>'
+      +'<div class="field"><label class="checkline"><input type="checkbox" '+(b.enabled!==false?'checked':'')+' onchange="sxHBSet('+i+',\'enabled\',this.checked)"> Show this text box</label></div></div>'
+      +'<div style="'+row+'"><button type="button" class="btn small ghost" onclick="sxHBMove('+i+',-1)">\u2191 Up</button><button type="button" class="btn small ghost" onclick="sxHBMove('+i+',1)">\u2193 Down</button><button type="button" class="btn small danger" onclick="sxHBDel('+i+')">Delete</button></div></div>';}).join('');
+    var btnRows=btl.map(function(b,i){return '<div class="admin-card" style="margin:10px 0;background:#FAF9F7"><div class="form-grid">'
+      +'<div class="field"><label>Button text</label><input type="text" value="'+esc(b.text||'')+'" onchange="sxHBtnSet('+i+',\'text\',this.value)"></div>'
+      +'<div class="field"><label>Link / URL</label><input type="text" value="'+esc(b.url||'')+'" placeholder="#/category/all or https://..." onchange="sxHBtnSet('+i+',\'url\',this.value)"></div>'
+      +'<div class="field"><label>Button color</label><input type="color" value="'+hx(b.bg,'#7A4C0E')+'" onchange="sxHBtnSet('+i+',\'bg\',this.value)"></div>'
+      +'<div class="field"><label>Text color</label><input type="color" value="'+hx(b.color,'#FFFFFF')+'" onchange="sxHBtnSet('+i+',\'color\',this.value)"></div>'
+      +'<div class="field"><label>Height padding (px)</label><input type="number" value="'+esc(b.padY||12)+'" onchange="sxHBtnSet('+i+',\'padY\',Number(this.value)||12)"></div>'
+      +'<div class="field"><label>Side padding (px)</label><input type="number" value="'+esc(b.padX||22)+'" onchange="sxHBtnSet('+i+',\'padX\',Number(this.value)||22)"></div>'
+      +'<div class="field"><label class="checkline"><input type="checkbox" '+(b.outline?'checked':'')+' onchange="sxHBtnSet('+i+',\'outline\',this.checked)"> Outline style</label></div>'
+      +'<div class="field"><label class="checkline"><input type="checkbox" '+(b.newTab?'checked':'')+' onchange="sxHBtnSet('+i+',\'newTab\',this.checked)"> Open in new tab</label></div>'
+      +'<div class="field"><label class="checkline"><input type="checkbox" '+(b.enabled!==false?'checked':'')+' onchange="sxHBtnSet('+i+',\'enabled\',this.checked)"> Show this button</label></div></div>'
+      +'<div style="'+row+'"><button type="button" class="btn small ghost" onclick="sxHBtnMove('+i+',-1)">\u2191 Up</button><button type="button" class="btn small ghost" onclick="sxHBtnMove('+i+',1)">\u2193 Down</button><button type="button" class="btn small danger" onclick="sxHBtnDel('+i+')">Delete</button></div></div>';}).join('');
+    return '<div class="admin-card">'
+      +'<h3 style="margin-top:0">Hero Text Boxes &amp; Extra Buttons</h3>'
+      +'<p style="font-size:12.5px;color:var(--ink-soft);margin-top:0">Edit, add, hide or reorder the small text boxes shown on the hero (the &ldquo;Welcome to&hellip;&rdquo; pill and the Fast Delivery / Secure Payments / Top Quality boxes), and add as many extra hero buttons as you like. Click <b>Save</b> when finished.</p>'
+      +'<h4 style="margin:14px 0 6px">Top pill text box</h4><div class="form-grid">'
+      +'<div class="field"><label>Pill text (blank = &ldquo;Welcome to '+esc(SETTINGS.siteName||'StoreX')+'&rdquo;)</label><input type="text" value="'+esc(h.pillText||'')+'" onchange="sxHeroSet(\'pillText\',this.value)"></div>'
+      +'<div class="field"><label class="checkline"><input type="checkbox" '+(h.pillEnabled!==false?'checked':'')+' onchange="sxHeroSet(\'pillEnabled\',this.checked)"> Show pill</label></div></div>'
+      +'<h4 style="margin:18px 0 0">Info text boxes</h4>'+badgeRows
+      +'<button type="button" class="btn small ghost" onclick="sxHBAdd()">+ Add text box</button>'
+      +'<h4 style="margin:22px 0 0">Extra hero buttons</h4>'+(btnRows||'<p style="font-size:12.5px;color:var(--ink-soft)">No extra buttons yet.</p>')
+      +'<button type="button" class="btn small ghost" onclick="sxHBtnAdd()">+ Add button</button>'
+      +'<div style="margin-top:16px"><button type="button" class="btn" onclick="sxHeroTextSave()">Save Hero Text Boxes &amp; Buttons</button></div></div>';
+  };
+
+  /* ================= 3. SEO sync (canonical, social tags, Product schema) ================= */
+  function setM(name,content,attr){
+    attr=attr||'name';var el=document.head.querySelector('meta['+attr+'="'+name+'"]');
+    if(!el){el=document.createElement('meta');el.setAttribute(attr,name);document.head.appendChild(el);}
+    el.setAttribute('content',content);
+  }
+  function curProduct(){
+    try{
+      var m=location.hash.match(/#\/p\/([^/?]+)/);if(!m)return null;var k=decodeURIComponent(m[1]);
+      return (PRODUCTS||[]).find(function(x){return String(x.id)===k||(x.seo&&x.seo.slug===k);})||null;
+    }catch(e){return null;}
+  }
+  window.sxSeoSync=function(title,desc){
+    var base=SEO_CONFIG.siteUrl,url=base+(location.hash&&location.hash.length>2?location.hash:'');
+    var canon=document.head.querySelector('link[rel="canonical"]');
+    if(!canon){canon=document.createElement('link');canon.rel='canonical';document.head.appendChild(canon);}
+    canon.href=url;
+    setM('og:title',title,'property');setM('og:description',desc,'property');setM('og:url',url,'property');
+    setM('twitter:title',title);setM('twitter:description',desc);
+    var p=curProduct(),old=document.getElementById('StoreX-product-schema');
+    if(old)old.remove();
+    if(!p){setM('og:type','website','property');setM('og:image',SEO_CONFIG.socialImage,'property');setM('twitter:image',SEO_CONFIG.socialImage);return;}
+    var img=p.mainImage?mediaSrc(p.mainImage):(p.images&&p.images[0]?mediaSrc(p.images[0]):'');
+    if(img&&/^https?:/.test(img)){setM('og:image',img,'property');setM('twitter:image',img);}
+    setM('og:type','product','property');
+    var price=Number(p.specialPrice!=null?p.specialPrice:p.price)||0,stock=Math.max(0,Number(p.stock)||0);
+    var data={'@context':'https://schema.org','@type':'Product','name':p.title,'description':(p.shortDesc||p.description||p.title||'').toString().replace(/<[^>]*>/g,'').slice(0,300),
+      'sku':p.sku||String(p.id),'brand':{'@type':'Brand','name':SEO_CONFIG.siteName},
+      'offers':{'@type':'Offer','url':url,'priceCurrency':'PKR','price':String(price),'itemCondition':'https://schema.org/NewCondition',
+        'availability':stock>0?'https://schema.org/InStock':'https://schema.org/OutOfStock','seller':{'@type':'Organization','name':SEO_CONFIG.siteName}}};
+    if(img&&/^https?:/.test(img))data.image=[img];
+    var sc=document.createElement('script');sc.type='application/ld+json';sc.id='StoreX-product-schema';sc.textContent=JSON.stringify(data);document.head.appendChild(sc);
+  };
+  window.addEventListener('hashchange',function(){setTimeout(function(){try{window.sxSeoSync(document.title,(document.querySelector('meta[name="description"]')||{}).content||SEO_CONFIG.defaultDescription);}catch(e){}},400);});
+  try{window.sxSeoSync(document.title,SEO_CONFIG.defaultDescription);}catch(e){}
+
+  /* ================= 4. Returning to an already-open tab => fresh reload, never stale/offline ================= */
+  (function(){
+    var hiddenAt=0,MIN_AWAY=15000,waiting=false;
+    function admin(){return /admin-of-storex/.test(location.hash);}
+    function typing(){
+      var f=document.activeElement;
+      if(f&&/INPUT|TEXTAREA|SELECT/.test(f.tagName)&&String(f.value||'').trim()!=='')return true;
+      return [].some.call(document.querySelectorAll('form input:not([type=hidden]):not([type=checkbox]):not([type=radio]),form textarea'),function(i){return String(i.value||'').trim()!=='';});
+    }
+    function fresh(force){
+      if(admin())return;
+      if(!force&&typing())return;
+      if(navigator.onLine===false){waiting=true;return;}   /* wait for the connection instead of showing an offline copy */
+      waiting=false;
+      try{sessionStorage.setItem('sx.freshReload','1');}catch(e){}
+      location.reload();
+    }
+    document.addEventListener('visibilitychange',function(){
+      if(document.hidden){hiddenAt=Date.now();return;}
+      if(hiddenAt&&Date.now()-hiddenAt>=MIN_AWAY)fresh(false);
+      hiddenAt=0;
+    });
+    window.addEventListener('pageshow',function(e){if(e&&e.persisted)fresh(true);});   /* back/forward cache restore */
+    window.addEventListener('online',function(){if(waiting||hiddenAt===0)fresh(false);});
+  })();
+})();
+</script>
+
 </body>
 </html>
