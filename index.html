@@ -2,563 +2,998 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>SquareForge · Market Intelligence & Square Studio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Binance Square Studio</title>
 <style>
 :root{
-  --bg:#07090d;--bg2:#0e1219;--bg3:#151b26;--bg4:#1c2433;--line:#243044;
-  --text:#f1f5f9;--muted:#8b9bb4;--gold:#f0b90b;--gold2:#ffd60a;
-  --green:#0ecb81;--red:#f6465d;--blue:#3b82f6;--radius:12px;
+  --bg:#0a0c10;--bg2:#11151c;--bg3:#1a2030;--line:#2a3344;
+  --text:#f0f3f8;--muted:#8b96a8;--gold:#f0b90b;--gold2:#ffd54a;
+  --green:#0ecb81;--red:#f6465d;--radius:12px;
   --font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{width:100%;max-width:100vw;overflow-x:hidden}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.45;overflow-x:hidden;padding-top:var(--safe-t)}
-img,canvas,table{max-width:100%}
-a{color:var(--gold);text-decoration:none}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;padding-top:var(--safe-t)}
 button,input,select,textarea{font-family:inherit;font-size:16px}
-/* 16px inputs reduce iOS zoom */
-.shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh;width:100%;max-width:100vw}
-.sidebar{position:sticky;top:0;height:100vh;max-height:100dvh;background:rgba(14,18,25,.96);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:40;overflow:hidden}
-.brand{padding:16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);flex-shrink:0}
-.brand-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--gold),#e89b00);display:grid;place-items:center;font-weight:800;color:#111;font-size:13px;flex-shrink:0}
-.brand h1{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brand p{font-size:10px;color:var(--muted)}
-.nav{flex:1;overflow-y:auto;overflow-x:hidden;padding:8px 8px 16px;-webkit-overflow-scrolling:touch}
-.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:10px 10px 4px;font-weight:600}
-.nav-item{display:flex;align-items:center;gap:8px;padding:10px;border-radius:10px;color:var(--muted);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-size:13px;font-weight:500}
-.nav-item:hover{background:var(--bg3);color:var(--text)}
-.nav-item.active{background:rgba(240,185,11,.12);color:var(--gold2);box-shadow:inset 3px 0 0 var(--gold)}
-.nav-item span{width:20px;text-align:center;flex-shrink:0}
-.side-foot{padding:10px 12px;border-top:1px solid var(--line);font-size:10px;color:var(--muted);flex-shrink:0}
-.main{min-width:0;max-width:100%;display:flex;flex-direction:column;overflow-x:hidden}
-.topbar{position:sticky;top:0;z-index:30;min-height:52px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(7,9,13,.92);border-bottom:1px solid var(--line);flex-wrap:wrap}
-.topbar-left{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
-.menu-btn{display:none;background:var(--bg3);border:1px solid var(--line);color:var(--text);width:40px;height:40px;border-radius:10px;font-size:18px;cursor:pointer;flex-shrink:0}
-.page-title{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.search-btn,.icon-btn{background:var(--bg3);border:1px solid var(--line);color:var(--text);height:40px;min-width:40px;padding:0 12px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600}
-.live-pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;background:var(--bg3);border:1px solid var(--line);font-size:10px;color:var(--muted);max-width:100%}
-.pill .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0}
-.pill.on .dot{background:var(--green);box-shadow:0 0 6px var(--green)}
-.pill.off .dot{background:var(--red)}
-.pill.warn .dot{background:var(--gold)}
-.content{padding:12px;flex:1;width:100%;max-width:100%;overflow-x:hidden}
-.page{display:none}
-.page.active{display:block}
-.tape{overflow:hidden;white-space:nowrap;background:var(--bg2);border-bottom:1px solid var(--line);padding:6px 0;width:100%}
-.tape-track{display:inline-flex;gap:20px;animation:marquee 100s linear infinite;padding-left:100%}
-@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.tape-item{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono)}
-.tape-item .sym{color:var(--muted);font-weight:600}
-.tape-item .ch.up{color:var(--green)}.tape-item .ch.dn{color:var(--red)}
-.grid{display:grid;gap:10px;width:100%}
-.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
-.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;width:100%;max-width:100%;overflow:hidden}
-.card-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.card-t{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-.stat-v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;word-break:break-all}
-.stat-s{font-size:11px;color:var(--muted);margin-top:3px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 12px;border-radius:10px;border:1px solid transparent;font-size:13px;font-weight:600;cursor:pointer;min-height:40px}
+a{color:var(--gold)}
+
+.app{max-width:1100px;margin:0 auto;padding:12px;padding-bottom:calc(72px + var(--safe-b))}
+.header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0 14px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--gold),#e89b00);display:grid;place-items:center;font-weight:800;color:#111;font-size:13px;flex-shrink:0}
+.brand h1{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand p{font-size:11px;color:var(--muted)}
+.nav{display:flex;gap:6px;flex-wrap:wrap}
+.nav button{border:1px solid var(--line);background:var(--bg2);color:var(--muted);padding:8px 12px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer}
+.nav button.active{background:rgba(240,185,11,.15);color:var(--gold);border-color:rgba(240,185,11,.4)}
+
+.page{display:none}.page.active{display:block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.card-t{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+.section-title{font-size:14px;font-weight:700;margin:4px 0 10px}
+
+.fg{margin-bottom:12px}
+.fl{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:5px}
+.fi,.fs,.ft{width:100%;padding:11px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--text);outline:none}
+.fi:focus,.fs:focus,.ft:focus{border-color:var(--gold)}
+.ft{min-height:160px;resize:vertical;line-height:1.55}
+.fh{font-size:11px;color:var(--muted);margin-top:5px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:520px){.fr{grid-template-columns:1fr}}
+
+.details{border:1px solid var(--line);border-radius:10px;background:var(--bg3);margin-bottom:10px}
+.details>summary{padding:12px;cursor:pointer;font-weight:600;font-size:13px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+.details>summary::-webkit-details-marker{display:none}
+.details>summary::after{content:"+";color:var(--gold);font-size:16px}
+.details[open]>summary::after{content:"−"}
+.details .body{padding:0 12px 12px}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border-radius:999px;background:var(--bg3);border:1px solid var(--line);font-size:12px;color:var(--text)}
+.chip button{border:none;background:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 16px;border-radius:10px;border:1px solid transparent;font-size:14px;font-weight:700;cursor:pointer;min-height:44px}
 .btn-gold{background:linear-gradient(135deg,var(--gold),#e89b00);color:#111}
 .btn-ghost{background:var(--bg3);color:var(--text);border-color:var(--line)}
 .btn-danger{background:rgba(246,70,93,.12);color:var(--red);border-color:rgba(246,70,93,.3)}
-.btn-sm{padding:6px 10px;font-size:12px;min-height:32px}
-.btn-row{display:flex;flex-wrap:wrap;gap:8px}
 .btn-block{width:100%}
-.fg{margin-bottom:10px}
-.fl{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px}
-.fi,.fs,.ft{width:100%;max-width:100%;padding:10px;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--text);outline:none}
-.ft{min-height:120px;resize:vertical;line-height:1.5}
-.fh{font-size:11px;color:var(--muted);margin-top:4px;word-break:break-word}
-.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;max-width:100%}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th,td{padding:8px;text-align:left;border-bottom:1px solid var(--line)}
-th{color:var(--muted);font-size:10px;text-transform:uppercase}
-td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
-.notice{background:rgba(240,185,11,.08);border:1px solid rgba(240,185,11,.22);border-radius:10px;padding:10px;font-size:12px;color:var(--muted);margin-bottom:10px;word-break:break-word}
-.notice strong{color:var(--gold)}
+.btn-row{display:flex;flex-wrap:wrap;gap:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.counts{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+.counts strong{color:var(--text)}
+
+.toast-box{position:fixed;top:calc(10px + var(--safe-t));left:10px;right:10px;z-index:100;display:flex;flex-direction:column;gap:6px;max-width:400px;margin-left:auto;pointer-events:none}
+.toast{pointer-events:auto;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:13px}
+.toast.ok{border-left:3px solid var(--green)}.toast.err{border-left:3px solid var(--red)}.toast.info{border-left:3px solid #3b82f6}
+
+.draft-item{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px;background:var(--bg3)}
+.draft-item h3{font-size:14px;margin-bottom:4px;word-break:break-word}
+.draft-meta{font-size:11px;color:var(--muted);margin-bottom:8px}
+.draft-prev{font-size:12px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;word-break:break-word}
 .empty{text-align:center;padding:28px 12px;color:var(--muted);font-size:13px}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;background:rgba(139,155,180,.2);color:var(--muted)}
-.up{color:var(--green)}.dn{color:var(--red)}.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.toast-box{position:fixed;top:calc(10px + var(--safe-t));right:10px;left:10px;z-index:1000;display:flex;flex-direction:column;gap:6px;pointer-events:none;max-width:400px;margin-left:auto}
-.toast{pointer-events:auto;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12px;word-break:break-word}
-.toast.ok{border-left:3px solid var(--green)}.toast.err{border-left:3px solid var(--red)}.toast.info{border-left:3px solid var(--blue)}
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:35}
-.overlay.on{display:block}
-.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(14,18,25,.97);border-top:1px solid var(--line);padding:4px 2px calc(4px + var(--safe-b));justify-content:space-around}
-.bn{background:none;border:none;color:var(--muted);font-size:9px;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 4px;cursor:pointer;min-width:0;flex:1}
-.bn.active{color:var(--gold)}.bn .i{font-size:16px}
-.search-modal{display:none;position:fixed;inset:0;z-index:60;background:rgba(7,9,13,.96);padding:12px;padding-top:calc(12px + var(--safe-t));overflow-y:auto}
-.search-modal.on{display:block}
-.search-modal .fi{margin-bottom:10px}
-.search-hit{padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:var(--bg2);cursor:pointer;text-align:left;width:100%;color:var(--text)}
-.search-hit:hover{border-color:var(--gold)}
-.chart-wrap{width:100%;overflow:hidden;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
-#chartCanvas{display:block;width:100%;height:260px}
-.tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch}
-.tab{flex-shrink:0;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg3);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer}
-.tab.on{background:rgba(240,185,11,.15);color:var(--gold);border-color:rgba(240,185,11,.4)}
-@media(max-width:900px){
-  .shell{grid-template-columns:1fr}
-  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(280px,86vw);transform:translateX(-105%);transition:.22s;height:100dvh}
-  .sidebar.open{transform:none}
-  .menu-btn{display:grid;place-items:center}
-  .g2,.g3,.g4{grid-template-columns:1fr}
-  .live-pills{display:none}
-  .bottom-nav{display:flex}
-  .content{padding:10px;padding-bottom:calc(64px + var(--safe-b))}
-  .stat-v{font-size:18px}
-}
-@media(max-width:360px){
-  .content{padding:8px;padding-bottom:calc(64px + var(--safe-b))}
-  .card{padding:10px}
-  table{font-size:11px}
-  th,td{padding:6px}
-}
+.notice{background:rgba(240,185,11,.08);border:1px solid rgba(240,185,11,.22);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--muted);margin-bottom:12px}
+.notice strong{color:var(--gold)}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:rgba(139,155,180,.2);color:var(--muted)}
+.search-wrap{position:relative}
+.search-list{position:absolute;left:0;right:0;top:100%;z-index:20;background:var(--bg2);border:1px solid var(--line);border-radius:10px;max-height:220px;overflow-y:auto;display:none}
+.search-list.on{display:block}
+.search-list button{display:block;width:100%;text-align:left;padding:10px 12px;border:none;background:none;color:var(--text);font-size:13px;cursor:pointer;border-bottom:1px solid var(--line)}
+.search-list button:hover{background:var(--bg3)}
+
+.bottom-bar{display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(17,21,28,.97);border-top:1px solid var(--line);padding:6px 8px calc(6px + var(--safe-b));z-index:40;justify-content:space-around}
+.bottom-bar button{flex:1;background:none;border:none;color:var(--muted);font-size:10px;padding:6px;cursor:pointer}
+.bottom-bar button.active{color:var(--gold)}
+@media(max-width:800px){.bottom-bar{display:flex}.app{padding-bottom:calc(78px + var(--safe-b))}}
 </style>
 </head>
 <body>
-<div class="overlay" id="overlay"></div>
-<div class="search-modal" id="searchModal">
-  <div class="card-h"><strong>Search</strong><button class="btn btn-ghost btn-sm" onclick="closeSearch()">Close</button></div>
-  <input class="fi" id="globalSearch" placeholder="Coins, tools, pages…" autocomplete="off">
-  <div id="searchResults"></div>
-</div>
-<div class="shell">
-<aside class="sidebar" id="sidebar">
-  <div class="brand"><div class="brand-mark">SF</div><div><h1>SquareForge</h1><p>Markets · Tools · Square</p></div></div>
-  <nav class="nav" id="mainNav">
-    <div class="nav-label">Markets</div>
-    <button class="nav-item active" data-page="overview"><span>📊</span>Overview</button>
-    <button class="nav-item" data-page="markets"><span>📈</span>Spot Markets</button>
-    <button class="nav-item" data-page="movers"><span>🔥</span>Gainers &amp; Losers</button>
-    <button class="nav-item" data-page="volume"><span>💧</span>Volume</button>
-    <button class="nav-item" data-page="futures"><span>📉</span>Futures / Funding</button>
-    <button class="nav-item" data-page="screener"><span>🔍</span>Screener</button>
-    <button class="nav-item" data-page="charts"><span>🕯️</span>Charts</button>
-    <div class="nav-label">Tools</div>
-    <button class="nav-item" data-page="calc"><span>🧮</span>Calculators</button>
-    <button class="nav-item" data-page="watchlist"><span>⭐</span>Watchlist</button>
-    <button class="nav-item" data-page="portfolio"><span>💼</span>Portfolio</button>
-    <button class="nav-item" data-page="journal"><span>📔</span>Journal</button>
-    <div class="nav-label">Content</div>
-    <button class="nav-item" data-page="generate"><span>✨</span>Square Studio</button>
-    <button class="nav-item" data-page="drafts"><span>📝</span>Drafts</button>
-    <button class="nav-item" data-page="earn"><span>💰</span>Earning Research</button>
-    <button class="nav-item" data-page="learn"><span>📚</span>Learning</button>
-    <div class="nav-label">System</div>
-    <button class="nav-item" data-page="settings"><span>⚙️</span>Settings</button>
-    <button class="nav-item" data-page="about"><span>ℹ️</span>About</button>
-  </nav>
-  <div class="side-foot"><div id="wsFoot">Connecting…</div></div>
-</aside>
-<div class="main">
-  <div class="tape"><div class="tape-track" id="tapeTrack"></div></div>
-  <header class="topbar">
-    <div class="topbar-left">
-      <button class="menu-btn" id="menuBtn" type="button">☰</button>
-      <div class="page-title" id="pageTitle">Overview</div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-      <button class="search-btn" type="button" onclick="openSearch()">Search</button>
-      <div class="live-pills">
-        <div class="pill" id="pillWs"><span class="dot"></span>Stream</div>
-        <div class="pill"><span class="dot"></span><span id="pillCoinN">0</span></div>
-        <div class="pill" id="pillTick"><span class="dot"></span><span id="pillAge">—</span></div>
+<div class="app">
+  <header class="header">
+    <div class="brand">
+      <div class="logo">BS</div>
+      <div>
+        <h1>Binance Square Studio</h1>
+        <p>Create · Edit · Copy · Save</p>
       </div>
     </div>
+    <nav class="nav" id="topNav">
+      <button type="button" class="active" data-page="create">Create</button>
+      <button type="button" data-page="drafts">Drafts</button>
+      <button type="button" data-page="planner">Planner</button>
+      <button type="button" data-page="settings">Settings</button>
+    </nav>
   </header>
-  <div class="content">
 
-<section class="page active" id="page-overview">
-  <div class="notice"><strong>Live Binance data.</strong> Prices are exact public market prints. Square posts: generate → copy → paste in Binance app. Auto-publish from a website is not possible (browser security).</div>
-  <div class="grid g4" style="margin-bottom:10px">
-    <div class="card"><div class="card-t">BTC</div><div class="stat-v mono" id="ovBtc">—</div><div class="stat-s" id="ovBtcCh">—</div></div>
-    <div class="card"><div class="card-t">ETH</div><div class="stat-v mono" id="ovEth">—</div><div class="stat-s" id="ovEthCh">—</div></div>
-    <div class="card"><div class="card-t">Up</div><div class="stat-v up" id="ovUp">—</div><div class="stat-s">USDT pairs</div></div>
-    <div class="card"><div class="card-t">Down</div><div class="stat-v dn" id="ovDown">—</div><div class="stat-s">USDT pairs</div></div>
-  </div>
-  <div class="grid g2">
-    <div class="card"><div class="card-h"><div class="card-t">Top gainers</div><button class="btn btn-ghost btn-sm" onclick="go('movers')">All</button></div><div id="ovGainers"></div></div>
-    <div class="card"><div class="card-h"><div class="card-t">Top losers</div><button class="btn btn-ghost btn-sm" onclick="go('movers')">All</button></div><div id="ovLosers"></div></div>
-  </div>
-  <div class="card" style="margin-top:10px"><div class="btn-row">
-    <button class="btn btn-gold" onclick="go('generate')">Create Square post</button>
-    <button class="btn btn-ghost" onclick="go('charts')">Open chart</button>
-    <button class="btn btn-ghost" onclick="go('calc')">Calculators</button>
-    <button class="btn btn-ghost" onclick="forceRestRefresh()">Refresh data</button>
-  </div></div>
-</section>
+  <!-- CREATE -->
+  <section class="page active" id="page-create">
+    <div class="notice"><strong>Manual publish only.</strong> Generate a draft, review it, tap <strong>Copy</strong>, then paste into Binance Square yourself. Nothing is posted automatically.</div>
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <div class="card-t">Topic &amp; category</div>
+          <div class="fg search-wrap">
+            <label class="fl">Category</label>
+            <input class="fi" id="catSearch" placeholder="Search categories…" autocomplete="off">
+            <div class="search-list" id="catList"></div>
+            <input type="hidden" id="category" value="Bitcoin (BTC)">
+            <div class="fh">Selected: <strong id="catLabel">Bitcoin (BTC)</strong></div>
+          </div>
+          <div class="fg">
+            <label class="fl">Custom topic (optional)</label>
+            <input class="fi" id="customTopic" placeholder="e.g. How DCA works for beginners">
+          </div>
+        </div>
 
-<section class="page" id="page-markets">
-  <div class="grid" style="gap:8px;margin-bottom:10px">
-    <input class="fi" id="mSearch" placeholder="Search pair…" oninput="renderMarkets()">
-    <div class="btn-row">
-      <select class="fs" id="mSort" onchange="renderMarkets()" style="flex:1;min-width:0"><option value="vol">Volume</option><option value="change">% Change</option><option value="name">Name</option><option value="price">Price</option></select>
-      <select class="fs" id="mFilter" onchange="renderMarkets()" style="flex:1;min-width:0"><option value="usdt">USDT</option><option value="btc">BTC</option><option value="all">All</option></select>
+        <details class="details" open>
+          <summary>Topic details (optional)</summary>
+          <div class="body">
+            <div class="fg"><label class="fl">Headline / subject</label><input class="fi" id="headline" placeholder="Optional headline idea"></div>
+            <div class="fg"><label class="fl">Coin / project / tool name</label><input class="fi" id="subjectName" placeholder="BTC, ETH, a protocol…"></div>
+            <div class="fg"><label class="fl">Main idea to explain</label><textarea class="ft" id="mainIdea" style="min-height:70px" placeholder="What should the post teach or say?"></textarea></div>
+            <div class="fg"><label class="fl">Key points</label><textarea class="ft" id="keyPoints" style="min-height:70px" placeholder="One point per line"></textarea></div>
+            <div class="fr">
+              <div class="fg"><label class="fl">Audience</label>
+                <select class="fs" id="audience"><option>General</option><option>Beginners</option><option>Intermediate</option><option>Advanced traders</option><option>Builders / developers</option></select>
+              </div>
+              <div class="fg"><label class="fl">Content depth</label>
+                <select class="fs" id="depth"><option>Beginner</option><option selected>Intermediate</option><option>Advanced</option><option>Expert</option></select>
+              </div>
+            </div>
+            <div class="fg"><label class="fl">Question to answer</label><input class="fi" id="question"></div>
+            <div class="fg"><label class="fl">Your perspective / opinion</label><textarea class="ft" id="opinion" style="min-height:60px"></textarea></div>
+            <div class="fg"><label class="fl">Facts or source notes you provide</label><textarea class="ft" id="facts" style="min-height:60px" placeholder="Only facts you supply will be treated as given"></textarea></div>
+            <div class="fg"><label class="fl">Call to action (optional)</label><input class="fi" id="cta" placeholder="e.g. Share your approach in comments"></div>
+            <div class="fg"><label class="fl">Extra instructions</label><textarea class="ft" id="extra" style="min-height:60px"></textarea></div>
+          </div>
+        </details>
+
+        <details class="details" open>
+          <summary>Format, length, tone, language</summary>
+          <div class="body">
+            <div class="fg"><label class="fl">Post format</label>
+              <select class="fs" id="format">
+                <option>Short single post</option>
+                <option selected>Educational post</option>
+                <option>Market update</option>
+                <option>Analysis and commentary</option>
+                <option>Step-by-step guide</option>
+                <option>Beginner-friendly explanation</option>
+                <option>Advanced technical explanation</option>
+                <option>Question for the community</option>
+                <option>Opinion post</option>
+                <option>Myth versus fact</option>
+                <option>Bullish and bearish comparison</option>
+                <option>Lessons learned</option>
+                <option>Numbered list</option>
+                <option>Storytelling post</option>
+                <option>Thread-style content</option>
+                <option>News summary</option>
+                <option>Project overview</option>
+                <option>Custom format</option>
+              </select>
+            </div>
+            <div class="fr">
+              <div class="fg"><label class="fl">Length</label>
+                <select class="fs" id="length">
+                  <option value="very_short">Very short (30–60)</option>
+                  <option value="short" selected>Short (60–120)</option>
+                  <option value="medium">Medium (120–250)</option>
+                  <option value="long">Long (250–450)</option>
+                  <option value="detailed">Detailed (450–700)</option>
+                  <option value="custom">Custom word target</option>
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Custom word target</label><input class="fi" type="number" id="customWords" value="150" min="30" max="1000"></div>
+            </div>
+            <div class="fr">
+              <div class="fg"><label class="fl">Tone</label>
+                <select class="fs" id="tone">
+                  <option>Professional</option>
+                  <option selected>Educational</option>
+                  <option>Analytical</option>
+                  <option>Conversational</option>
+                  <option>Confident but balanced</option>
+                  <option>Engaging</option>
+                  <option>Friendly</option>
+                  <option>Technical</option>
+                  <option>Beginner-friendly</option>
+                  <option>Thought-provoking</option>
+                  <option>Storytelling</option>
+                  <option>Neutral and factual</option>
+                  <option>Custom</option>
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Custom tone</label><input class="fi" id="customTone" placeholder="If tone = Custom"></div>
+            </div>
+            <div class="fr">
+              <div class="fg"><label class="fl">Language</label>
+                <select class="fs" id="language">
+                  <option selected>English</option>
+                  <option>Simple English</option>
+                  <option>Urdu</option>
+                  <option>Roman Urdu</option>
+                  <option>Hindi</option>
+                  <option>Custom</option>
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Custom language</label><input class="fi" id="customLang"></div>
+            </div>
+            <div class="fg"><label class="fl">Engagement style</label>
+              <select class="fs" id="engage">
+                <option selected>Educational value first</option>
+                <option>Encourage thoughtful discussion</option>
+                <option>Ask a relevant question</option>
+                <option>Invite opinions</option>
+                <option>Explain a common mistake</option>
+                <option>Challenge a misconception using evidence</option>
+                <option>Share a useful checklist</option>
+                <option>Explain a technical concept simply</option>
+                <option>No engagement question</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <details class="details">
+          <summary>Generation options</summary>
+          <div class="body">
+            <div class="fr">
+              <div class="fg"><label class="fl">Emojis</label>
+                <select class="fs" id="emoji"><option>None</option><option selected>Minimal</option><option>Moderate</option></select>
+              </div>
+              <div class="fg"><label class="fl">Opening hook</label>
+                <select class="fs" id="hook"><option selected>Yes</option><option>No</option></select>
+              </div>
+            </div>
+            <div class="fr">
+              <div class="fg"><label class="fl">Summary line</label>
+                <select class="fs" id="summary"><option>Yes</option><option selected>No</option></select>
+              </div>
+              <div class="fg"><label class="fl">Call to action</label>
+                <select class="fs" id="useCta"><option>Yes</option><option selected>No</option></select>
+              </div>
+            </div>
+            <div class="fr">
+              <div class="fg"><label class="fl">Include hashtags</label>
+                <select class="fs" id="useTags"><option selected>Yes</option><option>No</option></select>
+              </div>
+              <div class="fg"><label class="fl">Risk disclaimer</label>
+                <select class="fs" id="disclaimer"><option>Yes</option><option selected>No</option></select>
+              </div>
+            </div>
+            <div class="fg"><label class="fl">Avoid similar saved drafts</label>
+              <select class="fs" id="avoidDup"><option selected>Yes</option><option>No</option></select>
+            </div>
+          </div>
+        </details>
+
+        <details class="details" open>
+          <summary>Hashtags</summary>
+          <div class="body">
+            <div class="fr">
+              <div class="fg"><label class="fl">Max hashtags</label>
+                <select class="fs" id="maxTags">
+                  <option value="0">0</option><option value="3">3</option>
+                  <option value="5" selected>5</option><option value="8">8</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div class="fg"><label class="fl">Custom max</label><input class="fi" type="number" id="maxTagsCustom" value="5" min="0" max="20"></div>
+            </div>
+            <div class="fg"><label class="fl">Placement</label>
+              <select class="fs" id="tagPlace"><option selected>At the end</option><option>Integrated in text</option></select>
+            </div>
+            <div class="fg"><label class="fl">Add hashtag</label>
+              <div class="btn-row"><input class="fi" id="tagInput" placeholder="#Bitcoin" style="flex:1"><button type="button" class="btn btn-ghost" onclick="addTag()">Add</button></div>
+            </div>
+            <div class="chips" id="tagChips"></div>
+            <p class="fh">Suggestions are topic-based only — not live “trending” ranks (no verified trend feed in this file).</p>
+            <button type="button" class="btn btn-ghost btn-block" onclick="suggestTags()">Suggest relevant tags</button>
+          </div>
+        </details>
+
+        <div class="btn-row" style="margin:12px 0">
+          <button type="button" class="btn btn-gold btn-block" id="btnGenerate" onclick="generatePost()">Generate Post</button>
+        </div>
+        <div class="card">
+          <div class="card-t">Batch (optional)</div>
+          <div class="fr">
+            <div class="fg"><label class="fl">How many drafts</label><input class="fi" type="number" id="batchN" value="3" min="1" max="20"></div>
+            <div class="fg" style="display:flex;align-items:flex-end"><button type="button" class="btn btn-ghost btn-block" onclick="batchGenerate()">Generate batch</button></div>
+          </div>
+          <div id="batchOut"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="position:sticky;top:8px">
+          <div class="card-t">Editor</div>
+          <div class="fg"><label class="fl">Title (for your library)</label><input class="fi" id="draftTitle" placeholder="Auto-filled after generate"></div>
+          <textarea class="ft" id="editor" placeholder="Your draft appears here. Edit freely before Copy or Save." style="min-height:280px"></textarea>
+          <div class="counts">
+            <span>Words: <strong id="wordCount">0</strong></span>
+            <span>Characters: <strong id="charCount">0</strong></span>
+          </div>
+          <div class="btn-row" style="margin-top:12px">
+            <button type="button" class="btn btn-gold" style="flex:1" onclick="copyPost()">Copy</button>
+            <button type="button" class="btn btn-ghost" style="flex:1" onclick="savePost()">Save</button>
+          </div>
+          <div class="btn-row" style="margin-top:8px">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="generatePost()">Regenerate</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="clearEditor()">Clear</button>
+          </div>
+          <p class="fh">Only <strong>Copy</strong> and <strong>Save</strong> are primary actions. No publish / open Binance buttons.</p>
+        </div>
+      </div>
     </div>
-    <span class="fh" id="mCount">0 pairs</span>
-  </div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Price</th><th>24h</th><th>High</th><th>Low</th><th>Vol</th></tr></thead><tbody id="mBody"></tbody></table></div></div>
-</section>
+  </section>
 
-<section class="page" id="page-movers">
-  <div class="grid g2">
-    <div class="card"><div class="card-t" style="margin-bottom:8px">Top 20 gainers</div><div id="gainersList"></div></div>
-    <div class="card"><div class="card-t" style="margin-bottom:8px">Top 20 losers</div><div id="losersList"></div></div>
-  </div>
-</section>
-
-<section class="page" id="page-volume">
-  <div class="card"><div class="card-t" style="margin-bottom:8px">Highest quote volume</div>
-    <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Symbol</th><th>Price</th><th>24h</th><th>Quote vol</th></tr></thead><tbody id="volBody"></tbody></table></div>
-  </div>
-</section>
-
-<section class="page" id="page-futures">
-  <div class="notice">Public <strong>USDT-M futures</strong> funding &amp; mark data from Binance Futures API. Not your account positions.</div>
-  <div class="btn-row" style="margin-bottom:10px"><button class="btn btn-gold" onclick="loadFutures()">Refresh futures</button></div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Mark</th><th>Index</th><th>Funding</th><th>Next</th></tr></thead><tbody id="futBody"><tr><td colspan="5">Tap Refresh futures</td></tr></tbody></table></div></div>
-</section>
-
-<section class="page" id="page-screener">
-  <div class="card" style="margin-bottom:10px">
-    <div class="card-t" style="margin-bottom:8px">Scan USDT pairs (live snapshot)</div>
-    <div class="fg"><label class="fl">Min 24h % change</label><input class="fi" type="number" id="scMinCh" value="5" step="0.1"></div>
-    <div class="fg"><label class="fl">Min quote volume (USDT)</label><input class="fi" type="number" id="scMinVol" value="1000000"></div>
-    <div class="fg"><label class="fl">Direction</label>
-      <select class="fs" id="scDir"><option value="up">Gainers only</option><option value="down">Losers only</option><option value="both">Both</option></select>
-    </div>
-    <button class="btn btn-gold" onclick="runScreener()">Run scan</button>
-    <p class="fh">Results are filters on public 24h stats — not trade signals.</p>
-  </div>
-  <div class="card"><div id="scResults" class="empty">Run a scan</div></div>
-</section>
-
-<section class="page" id="page-charts">
-  <div class="card" style="margin-bottom:10px">
-    <div class="btn-row" style="margin-bottom:8px">
-      <input class="fi" id="chartSym" value="BTCUSDT" style="flex:1;min-width:100px" placeholder="BTCUSDT">
-      <select class="fs" id="chartTf" style="width:auto">
-        <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option>
-        <option value="1h" selected>1h</option><option value="4h">4h</option><option value="1d">1d</option>
-      </select>
-      <button class="btn btn-gold" onclick="loadChart()">Load</button>
-    </div>
-    <div class="tabs" id="indTabs">
-      <button class="tab on" data-ind="none" type="button">None</button>
-      <button class="tab" data-ind="sma" type="button">SMA20</button>
-      <button class="tab" data-ind="ema" type="button">EMA20</button>
-      <button class="tab" data-ind="rsi" type="button">RSI14</button>
-    </div>
-    <div class="chart-wrap"><canvas id="chartCanvas" width="800" height="260"></canvas></div>
-    <p class="fh" id="chartMeta">Load a symbol for real Binance klines.</p>
-  </div>
-</section>
-
-<section class="page" id="page-calc">
-  <div class="tabs" id="calcTabs" style="margin-bottom:10px">
-    <button class="tab on" data-calc="pos" type="button">Position size</button>
-    <button class="tab" data-calc="rr" type="button">Risk/Reward</button>
-    <button class="tab" data-calc="pnl" type="button">PnL</button>
-    <button class="tab" data-calc="liq" type="button">Liq. estimate</button>
-    <button class="tab" data-calc="dca" type="button">DCA</button>
-    <button class="tab" data-calc="fee" type="button">Fees</button>
-  </div>
-  <div class="card" id="calcPanel"></div>
-</section>
-
-<section class="page" id="page-watchlist">
-  <div class="card" style="margin-bottom:10px">
-    <div class="fg"><label class="fl">Add symbol</label>
-      <div class="btn-row"><input class="fi" id="wlInput" placeholder="SOLUSDT" style="flex:1"><button class="btn btn-gold" onclick="addWatch()">Add</button></div>
-    </div>
-    <div class="fg"><label class="fl">Price alert (optional, this device)</label>
-      <div class="btn-row"><input class="fi" id="alSym" placeholder="BTCUSDT" style="flex:1"><input class="fi" id="alPrice" type="number" placeholder="Price" style="flex:1"><button class="btn btn-ghost" onclick="addAlert()">Set</button></div>
-    </div>
-  </div>
-  <div class="card"><div id="wlList" class="empty">No favorites yet</div></div>
-  <div class="card" style="margin-top:10px"><div class="card-t" style="margin-bottom:8px">Local alerts</div><div id="alList" class="empty">None</div></div>
-</section>
-
-<section class="page" id="page-portfolio">
-  <div class="notice">Manual holdings only — not connected to your exchange account.</div>
-  <div class="card" style="margin-bottom:10px">
-    <div class="fg"><label class="fl">Asset (e.g. BTC)</label><input class="fi" id="pfAsset"></div>
-    <div class="fg"><label class="fl">Quantity</label><input class="fi" id="pfQty" type="number" step="any"></div>
-    <div class="fg"><label class="fl">Avg buy price (USD)</label><input class="fi" id="pfAvg" type="number" step="any"></div>
-    <button class="btn btn-gold" onclick="addHolding()">Add holding</button>
-  </div>
-  <div class="card"><div id="pfList" class="empty">No holdings</div><div id="pfTotal" class="stat-s" style="margin-top:10px"></div></div>
-</section>
-
-<section class="page" id="page-journal">
-  <div class="card" style="margin-bottom:10px">
-    <div class="fg"><label class="fl">Symbol</label><input class="fi" id="jSym"></div>
-    <div class="fg"><label class="fl">Side</label><select class="fs" id="jSide"><option>Long</option><option>Short</option><option>Spot buy</option><option>Spot sell</option></select></div>
-    <div class="fg"><label class="fl">Notes</label><textarea class="ft" id="jNotes" style="min-height:80px"></textarea></div>
-    <button class="btn btn-gold" onclick="addJournal()">Save entry</button>
-  </div>
-  <div class="card"><div id="jList" class="empty">No journal entries</div></div>
-</section>
-
-<section class="page" id="page-generate">
-  <div class="grid g2">
+  <!-- DRAFTS -->
+  <section class="page" id="page-drafts">
     <div class="card">
-      <div class="card-t" style="margin-bottom:8px">Post generator</div>
-      <div class="fg"><label class="fl">Category</label><select class="fs" id="genCat"></select></div>
-      <div class="fg"><label class="fl">Focus coin</label><input class="fi" id="genSym" placeholder="BTC"></div>
-      <div class="fg"><label class="fl">Tone</label>
-        <select class="fs" id="genTone"><option value="neutral">Neutral</option><option value="edu">Educational</option><option value="short">Short</option><option value="community">Community</option></select>
+      <div class="btn-row" style="margin-bottom:10px">
+        <input class="fi" id="draftSearch" placeholder="Search drafts…" oninput="renderDrafts()" style="flex:1">
+        <select class="fs" id="draftFilter" onchange="renderDrafts()" style="width:auto;min-width:140px">
+          <option value="">All categories</option>
+        </select>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="exportDrafts()">Export</button>
       </div>
-      <div class="btn-row">
-        <button class="btn btn-gold" onclick="genPost()">Generate</button>
-        <button class="btn btn-ghost" onclick="genBatch(5)">5 drafts</button>
+      <div id="draftList" class="empty">No saved drafts yet</div>
+    </div>
+  </section>
+
+  <!-- PLANNER -->
+  <section class="page" id="page-planner">
+    <div class="notice">Local content ideas only. This does <strong>not</strong> schedule or publish posts.</div>
+    <div class="card">
+      <div class="fg"><label class="fl">Content pillar</label><input class="fi" id="plPillar" placeholder="Education, market notes…"></div>
+      <div class="fg"><label class="fl">Topic</label><input class="fi" id="plTopic"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Audience</label><input class="fi" id="plAudience"></div>
+        <div class="fg"><label class="fl">Format</label><input class="fi" id="plFormat"></div>
       </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Priority</label>
+          <select class="fs" id="plPriority"><option>Low</option><option selected>Medium</option><option>High</option></select>
+        </div>
+        <div class="fg"><label class="fl">Planned date</label><input class="fi" type="date" id="plDate"></div>
+      </div>
+      <div class="fg"><label class="fl">Notes</label><textarea class="ft" id="plNotes" style="min-height:70px"></textarea></div>
+      <button type="button" class="btn btn-gold" onclick="savePlan()">Save plan item</button>
+    </div>
+    <div class="card"><div id="planList" class="empty">No plan items</div></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="page" id="page-settings">
+    <div class="card">
+      <div class="section-title">About this app</div>
+      <p class="fh" style="line-height:1.7">
+        Binance Square Studio is a local draft tool. Posts are generated on your device with structured templates.
+        There is no live market feed and no automatic publishing. Drafts stay in this browser unless you export them.
+      </p>
     </div>
     <div class="card">
-      <div class="card-t" style="margin-bottom:8px">Editor</div>
-      <textarea class="ft" id="editor" placeholder="Draft text…"></textarea>
-      <div class="fg" style="margin-top:8px"><label class="fl">Tag</label><input class="fi" id="editorCat" readonly></div>
+      <div class="section-title">Data</div>
       <div class="btn-row">
-        <button class="btn btn-gold" onclick="saveDraft()">Save</button>
-        <button class="btn btn-ghost" onclick="copyEditor()">Copy</button>
-        <button class="btn btn-gold" onclick="openSquarePublish()">Copy &amp; Open Square</button>
+        <button type="button" class="btn btn-ghost" onclick="exportDrafts()">Export drafts JSON</button>
+        <button type="button" class="btn btn-danger" onclick="resetAll()">Reset all local data</button>
       </div>
-      <p class="fh">Opens Binance Square. Paste (long-press) and tap Publish in the app. Sites cannot auto-post into the app.</p>
+      <p class="fh">Optional AI providers are not connected by default. Template engine works offline with no API key.</p>
     </div>
-  </div>
-</section>
-
-<section class="page" id="page-drafts">
-  <div class="card">
-    <div class="card-h"><div class="card-t">Drafts</div>
-      <div class="btn-row"><button class="btn btn-ghost btn-sm" onclick="exportDrafts()">Export</button><button class="btn btn-danger btn-sm" onclick="clearDrafts()">Clear</button></div>
-    </div>
-    <div id="draftList"></div>
-  </div>
-</section>
-
-<section class="page" id="page-earn">
-  <div class="notice"><strong>Research only.</strong> No income is guaranteed. Verify every program on official pages. Never share seed phrases or pay upfront “fees” to claim rewards.</div>
-  <div class="card" id="earnList"></div>
-</section>
-
-<section class="page" id="page-learn">
-  <div class="card" id="learnList"></div>
-</section>
-
-<section class="page" id="page-settings">
-  <div class="card" style="margin-bottom:10px">
-    <div class="fg"><label class="fl">REST refresh (seconds)</label><input class="fi" type="number" id="restInterval" value="30" min="15" max="120"></div>
-    <div class="fg"><label class="fl">Hide stable pairs</label><select class="fs" id="hideStables"><option value="1">Yes</option><option value="0">No</option></select></div>
-    <button class="btn btn-gold" onclick="savePrefs()">Save</button>
-  </div>
-  <div class="card">
-    <div class="card-t" style="margin-bottom:8px">Data export</div>
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="exportAll()">Export all JSON</button>
-      <button class="btn btn-danger" onclick="resetLocal()">Reset local data</button>
-    </div>
-  </div>
-</section>
-
-<section class="page" id="page-about">
-  <div class="card">
-    <div class="card-t" style="margin-bottom:8px">SquareForge</div>
-    <p class="fh" style="line-height:1.7">Single-file market + content tool. Live data from Binance public APIs. Drafts stay on your device. Not financial advice. Not affiliated with Binance beyond public data use.</p>
-    <ul class="fh" style="margin:10px 0 0 16px;line-height:1.7">
-      <li>Spot markets, movers, volume, futures funding</li>
-      <li>Charts + basic indicators from real klines</li>
-      <li>Calculators, watchlist, portfolio, journal</li>
-      <li>Square draft studio (copy to publish)</li>
-    </ul>
-  </div>
-</section>
-
-  </div>
+  </section>
 </div>
-</div>
-<nav class="bottom-nav">
-  <button class="bn active" data-page="overview" type="button"><span class="i">📊</span>Home</button>
-  <button class="bn" data-page="markets" type="button"><span class="i">📈</span>Markets</button>
-  <button class="bn" data-page="charts" type="button"><span class="i">🕯️</span>Chart</button>
-  <button class="bn" data-page="generate" type="button"><span class="i">✨</span>Create</button>
-  <button class="bn" data-page="calc" type="button"><span class="i">🧮</span>Tools</button>
+
+<nav class="bottom-bar" id="bottomNav">
+  <button type="button" class="active" data-page="create">✍️ Create</button>
+  <button type="button" data-page="drafts">📝 Drafts</button>
+  <button type="button" data-page="planner">📅 Plan</button>
+  <button type="button" data-page="settings">⚙️ Settings</button>
 </nav>
 <div class="toast-box" id="toasts"></div>
+
 <script>
-const REST='https://api.binance.com/api/v3';
-const FAPI='https://fapi.binance.com/fapi/v1';
-const WS_URL='wss://stream.binance.com:9443/ws/!miniTicker@arr';
-const STABLES=new Set(['USDT','USDC','BUSD','TUSD','FDUSD','DAI','USDP','USDD']);
-const CATS={btc:'Bitcoin update',eth:'Ethereum analysis',sol:'Solana update',alt:'Altcoin snapshot',gainers:'Top gainers',losers:'Top losers',volume:'Volume leaders',trend:'Market breadth',vol:'Volatility',range:'Daily range',ta:'TA education',sr:'Support & resistance',risk:'Risk management',psych:'Psychology',spot:'Spot basics',futures:'Futures education',funding:'Funding rate note',glossary:'Glossary',beginner:'Beginner tip',community:'Community Q',recap:'Session recap',compare:'BTC vs ETH',momentum:'Momentum',liquidity:'Liquidity',caution:'Risk reminder',macro:'Macro awareness',calc:'Calculator tip'};
-const PAGES={overview:'Overview',markets:'Spot Markets',movers:'Gainers & Losers',volume:'Volume',futures:'Futures / Funding',screener:'Screener',charts:'Charts',calc:'Calculators',watchlist:'Watchlist',portfolio:'Portfolio',journal:'Journal',generate:'Square Studio',drafts:'Drafts',earn:'Earning Research',learn:'Learning',settings:'Settings',about:'About'};
-const state={map:new Map(),ws:null,wsOk:false,msgCount:0,lastMsgAt:0,restTimer:null,page:'overview',klines:[],ind:'none',calc:'pos'};
+(function(){
+'use strict';
 
-function toast(msg,type='info',ms=3200){const el=document.createElement('div');el.className='toast '+(type==='success'?'ok':type==='error'?'err':'info');el.textContent=msg;document.getElementById('toasts').appendChild(el);setTimeout(()=>el.remove(),ms)}
-function fmtPx(n){const x=Number(n);if(!isFinite(x))return'—';if(x>=1000)return x.toLocaleString(undefined,{maximumFractionDigits:2});if(x>=1)return x.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4});return x.toPrecision(4)}
-function fmtPct(n){const x=Number(n);if(!isFinite(x))return'—';return(x>=0?'+':'')+x.toFixed(2)+'%'}
-function fmtVol(n){const x=Number(n);if(!isFinite(x))return'—';if(x>=1e9)return(x/1e9).toFixed(2)+'B';if(x>=1e6)return(x/1e6).toFixed(2)+'M';if(x>=1e3)return(x/1e3).toFixed(1)+'K';return x.toFixed(0)}
-function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function lsGet(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}}
-function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch{toast('Storage full','error');return false}}
+const CATEGORIES = [
+  'Bitcoin (BTC)','Ethereum (ETH)','Altcoins','Cryptocurrency Market Updates',
+  'Technical Analysis Education','Trading Psychology','Risk Management',
+  'Spot Trading Education','Futures Trading Education','Blockchain Technology',
+  'Software and Applications','Algorithms and Trading Bots Education',
+  'Artificial Intelligence and Crypto','Crypto Security and Scam Awareness',
+  'DeFi and Web3','Layer 1 and Layer 2 Networks','Cryptocurrency News',
+  'Token and Project Analysis','Trading Strategies Education',
+  'Beginner Cryptocurrency Guides','Advanced Crypto Concepts',
+  'Binance Square Community Discussions','Crypto Market Predictions',
+  'Economic Events and Their Market Impact',
+  'Online Earning and Legitimate Crypto Opportunities',
+  'Educational Threads','Personal Trading Lessons','Custom Topic'
+];
 
-async function restSnapshot(){try{const res=await fetch(REST+'/ticker/24hr',{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);const arr=await res.json();const now=Date.now();for(const t of arr){state.map.set(t.symbol,{s:t.symbol,c:+t.lastPrice,o:+t.openPrice,h:+t.highPrice,l:+t.lowPrice,v:+t.volume,q:+t.quoteVolume,P:+t.priceChangePercent,lastUpdate:now})}document.getElementById('pillCoinN').textContent=state.map.size;refreshAllUI();checkAlerts()}catch(e){toast('Market data failed: '+(e.message||e),'error')}}
-function connectWS(){if(state.ws)try{state.ws.close()}catch{}let ws;try{ws=new WebSocket(WS_URL)}catch{document.getElementById('wsFoot').textContent='WS blocked';return}state.ws=ws;ws.onopen=()=>{state.wsOk=true;setWs(true);document.getElementById('wsFoot').textContent='Live stream on'};ws.onclose=()=>{state.wsOk=false;setWs(false);document.getElementById('wsFoot').textContent='Reconnecting…';setTimeout(connectWS,3000)};ws.onerror=()=>{state.wsOk=false;setWs(false)};ws.onmessage=ev=>{try{const data=JSON.parse(ev.data);if(!Array.isArray(data))return;const now=Date.now();state.msgCount++;state.lastMsgAt=now;for(const t of data){const c=+t.c,o=+t.o,P=o?((c-o)/o)*100:(state.map.get(t.s)?.P||0);state.map.set(t.s,{s:t.s,c,o,h:+t.h,l:+t.l,v:+t.v,q:+t.q,P,lastUpdate:now})}}catch{}}}
-function setWs(ok){const el=document.getElementById('pillWs');el.className='pill '+(ok?'on':'off')}
-function listPairs(filter){const hide=(document.getElementById('hideStables')?.value??'1')==='1';const out=[];for(const t of state.map.values()){const s=t.s;if(filter==='usdt'&&!s.endsWith('USDT'))continue;if(filter==='btc'&&!s.endsWith('BTC'))continue;if(hide){const base=s.replace(/USDT$|BTC$|ETH$|BNB$|FDUSD$|TUSD$|USDC$/,'');if(STABLES.has(base)&&s.endsWith('USDT'))continue}out.push(t)}return out}
-function get(sym){const u=(sym||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return state.map.get(u)||state.map.get(u+'USDT')||null}
+const TAG_MAP = {
+  'Bitcoin (BTC)':['#Bitcoin','#BTC','#Crypto','#BinanceSquare','#CryptoEducation'],
+  'Ethereum (ETH)':['#Ethereum','#ETH','#Crypto','#Web3','#BinanceSquare'],
+  'Altcoins':['#Altcoins','#Crypto','#CryptoMarket','#BinanceSquare'],
+  'Technical Analysis Education':['#TechnicalAnalysis','#Trading','#CryptoEducation','#BinanceSquare'],
+  'Trading Psychology':['#TradingPsychology','#Trading','#CryptoEducation','#BinanceSquare'],
+  'Risk Management':['#RiskManagement','#Trading','#CryptoEducation','#BinanceSquare'],
+  'Spot Trading Education':['#SpotTrading','#Crypto','#CryptoEducation','#BinanceSquare'],
+  'Futures Trading Education':['#Futures','#Trading','#RiskManagement','#BinanceSquare'],
+  'Blockchain Technology':['#Blockchain','#Crypto','#Web3','#BinanceSquare'],
+  'DeFi and Web3':['#DeFi','#Web3','#Crypto','#BinanceSquare'],
+  'Crypto Security and Scam Awareness':['#CryptoSecurity','#StaySafe','#CryptoEducation','#BinanceSquare'],
+  'Beginner Cryptocurrency Guides':['#CryptoForBeginners','#CryptoEducation','#BinanceSquare'],
+  'Binance Square Community Discussions':['#BinanceSquare','#CryptoCommunity','#Crypto'],
+  'default':['#Crypto','#BinanceSquare','#CryptoEducation']
+};
 
-function refreshAllUI(){const age=state.lastMsgAt?Math.max(0,((Date.now()-state.lastMsgAt)/1000)|0):'—';document.getElementById('pillAge').textContent=typeof age==='number'?age+'s':age;document.getElementById('pillTick').className='pill '+(state.wsOk?'on':'warn');
-const btc=get('BTCUSDT'),eth=get('ETHUSDT');
-if(btc){document.getElementById('ovBtc').textContent='$'+fmtPx(btc.c);const e=document.getElementById('ovBtcCh');e.textContent=fmtPct(btc.P);e.className='stat-s '+(btc.P>=0?'up':'dn')}
-if(eth){document.getElementById('ovEth').textContent='$'+fmtPx(eth.c);const e=document.getElementById('ovEthCh');e.textContent=fmtPct(eth.P);e.className='stat-s '+(eth.P>=0?'up':'dn')}
-const usdt=listPairs('usdt');let up=0,dn=0;for(const t of usdt){if(t.P>0)up++;else if(t.P<0)dn++}
-document.getElementById('ovUp').textContent=up;document.getElementById('ovDown').textContent=dn;
-const sorted=[...usdt].sort((a,b)=>b.P-a.P);
-document.getElementById('ovGainers').innerHTML=rowList(sorted.slice(0,5));
-document.getElementById('ovLosers').innerHTML=rowList(sorted.slice(-5).reverse());
-const tape=sorted.slice(0,20).concat(sorted.slice(-10));
-const th=tape.map(t=>`<span class="tape-item"><span class="sym">${esc(t.s.replace('USDT',''))}</span><span class="px">${fmtPx(t.c)}</span><span class="ch ${t.P>=0?'up':'dn'}">${fmtPct(t.P)}</span></span>`).join('');
-document.getElementById('tapeTrack').innerHTML=th+th;
-if(state.page==='markets')renderMarkets();
-if(state.page==='movers')renderMovers();
-if(state.page==='volume')renderVolume();
-if(state.page==='watchlist')renderWatch();
-if(state.page==='portfolio')renderPortfolio();
+let state = {
+  tags: ['#BinanceSquare','#Crypto'],
+  editingId: null,
+  lastOpenings: []
+};
+
+function $(id){ return document.getElementById(id); }
+function toast(msg, type='info', ms=2800){
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type==='success'?'ok':type==='error'?'err':'info');
+  el.textContent = msg;
+  $('toasts').appendChild(el);
+  setTimeout(()=>el.remove(), ms);
 }
-function rowList(arr){if(!arr.length)return'<div class="empty">Loading…</div>';return arr.map(t=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px;flex-wrap:wrap"><strong>${esc(t.s.replace(/USDT$/,''))}</strong><span class="mono">${fmtPx(t.c)}</span><span class="mono ${t.P>=0?'up':'dn'}">${fmtPct(t.P)}</span></div>`).join('')}
-function renderMarkets(){const q=(document.getElementById('mSearch').value||'').toUpperCase().trim();const sort=document.getElementById('mSort').value;const filter=document.getElementById('mFilter').value;let list=listPairs(filter);if(q)list=list.filter(t=>t.s.includes(q));if(sort==='vol')list.sort((a,b)=>b.q-a.q);else if(sort==='change')list.sort((a,b)=>b.P-a.P);else if(sort==='name')list.sort((a,b)=>a.s.localeCompare(b.s));else list.sort((a,b)=>b.c-a.c);document.getElementById('mCount').textContent=list.length+' pairs';document.getElementById('mBody').innerHTML=list.slice(0,150).map(t=>`<tr><td><strong>${esc(t.s)}</strong></td><td class="num">${fmtPx(t.c)}</td><td class="num ${t.P>=0?'up':'dn'}">${fmtPct(t.P)}</td><td class="num">${fmtPx(t.h)}</td><td class="num">${fmtPx(t.l)}</td><td class="num">${fmtVol(t.q)}</td></tr>`).join('')||'<tr><td colspan="6">Waiting…</td></tr>'}
-function renderMovers(){const u=listPairs('usdt').sort((a,b)=>b.P-a.P);document.getElementById('gainersList').innerHTML=moverTable(u.slice(0,20));document.getElementById('losersList').innerHTML=moverTable(u.slice(-20).reverse())}
-function moverTable(arr){return`<div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Price</th><th>24h</th><th>Vol</th></tr></thead><tbody>${arr.map(t=>`<tr><td><strong>${esc(t.s)}</strong></td><td class="num">${fmtPx(t.c)}</td><td class="num ${t.P>=0?'up':'dn'}">${fmtPct(t.P)}</td><td class="num">${fmtVol(t.q)}</td></tr>`).join('')}</tbody></table></div>`}
-function renderVolume(){const list=listPairs('usdt').sort((a,b)=>b.q-a.q).slice(0,40);document.getElementById('volBody').innerHTML=list.map((t,i)=>`<tr><td>${i+1}</td><td><strong>${esc(t.s)}</strong></td><td class="num">${fmtPx(t.c)}</td><td class="num ${t.P>=0?'up':'dn'}">${fmtPct(t.P)}</td><td class="num">${fmtVol(t.q)}</td></tr>`).join('')}
+function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function words(t){ return (t.trim().match(/\S+/g)||[]).length; }
+function lsGet(k,d){ try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?d:v; }catch{ return d; } }
+function lsSet(k,v){
+  try{ localStorage.setItem(k, JSON.stringify(v)); return true; }
+  catch(e){ toast('Storage unavailable or full. Draft was NOT saved.','error',4500); return false; }
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
-async function loadFutures(){const body=document.getElementById('futBody');body.innerHTML='<tr><td colspan="5">Loading…</td></tr>';try{const res=await fetch(FAPI+'/premiumIndex',{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);const arr=await res.json();const rows=(Array.isArray(arr)?arr:[]).filter(x=>String(x.symbol||'').endsWith('USDT')).sort((a,b)=>Math.abs(+b.lastFundingRate)-Math.abs(+a.lastFundingRate)).slice(0,40);body.innerHTML=rows.map(x=>{const fr=(+x.lastFundingRate*100).toFixed(4)+'%';const cls=+x.lastFundingRate>=0?'up':'dn';return`<tr><td><strong>${esc(x.symbol)}</strong></td><td class="num">${fmtPx(x.markPrice)}</td><td class="num">${fmtPx(x.indexPrice)}</td><td class="num ${cls}">${fr}</td><td class="num">${x.nextFundingTime?new Date(+x.nextFundingTime).toLocaleString():'—'}</td></tr>`}).join('')||'<tr><td colspan="5">No data</td></tr>'}catch(e){body.innerHTML=`<tr><td colspan="5">${esc(e.message||'Failed')}</td></tr>`}}
+/* Navigation */
+function go(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const el = $('page-'+page);
+  if(el) el.classList.add('active');
+  document.querySelectorAll('#topNav button, #bottomNav button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.page===page);
+  });
+  if(page==='drafts') renderDrafts();
+  if(page==='planner') renderPlans();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('#topNav button, #bottomNav button').forEach(b=>{
+  b.addEventListener('click', ()=>go(b.dataset.page));
+});
 
-function runScreener(){const minCh=+document.getElementById('scMinCh').value||0;const minVol=+document.getElementById('scMinVol').value||0;const dir=document.getElementById('scDir').value;let list=listPairs('usdt').filter(t=>t.q>=minVol);if(dir==='up')list=list.filter(t=>t.P>=minCh);else if(dir==='down')list=list.filter(t=>t.P<=-minCh);else list=list.filter(t=>Math.abs(t.P)>=minCh);list.sort((a,b)=>Math.abs(b.P)-Math.abs(a.P));const el=document.getElementById('scResults');if(!list.length){el.innerHTML='<div class="empty">No matches</div>';return}el.innerHTML=`<div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Price</th><th>24h</th><th>Vol</th></tr></thead><tbody>${list.slice(0,50).map(t=>`<tr><td><strong>${esc(t.s)}</strong></td><td class="num">${fmtPx(t.c)}</td><td class="num ${t.P>=0?'up':'dn'}">${fmtPct(t.P)}</td><td class="num">${fmtVol(t.q)}</td></tr>`).join('')}</tbody></table></div><p class="fh">${list.length} matches · filter only</p>`}
+/* Category search */
+function renderCatList(q){
+  q = (q||'').toLowerCase();
+  const list = CATEGORIES.filter(c=>!q || c.toLowerCase().includes(q));
+  const box = $('catList');
+  box.innerHTML = list.map(c=>`<button type="button" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+  box.classList.add('on');
+}
+$('catSearch').addEventListener('focus', ()=>renderCatList($('catSearch').value));
+$('catSearch').addEventListener('input', e=>renderCatList(e.target.value));
+$('catList').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-cat]');
+  if(!btn) return;
+  $('category').value = btn.dataset.cat;
+  $('catLabel').textContent = btn.dataset.cat;
+  $('catSearch').value = btn.dataset.cat;
+  $('catList').classList.remove('on');
+  suggestTags(true);
+});
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.search-wrap')) $('catList').classList.remove('on');
+});
 
-async function loadChart(){const sym=(document.getElementById('chartSym').value||'BTCUSDT').toUpperCase().replace(/[^A-Z0-9]/g,'');const tf=document.getElementById('chartTf').value;document.getElementById('chartMeta').textContent='Loading klines…';try{const res=await fetch(`${REST}/klines?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(tf)}&limit=120`,{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);const raw=await res.json();state.klines=raw.map(k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));drawChart();document.getElementById('chartMeta').textContent=`${sym} · ${tf} · ${state.klines.length} candles · Binance public klines`}catch(e){document.getElementById('chartMeta').textContent='Chart error: '+(e.message||e);toast('Chart failed','error')}}
-function sma(arr,p){const out=new Array(arr.length).fill(null);let s=0;for(let i=0;i<arr.length;i++){s+=arr[i];if(i>=p)s-=arr[i-p];if(i>=p-1)out[i]=s/p}return out}
-function ema(arr,p){const out=new Array(arr.length).fill(null);const k=2/(p+1);let prev=null;for(let i=0;i<arr.length;i++){if(prev==null){if(i>=p-1){let s=0;for(let j=i-p+1;j<=i;j++)s+=arr[j];prev=s/p;out[i]=prev}}else{prev=arr[i]*k+prev*(1-k);out[i]=prev}}return out}
-function rsi(arr,p){const out=new Array(arr.length).fill(null);if(arr.length<p+1)return out;let g=0,l=0;for(let i=1;i<=p;i++){const d=arr[i]-arr[i-1];if(d>=0)g+=d;else l-=d}let ag=g/p,al=l/p;out[p]=al===0?100:100-100/(1+ag/al);for(let i=p+1;i<arr.length;i++){const d=arr[i]-arr[i-1];const gv=d>0?d:0,lv=d<0?-d:0;ag=(ag*(p-1)+gv)/p;al=(al*(p-1)+lv)/p;out[i]=al===0?100:100-100/(1+ag/al)}return out}
-function drawChart(){const canvas=document.getElementById('chartCanvas');const parent=canvas.parentElement;const w=Math.max(280,parent.clientWidth||300);const h=260;canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d');ctx.fillStyle='#0e1219';ctx.fillRect(0,0,w,h);const ks=state.klines;if(!ks.length){ctx.fillStyle='#8b9bb4';ctx.fillText('No data',12,24);return}const closes=ks.map(k=>k.c);const pad=8,cw=(w-pad*2)/ks.length;let min=Math.min(...ks.map(k=>k.l)),max=Math.max(...ks.map(k=>k.h));if(state.ind==='rsi'){min=0;max=100}const y=v=>pad+(1-(v-min)/(max-min||1))*(h-pad*2);for(let i=0;i<ks.length;i++){const k=ks[i];const x=pad+i*cw+cw*0.2;const bw=Math.max(1,cw*0.6);if(state.ind!=='rsi'){ctx.strokeStyle=k.c>=k.o?'#0ecb81':'#f6465d';ctx.beginPath();ctx.moveTo(x+bw/2,y(k.h));ctx.lineTo(x+bw/2,y(k.l));ctx.stroke();ctx.fillStyle=k.c>=k.o?'#0ecb81':'#f6465d';const top=y(Math.max(k.o,k.c)),bot=y(Math.min(k.o,k.c));ctx.fillRect(x,top,bw,Math.max(1,bot-top))}}
-if(state.ind==='sma'||state.ind==='ema'){const line=state.ind==='sma'?sma(closes,20):ema(closes,20);ctx.strokeStyle='#f0b90b';ctx.beginPath();let started=false;for(let i=0;i<line.length;i++){if(line[i]==null)continue;const x=pad+i*cw+cw/2;const yy=y(line[i]);if(!started){ctx.moveTo(x,yy);started=true}else ctx.lineTo(x,yy)}ctx.stroke()}
-if(state.ind==='rsi'){const r=rsi(closes,14);ctx.strokeStyle='#a78bfa';ctx.beginPath();let st=false;for(let i=0;i<r.length;i++){if(r[i]==null)continue;const x=pad+i*cw+cw/2;const yy=y(r[i]);if(!st){ctx.moveTo(x,yy);st=true}else ctx.lineTo(x,yy)}ctx.stroke();ctx.strokeStyle='#243044';[30,70].forEach(lv=>{ctx.beginPath();ctx.moveTo(pad,y(lv));ctx.lineTo(w-pad,y(lv));ctx.stroke()})}}
-document.getElementById('indTabs').onclick=e=>{const b=e.target.closest('[data-ind]');if(!b)return;document.querySelectorAll('#indTabs .tab').forEach(t=>t.classList.toggle('on',t===b));state.ind=b.dataset.ind;drawChart()};
+/* Hashtags */
+function maxTagCount(){
+  const m = $('maxTags').value;
+  if(m==='custom') return Math.max(0, Math.min(20, +$('maxTagsCustom').value||0));
+  return +m;
+}
+function renderTags(){
+  $('tagChips').innerHTML = state.tags.map((t,i)=>
+    `<span class="chip">${esc(t)} <button type="button" aria-label="Remove" onclick="removeTag(${i})">×</button></span>`
+  ).join('') || '<span class="fh">No hashtags selected</span>';
+}
+window.removeTag = function(i){ state.tags.splice(i,1); renderTags(); };
+window.addTag = function(){
+  let t = ($('tagInput').value||'').trim();
+  if(!t) return;
+  if(t[0]!=='#') t = '#'+t.replace(/\s+/g,'');
+  if(!state.tags.includes(t) && state.tags.length < 20) state.tags.push(t);
+  $('tagInput').value = '';
+  renderTags();
+};
+window.suggestTags = function(silent){
+  const cat = $('category').value || 'default';
+  const custom = ($('customTopic').value||'') + ' ' + ($('subjectName').value||'');
+  let base = TAG_MAP[cat] || TAG_MAP.default.slice();
+  const extra = [];
+  if(/btc|bitcoin/i.test(custom)) extra.push('#Bitcoin','#BTC');
+  if(/eth|ethereum/i.test(custom)) extra.push('#Ethereum','#ETH');
+  if(/sol/i.test(custom)) extra.push('#Solana','#SOL');
+  if(/defi/i.test(custom)) extra.push('#DeFi');
+  if(/security|scam/i.test(custom+cat)) extra.push('#CryptoSecurity');
+  const merged = [...new Set([...extra, ...base, '#BinanceSquare'])];
+  const n = maxTagCount();
+  state.tags = merged.slice(0, n);
+  renderTags();
+  if(!silent) toast('Topic-relevant hashtags suggested','success');
+};
 
-function renderCalc(){const p=document.getElementById('calcPanel');const c=state.calc;
-if(c==='pos'){p.innerHTML=`<div class="card-t" style="margin-bottom:8px">Position size</div>
-<div class="fg"><label class="fl">Account equity</label><input class="fi" id="cEq" type="number" value="1000"></div>
-<div class="fg"><label class="fl">Risk %</label><input class="fi" id="cRisk" type="number" value="1" step="0.1"></div>
-<div class="fg"><label class="fl">Entry</label><input class="fi" id="cEntry" type="number" step="any"></div>
-<div class="fg"><label class="fl">Stop loss</label><input class="fi" id="cStop" type="number" step="any"></div>
-<button class="btn btn-gold" onclick="calcPos()">Calculate</button><div id="cOut" class="fh" style="margin-top:10px"></div>
-<p class="fh">Size = (Equity × Risk%) / |Entry − Stop|</p>`}
-else if(c==='rr'){p.innerHTML=`<div class="card-t" style="margin-bottom:8px">Risk / Reward</div>
-<div class="fg"><label class="fl">Entry</label><input class="fi" id="rrE" type="number" step="any"></div>
-<div class="fg"><label class="fl">Stop</label><input class="fi" id="rrS" type="number" step="any"></div>
-<div class="fg"><label class="fl">Take profit</label><input class="fi" id="rrT" type="number" step="any"></div>
-<button class="btn btn-gold" onclick="calcRR()">Calculate</button><div id="cOut" class="fh" style="margin-top:10px"></div>`}
-else if(c==='pnl'){p.innerHTML=`<div class="card-t" style="margin-bottom:8px">Profit &amp; loss</div>
-<div class="fg"><label class="fl">Qty</label><input class="fi" id="pQ" type="number" step="any"></div>
-<div class="fg"><label class="fl">Entry</label><input class="fi" id="pE" type="number" step="any"></div>
-<div class="fg"><label class="fl">Exit</label><input class="fi" id="pX" type="number" step="any"></div>
-<div class="fg"><label class="fl">Side</label><select class="fs" id="pSide"><option value="long">Long</option><option value="short">Short</option></select></div>
-<button class="btn btn-gold" onclick="calcPnL()">Calculate</button><div id="cOut" class="fh" style="margin-top:10px"></div>`}
-else if(c==='liq'){p.innerHTML=`<div class="card-t" style="margin-bottom:8px">Liquidation estimate (simple)</div>
-<div class="notice">Approximate isolated formula. Real exchange liq depends on maintenance margin tiers.</div>
-<div class="fg"><label class="fl">Entry</label><input class="fi" id="lE" type="number" step="any"></div>
-<div class="fg"><label class="fl">Leverage</label><input class="fi" id="lL" type="number" value="10"></div>
-<div class="fg"><label class="fl">Side</label><select class="fs" id="lS"><option value="long">Long</option><option value="short">Short</option></select></div>
-<button class="btn btn-gold" onclick="calcLiq()">Estimate</button><div id="cOut" class="fh" style="margin-top:10px"></div>`}
-else if(c==='dca'){p.innerHTML=`<div class="card-t" style="margin-bottom:8px">DCA average</div>
-<div class="fg"><label class="fl">Buys (qty@price, one per line)</label><textarea class="ft" id="dcaIn" placeholder="0.1@64000&#10;0.05@62000"></textarea></div>
-<button class="btn btn-gold" onclick="calcDCA()">Calculate</button><div id="cOut" class="fh" style="margin-top:10px"></div>`}
-else{p.innerHTML=`<div class="card-t" style="margin-bottom:8px">Spot fee</div>
-<div class="fg"><label class="fl">Notional (USD)</label><input class="fi" id="fN" type="number" value="1000"></div>
-<div class="fg"><label class="fl">Fee rate %</label><input class="fi" id="fR" type="number" value="0.1" step="0.01"></div>
-<button class="btn btn-gold" onclick="calcFee()">Calculate</button><div id="cOut" class="fh" style="margin-top:10px"></div>`}}
-function calcPos(){const eq=+document.getElementById('cEq').value,risk=+document.getElementById('cRisk').value,en=+document.getElementById('cEntry').value,st=+document.getElementById('cStop').value;const dist=Math.abs(en-st);if(!eq||!risk||!dist){document.getElementById('cOut').textContent='Enter valid numbers';return}const riskAmt=eq*(risk/100);const size=riskAmt/dist;document.getElementById('cOut').innerHTML=`Risk amount: <strong>${riskAmt.toFixed(2)}</strong><br>Position size (base): <strong>${size.toPrecision(6)}</strong><br>Notional ≈ <strong>${(size*en).toFixed(2)}</strong>`}
-function calcRR(){const e=+document.getElementById('rrE').value,s=+document.getElementById('rrS').value,t=+document.getElementById('rrT').value;const risk=Math.abs(e-s),rew=Math.abs(t-e);if(!risk){document.getElementById('cOut').textContent='Invalid';return}document.getElementById('cOut').textContent=`R:R = 1 : ${(rew/risk).toFixed(2)}`}
-function calcPnL(){const q=+document.getElementById('pQ').value,e=+document.getElementById('pE').value,x=+document.getElementById('pX').value,side=document.getElementById('pSide').value;const pnl=side==='long'?(x-e)*q:(e-x)*q;const pct=e?(pnl/(e*q))*100:0;document.getElementById('cOut').innerHTML=`PnL: <strong class="${pnl>=0?'up':'dn'}">${pnl.toFixed(4)}</strong> (${pct.toFixed(2)}%)`}
-function calcLiq(){const e=+document.getElementById('lE').value,L=+document.getElementById('lL').value,side=document.getElementById('lS').value;if(!e||!L){document.getElementById('cOut').textContent='Invalid';return}const liq=side==='long'?e*(1-1/L):e*(1+1/L);document.getElementById('cOut').textContent=`Simple estimate: ${fmtPx(liq)} (not exchange-exact)`}
-function calcDCA(){const lines=document.getElementById('dcaIn').value.trim().split(/\n+/);let tq=0,tc=0;for(const line of lines){const m=line.match(/([\d.]+)\s*@\s*([\d.]+)/);if(!m)continue;const q=+m[1],p=+m[2];tq+=q;tc+=q*p}if(!tq){document.getElementById('cOut').textContent='Use format qty@price per line';return}document.getElementById('cOut').textContent=`Total qty ${tq} · Avg ${fmtPx(tc/tq)} · Cost ${tc.toFixed(2)}`}
-function calcFee(){const n=+document.getElementById('fN').value,r=+document.getElementById('fR').value;document.getElementById('cOut').textContent=`Fee ≈ ${(n*r/100).toFixed(4)} (round-trip ~ ${(2*n*r/100).toFixed(4)})`}
-document.getElementById('calcTabs').onclick=e=>{const b=e.target.closest('[data-calc]');if(!b)return;document.querySelectorAll('#calcTabs .tab').forEach(t=>t.classList.toggle('on',t===b));state.calc=b.dataset.calc;renderCalc()};
+/* Counts */
+function updateCounts(){
+  const t = $('editor').value || '';
+  $('wordCount').textContent = words(t);
+  $('charCount').textContent = t.length;
+}
+$('editor').addEventListener('input', updateCounts);
 
-function addWatch(){const s=(document.getElementById('wlInput').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(!s)return;const list=lsGet('sf_wl',[]);if(!list.includes(s)&&!list.includes(s+'USDT'))list.push(s.endsWith('USDT')?s:s+'USDT');lsSet('sf_wl',list);document.getElementById('wlInput').value='';renderWatch();toast('Added','success')}
-function renderWatch(){const list=lsGet('sf_wl',[]);const el=document.getElementById('wlList');if(!list.length){el.innerHTML='<div class="empty">No favorites</div>';return}el.innerHTML=list.map(s=>{const t=get(s);return`<div style="display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center"><strong>${esc(s)}</strong><span class="mono">${t?fmtPx(t.c):'—'}</span><span class="mono ${t&&t.P>=0?'up':'dn'}">${t?fmtPct(t.P):''}</span><button class="btn btn-danger btn-sm" onclick="rmWatch('${esc(s)}')">✕</button></div>`}).join('')}
-function rmWatch(s){lsSet('sf_wl',lsGet('sf_wl',[]).filter(x=>x!==s));renderWatch()}
-function addAlert(){const s=(document.getElementById('alSym').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');const p=+document.getElementById('alPrice').value;if(!s||!p){toast('Need symbol & price','error');return}const list=lsGet('sf_al',[]);list.push({s:s.endsWith('USDT')?s:s+'USDT',p,id:Date.now().toString(36)});lsSet('sf_al',list);renderAlerts();toast('Alert saved (works while page open)','success')}
-function renderAlerts(){const list=lsGet('sf_al',[]);const el=document.getElementById('alList');if(!list.length){el.innerHTML='<div class="empty">None</div>';return}el.innerHTML=list.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:12px">${esc(a.s)} → ${a.p} <button class="btn btn-danger btn-sm" onclick="rmAlert('${a.id}')">✕</button></div>`).join('')}
-function rmAlert(id){lsSet('sf_al',lsGet('sf_al',[]).filter(a=>a.id!==id));renderAlerts()}
-function checkAlerts(){const list=lsGet('sf_al',[]);if(!list.length)return;const keep=[];for(const a of list){const t=get(a.s);if(t&&((t.c>=a.p&&t.c<=a.p*1.002)||(t.c<=a.p&&t.c>=a.p*0.998))){toast(`Alert ${a.s} near ${a.p}`,'success',5000);if(Notification&&Notification.permission==='granted')new Notification(a.s+' alert',{body:'Price ~ '+t.c})}else keep.push(a)}if(keep.length!==list.length)lsSet('sf_al',keep);renderAlerts()}
+/* Generator helpers */
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function targetWords(){
+  const L = $('length').value;
+  if(L==='very_short') return 45;
+  if(L==='short') return 90;
+  if(L==='medium') return 180;
+  if(L==='long') return 320;
+  if(L==='detailed') return 520;
+  return Math.max(30, Math.min(1000, +$('customWords').value||150));
+}
+function openings(topic){
+  const list = [
+    `Let's talk about ${topic}.`,
+    `A clear look at ${topic}.`,
+    `${topic} is easier to understand when you break it into parts.`,
+    `Here is a practical way to think about ${topic}.`,
+    `Many people overcomplicate ${topic}. Start with the basics.`,
+    `Quick educational note on ${topic}.`
+  ];
+  return list.filter(o => !state.lastOpenings.includes(o));
+}
+function depthLine(depth){
+  if(depth==='Beginner') return 'Keeping the language simple and avoiding jargon where possible.';
+  if(depth==='Advanced'||depth==='Expert') return 'Focusing on structure and precise concepts rather than slogans.';
+  return 'Balancing clarity with useful detail.';
+}
+function buildBody(opts){
+  const topic = opts.customTopic || opts.category.replace(/\s*\(.*\)\s*/,'') || 'crypto';
+  const name = opts.subjectName || topic;
+  const idea = opts.mainIdea || `useful principles related to ${name}`;
+  const points = (opts.keyPoints||'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  const facts = (opts.facts||'').trim();
+  const opinion = (opts.opinion||'').trim();
+  const question = (opts.question||'').trim();
+  const format = opts.format;
+  const target = opts.target;
+  let parts = [];
 
-function addHolding(){const asset=(document.getElementById('pfAsset').value||'').toUpperCase().trim();const qty=+document.getElementById('pfQty').value;const avg=+document.getElementById('pfAvg').value;if(!asset||!qty){toast('Need asset & qty','error');return}const list=lsGet('sf_pf',[]);list.push({asset,qty,avg,id:Date.now().toString(36)});lsSet('sf_pf',list);renderPortfolio();toast('Added','success')}
-function renderPortfolio(){const list=lsGet('sf_pf',[]);const el=document.getElementById('pfList');if(!list.length){el.innerHTML='<div class="empty">No holdings</div>';document.getElementById('pfTotal').textContent='';return}let total=0,cost=0;el.innerHTML=list.map(h=>{const t=get(h.asset+'USDT')||get(h.asset);const px=t?t.c:h.avg;const val=h.qty*px;const c=h.qty*(h.avg||0);total+=val;cost+=c;const u=val-c;return`<div style="padding:10px 0;border-bottom:1px solid var(--line);font-size:12px"><strong>${esc(h.asset)}</strong> · ${h.qty} @ ${h.avg}<br>Value ≈ ${fmtPx(val)} · uPnL <span class="${u>=0?'up':'dn'}">${fmtPx(u)}</span> <button class="btn btn-danger btn-sm" onclick="rmPf('${h.id}')">✕</button></div>`}).join('');document.getElementById('pfTotal').textContent=`Total ≈ ${fmtPx(total)} · Cost ${fmtPx(cost)} · uPnL ${fmtPx(total-cost)}`}
-function rmPf(id){lsSet('sf_pf',lsGet('sf_pf',[]).filter(h=>h.id!==id));renderPortfolio()}
+  if(opts.hook==='Yes'){
+    const ops = openings(name);
+    const hook = ops.length ? pick(ops) : `A practical note on ${name}.`;
+    state.lastOpenings = (state.lastOpenings || []).concat([hook]).slice(-6);
+    parts.push(hook);
+  }
 
-function addJournal(){const entry={id:Date.now().toString(36),sym:document.getElementById('jSym').value,side:document.getElementById('jSide').value,notes:document.getElementById('jNotes').value,at:new Date().toISOString()};const list=lsGet('sf_j',[]);list.unshift(entry);lsSet('sf_j',list.slice(0,100));document.getElementById('jNotes').value='';renderJournal();toast('Saved','success')}
-function renderJournal(){const list=lsGet('sf_j',[]);const el=document.getElementById('jList');if(!list.length){el.innerHTML='<div class="empty">No entries</div>';return}el.innerHTML=list.map(j=>`<div style="padding:10px 0;border-bottom:1px solid var(--line);font-size:12px;word-break:break-word"><strong>${esc(j.sym)}</strong> · ${esc(j.side)} · ${esc((j.at||'').slice(0,16))}<br>${esc(j.notes)} <button class="btn btn-danger btn-sm" onclick="rmJ('${j.id}')">✕</button></div>`).join('')}
-function rmJ(id){lsSet('sf_j',lsGet('sf_j',[]).filter(j=>j.id!==id));renderJournal()}
+  if(opts.headline) parts.push(opts.headline);
 
-function fillCats(){document.getElementById('genCat').innerHTML=Object.entries(CATS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}
-function pickData(hint){if(hint){const t=get(hint);if(t)return t}for(const m of['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT'])if(state.map.has(m))return state.map.get(m);return listPairs('usdt')[0]||null}
-function topN(n,dir){return listPairs('usdt').sort((a,b)=>dir==='up'?b.P-a.P:a.P-b.P).slice(0,n)}
-function genText(cat,hint,tone){const t=pickData(hint);const ts=new Date().toISOString().replace('T',' ').slice(0,19)+' UTC';const sym=t?t.s.replace(/USDT$/,''):(hint||'BTC');const px=t?fmtPx(t.c):'—',ch=t?fmtPct(t.P):'—',hi=t?fmtPx(t.h):'—',lo=t?fmtPx(t.l):'—',qv=t?fmtVol(t.q):'—';const gain=topN(3,'up'),lose=topN(3,'down');const line=a=>a.map(x=>x.s.replace(/USDT$/,'')+' '+fmtPct(x.P)).join(' · ');
-const T={btc:`${sym} last $${px} (${ch} 24h).\nHigh $${hi} · Low $${lo} · Vol ${qv}\nBinance public data · ${ts}\nNot financial advice.\n#Bitcoin #CryptoMarket #BinanceSquare`,eth:`ETH $${px} (${ch}). Range $${lo}–$${hi}.\n${ts}\n#Ethereum #BinanceSquare`,sol:`SOL $${px} · ${ch}\nH ${hi} L ${lo}\n#Solana #BinanceSquare`,alt:`${sym}: $${px} (${ch})\nRange $${lo}–$${hi}\n#${sym} #BinanceSquare`,gainers:`Top gainers (24h):\n${line(gain)}\n${ts}\n#Gainers #BinanceSquare`,losers:`Top losers (24h):\n${line(lose)}\n${ts}\n#BinanceSquare`,volume:`Volume leaders context · ${sym} qVol ${qv}\n#Volume #BinanceSquare`,trend:`Breadth note · ${sym} $${px} (${ch})\n#MarketTrend #BinanceSquare`,vol:`Volatility: ${sym} range $${lo}–$${hi} (${ch})\n#Volatility #BinanceSquare`,range:`${sym} range H ${hi} L ${lo} last ${px}\n#${sym} #BinanceSquare`,ta:`TA education: indicators describe past prices. Example ${sym} $${px}.\n#TechnicalAnalysis #BinanceSquare`,sr:`Printed high/low ${sym}: ${hi} / ${lo}. Last ${px}.\n#Education #BinanceSquare`,risk:`Risk first: size from stop distance, not hope.\nExample ${sym} $${px}.\n#RiskManagement #BinanceSquare`,psych:`Plan > prediction. ${sym} $${px} (${ch}).\n#TradingPsychology #BinanceSquare`,spot:`Spot = own the asset. Ref ${sym} $${px}.\n#SpotTrading #BinanceSquare`,futures:`Futures education: leverage cuts both ways.\nSpot ref ${sym} $${px}.\n#Futures #BinanceSquare`,funding:`Check funding before holding perps overnight.\n#Funding #BinanceSquare`,glossary:`Last price = most recent trade. ${sym}: $${px}.\n#CryptoGlossary #BinanceSquare`,beginner:`Write entry reason + invalidation before clicking.\n#Beginner #BinanceSquare`,community:`${sym} at $${px} (${ch}). What timeframe do you use?\n#CryptoCommunity #BinanceSquare`,recap:`Recap ${ts}\n${sym} $${px} (${ch}) H ${hi} L ${lo}\n#MarketRecap #BinanceSquare`,compare:`BTC ${fmtPx(get('BTCUSDT')?.c)} (${fmtPct(get('BTCUSDT')?.P)}) · ETH ${fmtPx(get('ETHUSDT')?.c)} (${fmtPct(get('ETHUSDT')?.P)})\n#BTC #ETH #BinanceSquare`,momentum:`${sym} momentum ${ch} at $${px}. Data only.\n#Momentum #BinanceSquare`,liquidity:`${sym} quote vol ${qv}. Last $${px}.\n#Liquidity #BinanceSquare`,caution:`Double-check fees & risk. ${sym} $${px}.\n#Risk #BinanceSquare`,macro:`Macro events can move risk assets. Always check calendar timing.\n#Macro #BinanceSquare`,calc:`Position size = risk$ / stop distance. Practice on paper first.\n#TradingEducation #BinanceSquare`};
-let text=T[cat]||T.btc;if(tone==='short')text=`${sym}: $${px} | ${ch} | H ${hi} L ${lo}\n#${sym} #BinanceSquare`;return text}
-function genPost(){if(!state.map.size){toast('Wait for market data','error');return}const cat=document.getElementById('genCat').value;document.getElementById('editor').value=genText(cat,document.getElementById('genSym').value.trim(),document.getElementById('genTone').value);document.getElementById('editorCat').value=CATS[cat]||cat;toast('Draft ready','success')}
-function loadDrafts(){return lsGet('sf_drafts',[])}
-function saveDrafts(l){lsSet('sf_drafts',l)}
-function saveDraft(){const text=document.getElementById('editor').value.trim();if(!text){toast('Empty','error');return}const list=loadDrafts();list.unshift({id:Date.now().toString(36),text,cat:document.getElementById('editorCat').value||'',at:new Date().toISOString()});saveDrafts(list.slice(0,200));toast('Saved','success');renderDrafts()}
-function copyEditor(){const t=document.getElementById('editor').value;if(!t){toast('Nothing to copy','error');return}navigator.clipboard.writeText(t).then(()=>toast('Copied','success')).catch(()=>toast('Copy manually','error'))}
-async function openSquarePublish(){const t=document.getElementById('editor').value.trim();if(!t){toast('Generate or type a post first','error');return}try{await navigator.clipboard.writeText(t);toast('Copied! Opening Square — paste then Publish','success',4000)}catch{toast('Select & copy the text, then open Square','info')}
-/* Best-effort open Binance Square (web/app). Cannot auto-fill or auto-publish. */
-const urls=['https://www.binance.com/en/square','https://www.binance.com/square','binance://square'];
-window.open(urls[0],'_blank','noopener')}
-function genBatch(n){const keys=Object.keys(CATS),list=loadDrafts();for(let i=0;i<n;i++){const cat=keys[i%keys.length];list.unshift({id:Date.now().toString(36)+i,text:genText(cat,'','neutral'),cat:CATS[cat],at:new Date().toISOString()})}saveDrafts(list.slice(0,200));toast(n+' drafts','success');renderDrafts()}
-function renderDrafts(){const list=loadDrafts();const el=document.getElementById('draftList');if(!list.length){el.innerHTML='<div class="empty">No drafts</div>';return}el.innerHTML=list.map(d=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--bg3)"><div style="font-size:12px;white-space:pre-wrap;max-height:64px;overflow:hidden;word-break:break-word">${esc(d.text)}</div><div class="btn-row" style="margin-top:8px"><span class="badge">${esc(d.cat||'')}</span><button class="btn btn-ghost btn-sm" onclick='navigator.clipboard.writeText(${JSON.stringify(d.text)}).then(()=>toast("Copied","success"))'>Copy</button><button class="btn btn-ghost btn-sm" onclick="loadToEditor('${d.id}')">Edit</button><button class="btn btn-danger btn-sm" onclick="delDraft('${d.id}')">✕</button></div></div>`).join('')}
-function loadToEditor(id){const d=loadDrafts().find(x=>x.id===id);if(!d)return;document.getElementById('editor').value=d.text;document.getElementById('editorCat').value=d.cat||'';go('generate')}
-function delDraft(id){saveDrafts(loadDrafts().filter(d=>d.id!==id));renderDrafts()}
-function clearDrafts(){if(confirm('Clear all drafts?')){saveDrafts([]);renderDrafts()}}
-function exportDrafts(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(loadDrafts(),null,2)],{type:'application/json'}));a.download='drafts.json';a.click()}
+  // Format-driven structure
+  if(format==='Step-by-step guide' || format==='Numbered list'){
+    parts.push(`Here is a simple structure for understanding ${name}:`);
+    const steps = points.length ? points : [
+      `Define what ${name} actually is in plain language.`,
+      `Separate facts you can verify from opinions and forecasts.`,
+      `Note the main risks or limitations before acting.`,
+      `Review the idea against your own goals and constraints.`
+    ];
+    steps.forEach((s,i)=>parts.push(`${i+1}. ${s}`));
+  } else if(format==='Myth versus fact'){
+    parts.push(`Myth: “${name} guarantees easy outcomes.”`);
+    parts.push(`Fact: Markets and technology involve uncertainty. Treat educational content as learning, not a promise.`);
+    if(points.length) points.forEach(p=>parts.push(`• ${p}`));
+  } else if(format==='Bullish and bearish comparison'){
+    parts.push(`Constructive case people discuss around ${name}: stronger adoption narratives and improving tooling.`);
+    parts.push(`Cautious case: volatility, execution risk, and changing rules or incentives.`);
+    parts.push(`Neither side replaces your own research checklist.`);
+  } else if(format==='Question for the community'){
+    parts.push(`Topic: ${name}.`);
+    parts.push(idea);
+    if(points.length) points.forEach(p=>parts.push(`• ${p}`));
+  } else if(format==='Thread-style content' || format==='Educational Threads'){
+    const blocks = points.length ? points : [
+      `Context: what ${name} is and why people discuss it.`,
+      `Mechanism: how the main idea works at a high level.`,
+      `Risks: what can go wrong or be misunderstood.`,
+      `Practice: a checklist before you form a view.`
+    ];
+    blocks.forEach((b,i)=>parts.push(`${i+1}/ ${b}`));
+  } else if(format==='Lessons learned'){
+    parts.push(`Lesson focus: ${idea}`);
+    parts.push(`What helps: clear process, defined risk, and written reasons for decisions.`);
+    parts.push(`What hurts: copying strangers, ignoring invalidation, and treating hype as evidence.`);
+  } else {
+    parts.push(`Core idea: ${idea}`);
+    if(points.length){
+      parts.push('Key points:');
+      points.forEach(p=>parts.push(`• ${p}`));
+    } else {
+      parts.push(depthLine(opts.depth));
+      parts.push(`When studying ${name}, separate: (1) verified product or market facts, (2) analysis, (3) speculation.`);
+    }
+  }
 
-function fillEarn(){const items=[{t:'Binance Square Creator Center',d:'Official place for creator tools and Write-to-Earn rules. Check eligibility on Binance.',u:'https://www.binance.com/square/creator-center/home'},{t:'Referrals / affiliates',d:'Only use official referral links. Rewards and regions change. Read current terms.',u:'https://www.binance.com'},{t:'Avoid scams',d:'Never pay to “unlock” rewards. Never share seed phrases or withdrawal API keys.',u:''}];document.getElementById('earnList').innerHTML=items.map(i=>`<div style="padding:12px 0;border-bottom:1px solid var(--line)"><strong>${esc(i.t)}</strong><p class="fh">${esc(i.d)}</p>${i.u?`<a href="${i.u}" target="_blank" rel="noopener">Official link</a>`:''}</div>`).join('')}
-function fillLearn(){const items=[['Risk','Risk per trade from equity × % / stop distance.'],['Spot vs futures','Spot owns the asset; futures use margin and can liquidate.'],['Funding','Perp funding is periodic; long/short pay each other.'],['Indicators','RSI/SMA describe history — not future prices.'],['Journal','Write thesis and invalidation before entry.']];document.getElementById('learnList').innerHTML=items.map(([t,d])=>`<div style="padding:12px 0;border-bottom:1px solid var(--line)"><strong>${t}</strong><p class="fh">${d}</p></div>`).join('')}
+  if(facts) parts.push(`Notes you provided: ${facts}`);
+  if(opinion) parts.push(`Perspective: ${opinion}`);
+  if(question && opts.engage!=='No engagement question') parts.push(`Question worth reflecting on: ${question}`);
 
-function openSearch(){document.getElementById('searchModal').classList.add('on');document.getElementById('globalSearch').value='';document.getElementById('globalSearch').focus();runSearch('')}
-function closeSearch(){document.getElementById('searchModal').classList.remove('on')}
-function runSearch(q){q=(q||'').toLowerCase().trim();const hits=[];for(const [id,title] of Object.entries(PAGES)){if(!q||title.toLowerCase().includes(q)||id.includes(q))hits.push({type:'Page',title,id})}
-for(const [k,v] of Object.entries(CATS)){if(!q||v.toLowerCase().includes(q)||k.includes(q))hits.push({type:'Post type',title:v,id:'generate',cat:k})}
-if(q.length>=2){for(const t of listPairs('usdt')){if(t.s.toLowerCase().includes(q)){hits.push({type:'Market',title:t.s+' · '+fmtPx(t.c),id:'markets',sym:t.s});if(hits.length>40)break}}}
-const tools=[['Position calculator','calc'],['Charts','charts'],['Screener','screener'],['Watchlist','watchlist'],['Portfolio','portfolio'],['Journal','journal'],['Futures funding','futures']];
-for(const [title,id] of tools){if(!q||title.toLowerCase().includes(q))hits.push({type:'Tool',title,id})}
-document.getElementById('searchResults').innerHTML=hits.slice(0,30).map(h=>`<button class="search-hit" type="button" onclick='pickSearch(${JSON.stringify(h)})'><span class="badge">${esc(h.type)}</span> ${esc(h.title)}</button>`).join('')||'<div class="empty">No results</div>'}
-function pickSearch(h){closeSearch();go(h.id);if(h.cat){document.getElementById('genCat').value=h.cat}if(h.sym){document.getElementById('mSearch').value=h.sym.replace('USDT','');renderMarkets()}}
-document.getElementById('globalSearch').addEventListener('input',e=>runSearch(e.target.value));
+  // Engagement
+  const eng = opts.engage;
+  if(eng==='Ask a relevant question') parts.push(`What part of ${name} is still unclear for you?`);
+  else if(eng==='Invite opinions') parts.push(`How do you personally approach this topic?`);
+  else if(eng==='Explain a common mistake') parts.push(`Common mistake: confusing a short-term price move with a complete thesis.`);
+  else if(eng==='Share a useful checklist') parts.push(`Checklist: define the claim → list assumptions → note risks → decide what would change your mind.`);
+  else if(eng==='Challenge a misconception using evidence') parts.push(`Misconception to challenge: that confidence alone equals edge. Process and risk limits matter more.`);
 
-function go(page){state.page=page;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('page-'+page)?.classList.add('active');document.querySelectorAll('.nav-item,.bn').forEach(n=>n.classList.toggle('active',n.dataset.page===page));document.getElementById('pageTitle').textContent=PAGES[page]||page;document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('on');
-if(page==='markets')renderMarkets();if(page==='movers')renderMovers();if(page==='volume')renderVolume();if(page==='drafts')renderDrafts();if(page==='watchlist'){renderWatch();renderAlerts()}if(page==='portfolio')renderPortfolio();if(page==='journal')renderJournal();if(page==='calc')renderCalc();if(page==='earn')fillEarn();if(page==='learn')fillLearn();if(page==='charts'&&!state.klines.length)loadChart()}
-document.querySelectorAll('.nav-item,.bn').forEach(el=>el.addEventListener('click',()=>go(el.dataset.page)));
-document.getElementById('menuBtn').onclick=()=>{document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').classList.toggle('on')};
-document.getElementById('overlay').onclick=()=>{document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('on')};
+  if(opts.useCta==='Yes' && opts.cta) parts.push(opts.cta);
+  else if(opts.useCta==='Yes') parts.push('If this helped, save it and revisit the checklist before your next decision.');
 
-function savePrefs(){const interval=Math.max(15,Math.min(120,+document.getElementById('restInterval').value||30));lsSet('sf_prefs',{restInterval:interval,hideStables:document.getElementById('hideStables').value});startRest(interval);toast('Saved','success')}
-function loadPrefs(){const p=lsGet('sf_prefs',{});if(p.restInterval)document.getElementById('restInterval').value=p.restInterval;if(p.hideStables!=null)document.getElementById('hideStables').value=p.hideStables;return p}
-function startRest(sec){if(state.restTimer)clearInterval(state.restTimer);state.restTimer=setInterval(restSnapshot,(sec||30)*1000)}
-function forceRestRefresh(){restSnapshot()}
-function exportAll(){const data={drafts:loadDrafts(),wl:lsGet('sf_wl',[]),pf:lsGet('sf_pf',[]),j:lsGet('sf_j',[]),al:lsGet('sf_al',[])};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='squareforge-backup.json';a.click()}
-function resetLocal(){if(!confirm('Reset all local SquareForge data?'))return;['sf_drafts','sf_wl','sf_pf','sf_j','sf_al','sf_prefs'].forEach(k=>localStorage.removeItem(k));toast('Reset','info');location.reload()}
+  if(opts.summary==='Yes') parts.push(`Summary: treat ${name} as a learning topic—verify claims, manage risk, and avoid guaranteed-outcome language.`);
 
-async function init(){fillCats();const prefs=loadPrefs();await restSnapshot();connectWS();startRest(prefs.restInterval||30);setInterval(refreshAllUI,1000);renderDrafts();renderCalc();window.addEventListener('resize',()=>{if(state.klines.length)drawChart()});if(Notification&&Notification.permission==='default'){/* don't force */} }
+  if(opts.disclaimer==='Yes') parts.push('Not financial advice. Do your own research. Crypto involves risk of loss.');
+
+  // Language notes (template still English structure; labels adapt)
+  if(opts.language==='Simple English'){
+    parts = parts.map(p=>p.replace(/thesis/gi,'view').replace(/invalidation/gi,'what would prove you wrong'));
+  }
+  if(opts.language==='Roman Urdu'){
+    parts.push('(Roman Urdu note: Aap is draft ko edit karke apne andaaz mein short kar sakte hain.)');
+  }
+  if(opts.language==='Urdu' || opts.language==='Hindi'){
+    parts.push('['+opts.language+' mode: base draft is in English so you can translate/edit precisely before posting.]');
+  }
+
+  // Emoji
+  if(opts.emoji==='Minimal') parts[0] = (parts[0]||'').replace(/\.$/, '') + ' ✨';
+  if(opts.emoji==='Moderate'){
+    parts = parts.map((p,i)=> i===0 ? '📌 '+p : p);
+  }
+
+  // Hashtags
+  let tagLine = '';
+  if(opts.useTags==='Yes' && state.tags.length){
+    tagLine = state.tags.slice(0, maxTagCount()).join(' ');
+  }
+
+  let body = parts.filter(Boolean).join('\n\n');
+
+  // Soft length control by trimming or extending educational lines
+  let w = words(body);
+  if(w > target * 1.35){
+    const paras = body.split(/\n\n+/);
+    while(words(paras.join('\n\n')) > target * 1.15 && paras.length>2) paras.pop();
+    body = paras.join('\n\n');
+  } else if(w < target * 0.55 && format!=='Short single post' && format!=='Question for the community'){
+    body += `\n\nPractical reminder: write down your assumptions, the risks you accept, and what would change your mind before acting on any idea related to ${name}.`;
+  }
+
+  if(opts.extra) body += `\n\n(Additional direction applied: ${opts.extra.trim()})`;
+
+  if(tagLine){
+    if(opts.tagPlace==='Integrated in text') body += `\n\nTags for discovery: ${tagLine}`;
+    else body += `\n\n${tagLine}`;
+  }
+
+  return body.trim();
+}
+
+function collectOpts(){
+  return {
+    category: $('category').value,
+    customTopic: $('customTopic').value.trim(),
+    headline: $('headline').value.trim(),
+    subjectName: $('subjectName').value.trim(),
+    mainIdea: $('mainIdea').value.trim(),
+    keyPoints: $('keyPoints').value,
+    audience: $('audience').value,
+    depth: $('depth').value,
+    question: $('question').value.trim(),
+    opinion: $('opinion').value.trim(),
+    facts: $('facts').value,
+    cta: $('cta').value.trim(),
+    extra: $('extra').value.trim(),
+    format: $('format').value,
+    length: $('length').value,
+    target: targetWords(),
+    tone: $('tone').value==='Custom' ? ($('customTone').value||'Custom') : $('tone').value,
+    language: $('language').value==='Custom' ? ($('customLang').value||'Custom') : $('language').value,
+    engage: $('engage').value,
+    emoji: $('emoji').value,
+    hook: $('hook').value,
+    summary: $('summary').value,
+    useCta: $('useCta').value,
+    useTags: $('useTags').value,
+    disclaimer: $('disclaimer').value,
+    avoidDup: $('avoidDup').value,
+    tagPlace: $('tagPlace').value
+  };
+}
+
+function similarToSaved(text){
+  if($('avoidDup').value!=='Yes') return false;
+  const norm = text.replace(/\s+/g,' ').trim().toLowerCase().slice(0,160);
+  return loadDrafts().some(d => (d.text||'').replace(/\s+/g,' ').trim().toLowerCase().slice(0,160)===norm);
+}
+
+window.generatePost = function(){
+  const opts = collectOpts();
+  let text = buildBody(opts);
+  let tries = 0;
+  while(similarToSaved(text) && tries < 4){
+    state.lastOpenings = [];
+    text = buildBody(opts);
+    tries++;
+  }
+  $('editor').value = text;
+  const titleBase = opts.headline || opts.customTopic || opts.subjectName || opts.category;
+  $('draftTitle').value = titleBase.slice(0,80);
+  updateCounts();
+  toast('Draft generated — review before copying','success');
+  // scroll editor into view on mobile
+  $('editor').scrollIntoView({behavior:'smooth', block:'center'});
+};
+
+window.batchGenerate = function(){
+  const n = Math.max(1, Math.min(20, +$('batchN').value||3));
+  const formats = ['Educational post','Short single post','Numbered list','Question for the community','Myth versus fact','Step-by-step guide'];
+  const tones = ['Educational','Conversational','Professional','Beginner-friendly'];
+  const box = $('batchOut');
+  box.innerHTML = '';
+  for(let i=0;i<n;i++){
+    $('format').value = formats[i % formats.length];
+    $('tone').value = tones[i % tones.length];
+    state.lastOpenings = [];
+    const text = buildBody(collectOpts());
+    const id = 'batch_'+i;
+    const wrap = document.createElement('div');
+    wrap.className = 'draft-item';
+    wrap.innerHTML = `<div class="draft-meta">Batch ${i+1} · ${esc($('format').value)}</div>
+      <div class="draft-prev" id="${id}">${esc(text)}</div>
+      <div class="btn-row" style="margin-top:8px">
+        <button type="button" class="btn btn-ghost btn-sm" data-copy="${id}">Copy</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-save="${id}">Save</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-edit="${id}">Edit in editor</button>
+      </div>`;
+    box.appendChild(wrap);
+  }
+  box.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{
+    const t = $(b.getAttribute('data-copy')).textContent;
+    copyText(t);
+  });
+  box.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>{
+    const t = $(b.getAttribute('data-save')).textContent;
+    persistDraft({text:t, title: 'Batch · '+($('category').value||'Post')});
+  });
+  box.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
+    $('editor').value = $(b.getAttribute('data-edit')).textContent;
+    updateCounts();
+    toast('Loaded into editor','info');
+    $('editor').scrollIntoView({behavior:'smooth',block:'center'});
+  });
+  toast(n+' batch drafts ready for review','success');
+};
+
+/* Copy & Save */
+function copyText(text){
+  if(!text){ toast('Nothing to copy','error'); return; }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast('Post copied successfully.','success'))
+      .catch(()=>fallbackCopy(text));
+  } else fallbackCopy(text);
+}
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try{
+    document.execCommand('copy');
+    toast('Post copied successfully.','success');
+  }catch{
+    toast('Copy failed — select the text manually.','error');
+  }
+  ta.remove();
+}
+window.copyPost = function(){ copyText($('editor').value); };
+
+function loadDrafts(){ return lsGet('bss_drafts', []); }
+function persistDraft({text, title, id}){
+  if(!text || !text.trim()){ toast('Editor is empty','error'); return false; }
+  const list = loadDrafts();
+  const meta = {
+    id: id || state.editingId || uid(),
+    title: (title || $('draftTitle').value || 'Untitled').slice(0,120),
+    category: $('category').value,
+    topic: $('customTopic').value || $('subjectName').value || '',
+    text: text,
+    hashtags: state.tags.slice(),
+    language: $('language').value,
+    tone: $('tone').value,
+    length: $('length').value,
+    updatedAt: new Date().toISOString(),
+    createdAt: null,
+    wordCount: words(text)
+  };
+  const idx = list.findIndex(d=>d.id===meta.id);
+  if(idx>=0){
+    meta.createdAt = list[idx].createdAt || meta.updatedAt;
+    if(state.editingId && state.editingId===meta.id){
+      // update existing
+      list[idx] = meta;
+    } else {
+      // save as new if not explicitly editing
+      meta.id = uid();
+      meta.createdAt = meta.updatedAt;
+      list.unshift(meta);
+    }
+  } else {
+    meta.createdAt = meta.updatedAt;
+    list.unshift(meta);
+  }
+  if(!lsSet('bss_drafts', list.slice(0,300))) return false;
+  state.editingId = meta.id;
+  toast('Draft saved successfully.','success');
+  fillDraftFilter();
+  return true;
+}
+window.savePost = function(){
+  persistDraft({ text: $('editor').value, title: $('draftTitle').value });
+};
+
+window.clearEditor = function(){
+  if(!$('editor').value || confirm('Clear the editor?')){
+    $('editor').value = '';
+    $('draftTitle').value = '';
+    state.editingId = null;
+    updateCounts();
+  }
+};
+
+function fillDraftFilter(){
+  const cats = [...new Set(loadDrafts().map(d=>d.category).filter(Boolean))];
+  const sel = $('draftFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' + cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value = cur;
+}
+function renderDrafts(){
+  const q = ($('draftSearch').value||'').toLowerCase();
+  const cat = $('draftFilter').value;
+  let list = loadDrafts();
+  if(cat) list = list.filter(d=>d.category===cat);
+  if(q) list = list.filter(d => (d.title+d.text+d.category+d.topic).toLowerCase().includes(q));
+  const box = $('draftList');
+  if(!list.length){ box.innerHTML = '<div class="empty">No saved drafts yet</div>'; return; }
+  box.innerHTML = list.map(d=>`
+    <div class="draft-item">
+      <h3>${esc(d.title||'Untitled')}</h3>
+      <div class="draft-meta">
+        <span class="badge">${esc(d.category||'')}</span>
+        · ${(d.updatedAt||d.createdAt||'').slice(0,16).replace('T',' ')}
+        · ${d.wordCount||words(d.text||'')} words
+      </div>
+      <div class="draft-prev">${esc(d.text||'')}</div>
+      <div class="btn-row" style="margin-top:8px">
+        <button type="button" class="btn btn-ghost btn-sm" data-open="${d.id}">Open &amp; edit</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-cp="${d.id}">Copy</button>
+        <button type="button" class="btn btn-danger btn-sm" data-del="${d.id}">Delete</button>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openDraft(b.getAttribute('data-open')));
+  box.querySelectorAll('[data-cp]').forEach(b=>b.onclick=()=>{
+    const d = loadDrafts().find(x=>x.id===b.getAttribute('data-cp'));
+    if(d) copyText(d.text);
+  });
+  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    if(!confirm('Delete this draft?')) return;
+    lsSet('bss_drafts', loadDrafts().filter(x=>x.id!==b.getAttribute('data-del')));
+    renderDrafts();
+    toast('Draft deleted','info');
+  });
+}
+function openDraft(id){
+  const d = loadDrafts().find(x=>x.id===id);
+  if(!d) return;
+  state.editingId = d.id;
+  $('editor').value = d.text || '';
+  $('draftTitle').value = d.title || '';
+  if(d.category){ $('category').value=d.category; $('catLabel').textContent=d.category; $('catSearch').value=d.category; }
+  if(Array.isArray(d.hashtags)) state.tags = d.hashtags.slice();
+  renderTags();
+  updateCounts();
+  go('create');
+  toast('Draft opened for editing','info');
+}
+window.exportDrafts = function(){
+  const data = loadDrafts();
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'binance-square-studio-drafts.json';
+  a.click();
+  toast('Export started','success');
+};
+
+/* Planner */
+function loadPlans(){ return lsGet('bss_plans', []); }
+window.savePlan = function(){
+  const item = {
+    id: uid(),
+    pillar: $('plPillar').value.trim(),
+    topic: $('plTopic').value.trim(),
+    audience: $('plAudience').value.trim(),
+    format: $('plFormat').value.trim(),
+    priority: $('plPriority').value,
+    date: $('plDate').value,
+    notes: $('plNotes').value.trim(),
+    createdAt: new Date().toISOString()
+  };
+  if(!item.topic && !item.pillar){ toast('Add a topic or pillar','error'); return; }
+  const list = loadPlans();
+  list.unshift(item);
+  if(!lsSet('bss_plans', list.slice(0,200))) return;
+  toast('Plan item saved','success');
+  renderPlans();
+};
+function renderPlans(){
+  const list = loadPlans();
+  const box = $('planList');
+  if(!list.length){ box.innerHTML = '<div class="empty">No plan items</div>'; return; }
+  box.innerHTML = list.map(p=>`
+    <div class="draft-item">
+      <h3>${esc(p.topic||p.pillar||'Idea')}</h3>
+      <div class="draft-meta">${esc(p.priority)} · ${esc(p.date||'no date')} · ${esc(p.format||'')}</div>
+      <div class="draft-prev">${esc(p.notes||'')}</div>
+      <button type="button" class="btn btn-danger btn-sm" style="margin-top:8px" onclick="delPlan('${p.id}')">Delete</button>
+    </div>`).join('');
+}
+window.delPlan = function(id){
+  if(!confirm('Delete plan item?')) return;
+  lsSet('bss_plans', loadPlans().filter(p=>p.id!==id));
+  renderPlans();
+};
+
+window.resetAll = function(){
+  if(!confirm('Reset ALL drafts, plans, and tags on this device?')) return;
+  localStorage.removeItem('bss_drafts');
+  localStorage.removeItem('bss_plans');
+  state.tags = ['#BinanceSquare','#Crypto'];
+  state.editingId = null;
+  renderTags();
+  renderDrafts();
+  renderPlans();
+  toast('Local data reset','info');
+};
+
+/* Init */
+function init(){
+  $('catSearch').value = 'Bitcoin (BTC)';
+  renderTags();
+  fillDraftFilter();
+  updateCounts();
+  // Pre-suggest tags for default category
+  suggestTags(true);
+}
 init();
+})();
 </script>
 </body>
 </html>
