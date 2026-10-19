@@ -2,2146 +2,354 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Binance Square Content Automation Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SquareForge · Live Crypto + Binance Square Content Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #0d0f12;
-  --bg2: #151820;
-  --bg3: #1c212b;
-  --border: #2a3140;
-  --text: #e8eaed;
-  --text2: #9aa0a6;
-  --accent: #f0b90b;
-  --accent2: #fcd535;
-  --orange: #f0b90b;
-  --green: #0ecb81;
-  --red: #f6465d;
-  --blue: #3b82f6;
-  --radius: 10px;
-  --shadow: 0 4px 20px rgba(0,0,0,0.35);
-  --font: 'Inter', system-ui, -apple-system, sans-serif;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  line-height: 1.5;
-}
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-/* Layout */
-.app { display: flex; min-height: 100vh; }
-.sidebar {
-  width: 240px;
-  background: var(--bg2);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0; left: 0; bottom: 0;
-  z-index: 100;
-  transition: transform 0.25s ease;
-}
-.sidebar-header {
-  padding: 20px 16px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.sidebar-header .logo {
-  width: 32px; height: 32px;
-  background: linear-gradient(135deg, var(--accent), #e88b00);
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; color: #000; font-size: 14px;
-}
-.sidebar-header h1 { font-size: 15px; font-weight: 600; }
-.nav { flex: 1; padding: 12px 8px; overflow-y: auto; }
-.nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border-radius: 8px;
-  color: var(--text2); cursor: pointer;
-  font-size: 14px; transition: all 0.15s;
-  margin-bottom: 2px;
-}
-.nav-item:hover { background: var(--bg3); color: var(--text); }
-.nav-item.active { background: rgba(240,185,11,0.12); color: var(--accent); font-weight: 500; }
-.nav-item .icon { width: 20px; text-align: center; font-size: 16px; }
-.sidebar-footer {
-  padding: 12px 16px;
-  border-top: 1px solid var(--border);
-  font-size: 11px; color: var(--text2);
-}
-.main {
-  flex: 1;
-  margin-left: 240px;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-.topbar {
-  height: 56px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  position: sticky; top: 0; z-index: 50;
-}
-.topbar-left { display: flex; align-items: center; gap: 12px; }
-.menu-toggle {
-  display: none;
-  background: none; border: none; color: var(--text);
-  font-size: 22px; cursor: pointer; padding: 4px;
-}
-.page-title { font-size: 16px; font-weight: 600; }
-.status-pills { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.pill {
-  font-size: 11px; padding: 3px 8px; border-radius: 20px;
-  background: var(--bg3); color: var(--text2);
-  display: flex; align-items: center; gap: 5px;
-}
-.pill .dot { width: 6px; height: 6px; border-radius: 50%; }
-.pill.ok .dot { background: var(--green); }
-.pill.warn .dot { background: var(--accent); }
-.pill.err .dot { background: var(--red); }
-.content { flex: 1; padding: 20px; overflow-y: auto; }
-.page { display: none; }
-.page.active { display: block; }
-
-/* Cards & grids */
-.grid { display: grid; gap: 16px; }
-.grid-2 { grid-template-columns: repeat(2, 1fr); }
-.grid-3 { grid-template-columns: repeat(3, 1fr); }
-.grid-4 { grid-template-columns: repeat(4, 1fr); }
-.grid-5 { grid-template-columns: repeat(5, 1fr); }
-@media (max-width: 1200px) {
-  .grid-5 { grid-template-columns: repeat(3, 1fr); }
-  .grid-4 { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
-  .sidebar.open { transform: translateX(0); }
-  .main { margin-left: 0; }
-  .menu-toggle { display: block; }
-  .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
-  .status-pills { display: none; }
-}
-.card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  box-shadow: var(--shadow);
-}
-.card-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 12px;
-}
-.card-title { font-size: 14px; font-weight: 600; color: var(--text2); }
-.card-value { font-size: 22px; font-weight: 700; }
-.card-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
-
-/* Market ticker cards */
-.ticker-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
-  transition: border-color 0.2s;
-}
-.ticker-card:hover { border-color: var(--accent); }
-.ticker-symbol { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 6px; }
-.ticker-price { font-size: 20px; font-weight: 700; margin: 6px 0 2px; }
-.ticker-change { font-size: 13px; font-weight: 500; }
-.ticker-change.up { color: var(--green); }
-.ticker-change.down { color: var(--red); }
-.ticker-meta { font-size: 11px; color: var(--text2); margin-top: 6px; display: flex; justify-content: space-between; }
-
-/* Buttons */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 8px 14px; border-radius: 8px; border: none;
-  font-size: 13px; font-weight: 500; cursor: pointer;
-  transition: all 0.15s; font-family: inherit;
-}
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-primary { background: var(--accent); color: #000; }
-.btn-primary:hover:not(:disabled) { background: var(--accent2); }
-.btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
-.btn-secondary:hover:not(:disabled) { border-color: var(--accent); }
-.btn-danger { background: rgba(246,70,93,0.15); color: var(--red); border: 1px solid rgba(246,70,93,0.3); }
-.btn-danger:hover:not(:disabled) { background: rgba(246,70,93,0.25); }
-.btn-success { background: rgba(14,203,129,0.15); color: var(--green); border: 1px solid rgba(14,203,129,0.3); }
-.btn-sm { padding: 5px 10px; font-size: 12px; }
-.btn-block { width: 100%; }
-.btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* Forms */
-.form-group { margin-bottom: 14px; }
-.form-label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; font-weight: 500; }
-.form-input, .form-select, .form-textarea {
-  width: 100%; padding: 9px 12px;
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 8px; color: var(--text); font-size: 13px;
-  font-family: inherit; outline: none; transition: border-color 0.15s;
-}
-.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
-.form-textarea { min-height: 120px; resize: vertical; line-height: 1.55; }
-.form-hint { font-size: 11px; color: var(--text2); margin-top: 4px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
-
-/* Tables */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
-th { color: var(--text2); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
-tr:hover td { background: rgba(255,255,255,0.02); }
-
-/* Status badges */
-.badge {
-  display: inline-block; padding: 2px 8px; border-radius: 12px;
-  font-size: 11px; font-weight: 500;
-}
-.badge-draft { background: rgba(154,160,166,0.2); color: var(--text2); }
-.badge-approved { background: rgba(59,130,246,0.2); color: var(--blue); }
-.badge-scheduled { background: rgba(240,185,11,0.2); color: var(--accent); }
-.badge-publishing { background: rgba(240,185,11,0.3); color: var(--accent2); }
-.badge-published { background: rgba(14,203,129,0.2); color: var(--green); }
-.badge-failed { background: rgba(246,70,93,0.2); color: var(--red); }
-
-/* Queue list */
-.queue-item {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 8px;
-  display: flex; gap: 12px; align-items: flex-start;
-}
-.queue-item .qi-body { flex: 1; min-width: 0; }
-.queue-item .qi-text {
-  font-size: 13px; color: var(--text);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.queue-item .qi-meta { font-size: 11px; color: var(--text2); margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
-.queue-item .qi-actions { display: flex; gap: 4px; flex-shrink: 0; }
-
-/* Notifications */
-.toast-container {
-  position: fixed; top: 16px; right: 16px; z-index: 9999;
-  display: flex; flex-direction: column; gap: 8px; max-width: 360px;
-}
-.toast {
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 10px; padding: 12px 16px;
-  box-shadow: var(--shadow); font-size: 13px;
-  animation: slideIn 0.25s ease;
-  display: flex; gap: 10px; align-items: flex-start;
-}
-.toast.success { border-left: 3px solid var(--green); }
-.toast.error { border-left: 3px solid var(--red); }
-.toast.info { border-left: 3px solid var(--blue); }
-.toast.warn { border-left: 3px solid var(--accent); }
-@keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
-
-/* Empty state */
-.empty {
-  text-align: center; padding: 40px 20px; color: var(--text2);
-}
-.empty .empty-icon { font-size: 36px; margin-bottom: 10px; opacity: 0.5; }
-
-/* Modal */
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.65);
-  z-index: 200; display: none; align-items: center; justify-content: center;
-  padding: 20px;
-}
-.modal-overlay.open { display: flex; }
-.modal {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 12px; max-width: 560px; width: 100%;
-  max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow);
-}
-.modal-header {
-  padding: 16px 20px; border-bottom: 1px solid var(--border);
-  display: flex; justify-content: space-between; align-items: center;
-}
-.modal-header h3 { font-size: 16px; }
-.modal-close { background: none; border: none; color: var(--text2); font-size: 20px; cursor: pointer; }
-.modal-body { padding: 20px; }
-.modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
-
-/* Skeleton */
-.skeleton {
-  background: linear-gradient(90deg, var(--bg3) 25%, var(--border) 50%, var(--bg3) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.2s infinite;
-  border-radius: 6px; height: 16px;
-}
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-/* Progress bar */
-.progress-bar {
-  height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden;
-}
-.progress-bar .fill {
-  height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s;
-}
-
-/* Tabs */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-.tab {
-  padding: 8px 14px; font-size: 13px; color: var(--text2);
-  cursor: pointer; border-bottom: 2px solid transparent;
-  background: none; border-top: none; border-left: none; border-right: none;
-  font-family: inherit;
-}
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
-
-/* Disclaimer */
-.disclaimer {
-  background: rgba(240,185,11,0.08);
-  border: 1px solid rgba(240,185,11,0.25);
-  border-radius: 8px; padding: 12px 14px;
-  font-size: 12px; color: var(--text2); margin-bottom: 16px;
-}
-.disclaimer strong { color: var(--accent); }
-
-/* Overlay for mobile sidebar */
-.sidebar-overlay {
-  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90;
-}
-.sidebar-overlay.open { display: block; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* Mobile bottom nav */
-.bottom-nav {
-  display: none;
-  position: fixed; bottom: 0; left: 0; right: 0;
-  background: var(--bg2); border-top: 1px solid var(--border);
-  z-index: 80; padding: 6px 0; justify-content: space-around;
-}
-.bottom-nav-item {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 2px; font-size: 10px; color: var(--text2); cursor: pointer;
-  padding: 4px 8px; background: none; border: none; font-family: inherit;
-}
-.bottom-nav-item.active { color: var(--accent); }
-.bottom-nav-item .icon { font-size: 18px; }
-@media (max-width: 768px) {
-  .bottom-nav { display: flex; }
-  .content { padding-bottom: 70px; }
-}
+:root{--bg:#07090d;--bg2:#0e1219;--bg3:#151b26;--bg4:#1c2433;--line:#243044;--text:#f1f5f9;--muted:#8b9bb4;--gold:#f0b90b;--gold2:#ffd60a;--green:#0ecb81;--red:#f6465d;--blue:#3b82f6;--radius:14px;--font:Inter,system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.45;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(1200px 600px at 10% -10%,rgba(240,185,11,.08),transparent 50%),radial-gradient(900px 500px at 90% 0%,rgba(59,130,246,.06),transparent 45%)}
+a{color:var(--gold);text-decoration:none}
+button,input,select,textarea{font-family:inherit}
+.shell{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;background:rgba(14,18,25,.92);border-right:1px solid var(--line);backdrop-filter:blur(16px);display:flex;flex-direction:column;z-index:40}
+.brand{padding:22px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+.brand-mark{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--gold),#e89b00);display:grid;place-items:center;font-weight:800;color:#111;font-size:15px;box-shadow:0 0 24px rgba(240,185,11,.35)}
+.brand h1{font-size:16px;font-weight:700}
+.brand p{font-size:11px;color:var(--muted);margin-top:2px}
+.nav{flex:1;padding:12px 10px;overflow-y:auto}
+.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:10px 12px 6px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;color:var(--muted);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-size:13.5px;font-weight:500;transition:.15s}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:linear-gradient(90deg,rgba(240,185,11,.16),rgba(240,185,11,.04));color:var(--gold2);box-shadow:inset 3px 0 0 var(--gold)}
+.nav-item span{font-size:16px;width:22px;text-align:center}
+.side-foot{padding:14px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:30;height:58px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(7,9,13,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.topbar-left{display:flex;align-items:center;gap:10px;min-width:0}
+.menu-btn{display:none;background:var(--bg3);border:1px solid var(--line);color:var(--text);width:38px;height:38px;border-radius:10px;font-size:18px;cursor:pointer}
+.page-title{font-size:15px;font-weight:700;white-space:nowrap}
+.live-pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--bg3);border:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:500}
+.pill .dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.pill.on .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+.pill.warn .dot{background:var(--gold)}
+.pill.off .dot{background:var(--red)}
+.content{padding:18px;flex:1}
+.page{display:none;animation:fade .2s ease}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.tape{overflow:hidden;white-space:nowrap;background:var(--bg2);border-bottom:1px solid var(--line);padding:8px 0}
+.tape-track{display:inline-flex;gap:28px;animation:marquee 90s linear infinite;padding-left:100%}
+.tape-track:hover{animation-play-state:paused}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tape-item{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-family:var(--mono)}
+.tape-item .sym{color:var(--muted);font-weight:600}
+.tape-item .px{color:var(--text);font-weight:600}
+.tape-item .ch.up{color:var(--green)}
+.tape-item .ch.dn{color:var(--red)}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:1400px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.shell{grid-template-columns:1fr}.sidebar{position:fixed;left:0;top:0;bottom:0;width:270px;transform:translateX(-105%);transition:.25s}.sidebar.open{transform:none}.menu-btn{display:grid;place-items:center}.g2,.g3,.g4{grid-template-columns:1fr}.live-pills{display:none}}
+.card{background:linear-gradient(180deg,rgba(28,36,51,.9),rgba(14,18,25,.95));border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.card-t{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.stat-v{font-size:24px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.stat-s{font-size:12px;color:var(--muted);margin-top:4px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;border-radius:10px;border:1px solid transparent;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-gold{background:linear-gradient(135deg,var(--gold),#e89b00);color:#111;box-shadow:0 4px 16px rgba(240,185,11,.25)}
+.btn-gold:hover:not(:disabled){filter:brightness(1.06)}
+.btn-ghost{background:var(--bg3);color:var(--text);border-color:var(--line)}
+.btn-ghost:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
+.btn-danger{background:rgba(246,70,93,.12);color:var(--red);border-color:rgba(246,70,93,.3)}
+.btn-sm{padding:6px 10px;font-size:12px}
+.btn-row{display:flex;flex-wrap:wrap;gap:8px}
+.fg{margin-bottom:12px}
+.fl{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em}
+.fi,.fs,.ft{width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:13px;outline:none}
+.fi:focus,.fs:focus,.ft:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(240,185,11,.12)}
+.ft{min-height:140px;resize:vertical;line-height:1.55}
+.fh{font-size:11px;color:var(--muted);margin-top:5px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.fr{grid-template-columns:1fr}}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.b-draft{background:rgba(139,155,180,.2);color:var(--muted)}
+.notice{background:rgba(240,185,11,.08);border:1px solid rgba(240,185,11,.22);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--muted);margin-bottom:14px}
+.notice strong{color:var(--gold)}
+.empty{text-align:center;padding:36px 16px;color:var(--muted)}
+.empty .ico{font-size:32px;opacity:.5;margin-bottom:8px}
+.search-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.search-bar .fi{max-width:280px}
+.toast-box{position:fixed;top:14px;right:14px;z-index:1000;display:flex;flex-direction:column;gap:8px;max-width:360px}
+.toast{background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;box-shadow:0 12px 40px rgba(0,0,0,.4);animation:slide .25s ease}
+.toast.ok{border-left:3px solid var(--green)}
+.toast.err{border-left:3px solid var(--red)}
+.toast.info{border-left:3px solid var(--blue)}
+@keyframes slide{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35}
+.overlay.on{display:block}
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(14,18,25,.95);border-top:1px solid var(--line);backdrop-filter:blur(12px);padding:6px 4px calc(6px + env(safe-area-inset-bottom));justify-content:space-around}
+.bn{background:none;border:none;color:var(--muted);font-size:10px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 8px;cursor:pointer}
+.bn.active{color:var(--gold)}
+.bn .i{font-size:18px}
+@media(max-width:900px){.bottom-nav{display:flex}.content{padding-bottom:76px}}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.up{color:var(--green)}
+.dn{color:var(--red)}
+.coin{background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;transition:border-color .15s}
+.coin:hover{border-color:rgba(240,185,11,.45)}
+.coin-sym{font-weight:700;font-size:14px}
+.coin-name{font-size:10px;color:var(--muted)}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
 </style>
 </head>
 <body>
-<div class="app">
-  <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">BS</div>
-      <h1>Square Dashboard</h1>
+<div class="overlay" id="overlay"></div>
+<div class="shell">
+<aside class="sidebar" id="sidebar">
+  <div class="brand"><div class="brand-mark">SF</div><div><h1>SquareForge</h1><p>Live markets · Square content</p></div></div>
+  <nav class="nav">
+    <div class="nav-label">Markets</div>
+    <button class="nav-item active" data-page="overview"><span>📊</span> Overview</button>
+    <button class="nav-item" data-page="markets"><span>📈</span> All Markets</button>
+    <button class="nav-item" data-page="movers"><span>🔥</span> Gainers &amp; Losers</button>
+    <button class="nav-item" data-page="volume"><span>💧</span> Volume Leaders</button>
+    <div class="nav-label">Content</div>
+    <button class="nav-item" data-page="generate"><span>✨</span> Generate Posts</button>
+    <button class="nav-item" data-page="drafts"><span>📝</span> Drafts</button>
+    <button class="nav-item" data-page="library"><span>📚</span> Post Types</button>
+    <div class="nav-label">Tools</div>
+    <button class="nav-item" data-page="analytics"><span>📉</span> Local Stats</button>
+    <button class="nav-item" data-page="settings"><span>⚙️</span> Settings</button>
+    <button class="nav-item" data-page="about"><span>ℹ️</span> About</button>
+  </nav>
+  <div class="side-foot"><div id="wsFoot">WS: connecting…</div><div style="margin-top:4px">Exact Binance public data</div></div>
+</aside>
+<div class="main">
+  <div class="tape" id="tape"><div class="tape-track" id="tapeTrack"></div></div>
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+      <div class="page-title" id="pageTitle">Overview</div>
     </div>
-    <nav class="nav">
-      <div class="nav-item active" data-page="overview"><span class="icon">📊</span> Overview</div>
-      <div class="nav-item" data-page="market"><span class="icon">📈</span> Market Data</div>
-      <div class="nav-item" data-page="generate"><span class="icon">✨</span> Generate Content</div>
-      <div class="nav-item" data-page="planner"><span class="icon">📅</span> Daily Planner</div>
-      <div class="nav-item" data-page="queue"><span class="icon">📤</span> Publishing Queue</div>
-      <div class="nav-item" data-page="history"><span class="icon">📋</span> History</div>
-      <div class="nav-item" data-page="analytics"><span class="icon">📉</span> Analytics</div>
-      <div class="nav-item" data-page="earnings"><span class="icon">💰</span> Earnings</div>
-      <div class="nav-item" data-page="settings"><span class="icon">⚙️</span> Settings</div>
-      <div class="nav-item" data-page="diagnostics"><span class="icon">🔧</span> Diagnostics</div>
-    </nav>
-    <div class="sidebar-footer">
-      <div>Draft-only by default</div>
-      <div style="margin-top:4px">v1.0 · Single-file</div>
+    <div class="live-pills">
+      <div class="pill" id="pillWs"><span class="dot"></span> Stream</div>
+      <div class="pill" id="pillCoins"><span class="dot"></span> <span id="pillCoinN">0</span> pairs</div>
+      <div class="pill" id="pillTick"><span class="dot"></span> <span id="pillAge">—</span></div>
     </div>
-  </aside>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-  <!-- Main -->
-  <div class="main">
-    <header class="topbar">
-      <div class="topbar-left">
-        <button class="menu-toggle" id="menuToggle" aria-label="Menu">☰</button>
-        <div class="page-title" id="pageTitle">Overview</div>
+  </header>
+  <div class="content">
+    <section class="page active" id="page-overview">
+      <div class="notice"><strong>Live data:</strong> Exact prices from Binance public WebSocket + REST. Content is for drafts — copy to post on Binance Square. No fabricated numbers. Anyone can use this site without an API key.</div>
+      <div class="grid g4" style="margin-bottom:14px">
+        <div class="card"><div class="card-t">BTC / USDT</div><div class="stat-v mono" id="ovBtc">—</div><div class="stat-s" id="ovBtcCh">24h —</div></div>
+        <div class="card"><div class="card-t">ETH / USDT</div><div class="stat-v mono" id="ovEth">—</div><div class="stat-s" id="ovEthCh">24h —</div></div>
+        <div class="card"><div class="card-t">Markets up</div><div class="stat-v up" id="ovUp">—</div><div class="stat-s">USDT pairs green</div></div>
+        <div class="card"><div class="card-t">Markets down</div><div class="stat-v dn" id="ovDown">—</div><div class="stat-s">USDT pairs red</div></div>
       </div>
-      <div class="status-pills">
-        <div class="pill" id="pillMarket"><span class="dot"></span> Market</div>
-        <div class="pill" id="pillSquare"><span class="dot"></span> Square</div>
-        <div class="pill" id="pillQuota"><span class="dot"></span> Quota</div>
+      <div class="grid g2">
+        <div class="card"><div class="card-h"><div class="card-t">Top gainers (24h)</div><button class="btn btn-ghost btn-sm" onclick="go('movers')">All</button></div><div id="ovGainers"></div></div>
+        <div class="card"><div class="card-h"><div class="card-t">Top losers (24h)</div><button class="btn btn-ghost btn-sm" onclick="go('movers')">All</button></div><div id="ovLosers"></div></div>
       </div>
-    </header>
-
-    <div class="content">
-      <!-- OVERVIEW -->
-      <section class="page active" id="page-overview">
-        <div class="disclaimer">
-          <strong>Disclaimer:</strong> This dashboard is a content-management tool. It does not place trades, guarantee earnings, or bypass Binance rules. Publishing is limited to the official Square OpenAPI (text-only, 100 successful posts/day). Always review content before publishing. Program rules and rewards can change.
+      <div class="card" style="margin-top:14px"><div class="card-h"><div class="card-t">Quick actions</div></div>
+        <div class="btn-row">
+          <button class="btn btn-gold" onclick="go('generate')">Generate Square post</button>
+          <button class="btn btn-ghost" onclick="go('markets')">Browse all pairs</button>
+          <button class="btn btn-ghost" onclick="forceRestRefresh()">Force REST refresh</button>
         </div>
-        <div class="grid grid-4" style="margin-bottom:20px">
-          <div class="card">
-            <div class="card-title">Published Today</div>
-            <div class="card-value" id="ovPublishedToday">0</div>
-            <div class="card-sub">of <span id="ovDailyTarget">20</span> target</div>
-          </div>
-          <div class="card">
-            <div class="card-title">Remaining Quota</div>
-            <div class="card-value" id="ovRemaining">100</div>
-            <div class="card-sub">max 100 / day</div>
-          </div>
-          <div class="card">
-            <div class="card-title">Drafts</div>
-            <div class="card-value" id="ovDrafts">0</div>
-            <div class="card-sub">awaiting approval</div>
-          </div>
-          <div class="card">
-            <div class="card-title">Failed</div>
-            <div class="card-value" id="ovFailed">0</div>
-            <div class="card-sub">need attention</div>
-          </div>
-        </div>
-        <div class="grid grid-2">
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">Market Snapshot</div>
-              <button class="btn btn-sm btn-secondary" onclick="refreshMarket()">Refresh</button>
-            </div>
-            <div id="ovMarket" class="grid grid-2" style="gap:10px"></div>
-          </div>
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">Next in Queue</div>
-              <button class="btn btn-sm btn-secondary" onclick="navigate('queue')">View all</button>
-            </div>
-            <div id="ovQueue"></div>
-          </div>
-        </div>
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <div class="card-title">Quick Actions</div>
-          </div>
-          <div class="btn-group">
-            <button class="btn btn-primary" onclick="navigate('generate')">Generate Post</button>
-            <button class="btn btn-secondary" onclick="generateBatch(5)">Generate 5 Drafts</button>
-            <button class="btn btn-secondary" onclick="navigate('planner')">Open Planner</button>
-            <button class="btn btn-secondary" onclick="testConnection()">Test Square Connection</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- MARKET -->
-      <section class="page" id="page-market">
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header">
-            <div class="card-title">Live Market Data · Binance Public API</div>
-            <div class="btn-group">
-              <span class="form-hint" id="marketLastRefresh">—</span>
-              <button class="btn btn-sm btn-secondary" onclick="refreshMarket()">Refresh Now</button>
-            </div>
-          </div>
-          <div class="form-row" style="margin-bottom:12px">
-            <div class="form-group" style="margin:0">
-              <label class="form-label">Watchlist (comma-separated symbols)</label>
-              <input class="form-input" id="watchlistInput" value="BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,BNBUSDT" placeholder="BTCUSDT,ETHUSDT,...">
-            </div>
-            <div class="form-group" style="margin:0">
-              <label class="form-label">Refresh interval (seconds)</label>
-              <input class="form-input" type="number" id="marketInterval" value="60" min="15" max="300">
-            </div>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="saveWatchlist()">Save Watchlist</button>
-        </div>
-        <div id="marketGrid" class="grid grid-5"></div>
-        <div class="card" style="margin-top:16px">
-          <div class="card-title" style="margin-bottom:10px">Data Source & Status</div>
-          <div id="marketStatus" style="font-size:13px;color:var(--text2)"></div>
-        </div>
-      </section>
-
-      <!-- GENERATE -->
-      <section class="page" id="page-generate">
-        <div class="grid grid-2">
-          <div class="card">
-            <div class="card-title" style="margin-bottom:12px">Content Generator</div>
-            <div class="form-group">
-              <label class="form-label">Category</label>
-              <select class="form-select" id="genCategory">
-                <option value="btc">Bitcoin Market Update</option>
-                <option value="eth">Ethereum Analysis</option>
-                <option value="alt">Altcoin Market Update</option>
-                <option value="news">Breaking-News Style Summary</option>
-                <option value="trend">Market Trend Analysis</option>
-                <option value="ta">Technical Analysis Education</option>
-                <option value="sr">Support & Resistance</option>
-                <option value="psych">Trading Psychology</option>
-                <option value="risk">Risk Management</option>
-                <option value="spot">Spot Market Education</option>
-                <option value="futures">Futures Education</option>
-                <option value="vol">Volatility Update</option>
-                <option value="recap">Daily / Weekly Recap</option>
-                <option value="glossary">Crypto Glossary / Beginner</option>
-                <option value="community">Community Discussion Question</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Focus Symbol (optional)</label>
-              <input class="form-input" id="genSymbol" placeholder="e.g. BTCUSDT or leave blank for auto">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tone</label>
-              <select class="form-select" id="genTone">
-                <option value="neutral">Neutral / Educational</option>
-                <option value="analytical">Analytical</option>
-                <option value="conversational">Conversational</option>
-                <option value="concise">Concise Update</option>
-              </select>
-            </div>
-            <div class="btn-group">
-              <button class="btn btn-primary" onclick="generatePost()">Generate Draft</button>
-              <button class="btn btn-secondary" onclick="generateBatch(1)">Quick Generate</button>
-            </div>
-            <div class="form-hint" style="margin-top:10px">Uses live market data + template engine. No fabricated prices or news. Optional AI provider can be configured in Settings (session-only key).</div>
-          </div>
-          <div class="card">
-            <div class="card-title" style="margin-bottom:12px">Editor</div>
-            <div class="form-group">
-              <label class="form-label">Post Content</label>
-              <textarea class="form-textarea" id="editorText" rows="10" placeholder="Generated or manual content appears here. Edit before saving or publishing."></textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Category tag</label>
-              <input class="form-input" id="editorCategory" readonly>
-            </div>
-            <div class="btn-group">
-              <button class="btn btn-primary" onclick="saveDraft()">Save as Draft</button>
-              <button class="btn btn-secondary" onclick="copyEditor()">Copy to Clipboard</button>
-              <button class="btn btn-success" onclick="approveAndQueue()">Approve → Queue</button>
-              <button class="btn btn-danger btn-sm" onclick="clearEditor()">Clear</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PLANNER -->
-      <section class="page" id="page-planner">
-        <div class="disclaimer">
-          <strong>Daily limit:</strong> Official Square OpenAPI allows up to <strong>100 successful posts per day</strong> per key. Space content naturally. Manual approval is the default. Automatic publishing only runs while this tab is open and requires an explicit opt-in.
-        </div>
-        <div class="grid grid-3" style="margin-bottom:16px">
-          <div class="card">
-            <div class="form-group" style="margin:0">
-              <label class="form-label">Daily Target (1–100)</label>
-              <input class="form-input" type="number" id="dailyTarget" value="20" min="1" max="100">
-            </div>
-          </div>
-          <div class="card">
-            <div class="form-group" style="margin:0">
-              <label class="form-label">Preferred Interval (minutes)</label>
-              <input class="form-input" type="number" id="postInterval" value="45" min="15" max="240">
-            </div>
-          </div>
-          <div class="card">
-            <div class="form-group" style="margin:0">
-              <label class="form-label">Auto-publish mode</label>
-              <select class="form-select" id="autoPublish">
-                <option value="off" selected>Off (manual approval)</option>
-                <option value="on">On (while tab open only)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <div class="btn-group" style="margin-bottom:16px">
-          <button class="btn btn-primary" onclick="savePlannerSettings()">Save Planner Settings</button>
-          <button class="btn btn-secondary" onclick="generateBatch(10)">Generate 10 Drafts</button>
-          <button class="btn btn-secondary" onclick="generateBatch(20)">Generate 20 Drafts</button>
-          <button class="btn btn-secondary" id="pauseBtn" onclick="togglePause()">Pause Queue</button>
-        </div>
+      </div>
+    </section>
+    <section class="page" id="page-markets">
+      <div class="search-bar">
+        <input class="fi" id="mSearch" placeholder="Search symbol (e.g. SOL, PEPE)…" oninput="renderMarkets()">
+        <select class="fs" id="mSort" onchange="renderMarkets()" style="max-width:180px">
+          <option value="vol">Sort: Volume</option>
+          <option value="change">Sort: % Change</option>
+          <option value="name">Sort: Name</option>
+          <option value="price">Sort: Price</option>
+        </select>
+        <select class="fs" id="mFilter" onchange="renderMarkets()" style="max-width:160px">
+          <option value="usdt">USDT pairs</option>
+          <option value="btc">BTC pairs</option>
+          <option value="all">All quoted</option>
+        </select>
+        <span class="fh" id="mCount">0 pairs</span>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table>
+        <thead><tr><th>Symbol</th><th>Last price</th><th>24h %</th><th>24h high</th><th>24h low</th><th>24h quote vol</th></tr></thead>
+        <tbody id="mBody"></tbody>
+      </table></div></div>
+    </section>
+    <section class="page" id="page-movers">
+      <div class="grid g2">
+        <div class="card"><div class="card-t" style="margin-bottom:12px">Top 20 gainers · exact 24h %</div><div id="gainersList"></div></div>
+        <div class="card"><div class="card-t" style="margin-bottom:12px">Top 20 losers · exact 24h %</div><div id="losersList"></div></div>
+      </div>
+    </section>
+    <section class="page" id="page-volume">
+      <div class="card"><div class="card-t" style="margin-bottom:12px">Highest 24h quote volume (USDT)</div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>#</th><th>Symbol</th><th>Price</th><th>24h %</th><th>Quote volume</th></tr></thead>
+          <tbody id="volBody"></tbody>
+        </table></div>
+      </div>
+    </section>
+    <section class="page" id="page-generate">
+      <div class="grid g2">
         <div class="card">
-          <div class="card-header">
-            <div class="card-title">Preview — Next 10 Posts</div>
-            <span class="form-hint" id="plannerQuotaInfo"></span>
-          </div>
-          <div id="plannerPreview"></div>
-        </div>
-      </section>
-
-      <!-- QUEUE -->
-      <section class="page" id="page-queue">
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header">
-            <div class="card-title">Publishing Queue</div>
-            <div class="btn-group">
-              <button class="btn btn-sm btn-secondary" onclick="processNextInQueue()">Publish Next</button>
-              <button class="btn btn-sm btn-primary" onclick="processQueueBatch(3)">Publish Next 3</button>
-            </div>
-          </div>
-          <div class="progress-bar" style="margin-bottom:10px"><div class="fill" id="quotaBar" style="width:0%"></div></div>
-          <div class="form-hint" id="quotaText">0 / 100 published today</div>
-        </div>
-        <div class="tabs">
-          <button class="tab active" data-qfilter="all">All</button>
-          <button class="tab" data-qfilter="approved">Approved</button>
-          <button class="tab" data-qfilter="scheduled">Scheduled</button>
-          <button class="tab" data-qfilter="failed">Failed</button>
-        </div>
-        <div id="queueList"></div>
-      </section>
-
-      <!-- HISTORY -->
-      <section class="page" id="page-history">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Published & Failed History</div>
-            <div class="btn-group">
-              <button class="btn btn-sm btn-secondary" onclick="exportHistoryCSV()">Export CSV</button>
-              <button class="btn btn-sm btn-danger" onclick="confirmClearHistory()">Clear History</button>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Status</th>
-                  <th>Category</th>
-                  <th>Preview</th>
-                  <th>Post ID / Error</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="historyBody"></tbody>
-            </table>
-          </div>
-          <div id="historyEmpty" class="empty" style="display:none">
-            <div class="empty-icon">📋</div>
-            <div>No history yet</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ANALYTICS -->
-      <section class="page" id="page-analytics">
-        <div class="disclaimer">
-          Official Square OpenAPI currently returns only post ID on success. Views, likes, comments, and followers are <strong>not available</strong> through this integration. Enter metrics manually if you track them elsewhere, or leave as “Not available”.
-        </div>
-        <div class="grid grid-4" style="margin-bottom:16px">
-          <div class="card">
-            <div class="card-title">Posts Today</div>
-            <div class="card-value" id="anToday">0</div>
-          </div>
-          <div class="card">
-            <div class="card-title">Total Published</div>
-            <div class="card-value" id="anTotal">0</div>
-          </div>
-          <div class="card">
-            <div class="card-title">Failed</div>
-            <div class="card-value" id="anFailed">0</div>
-          </div>
-          <div class="card">
-            <div class="card-title">Drafts Pending</div>
-            <div class="card-value" id="anDrafts">0</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title" style="margin-bottom:10px">Engagement (manual / not available via API)</div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Views (manual)</label>
-              <input class="form-input" type="number" id="anViews" value="0" min="0">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Likes (manual)</label>
-              <input class="form-input" type="number" id="anLikes" value="0" min="0">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Comments (manual)</label>
-              <input class="form-input" type="number" id="anComments" value="0" min="0">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Followers (manual)</label>
-              <input class="form-input" type="number" id="anFollowers" value="0" min="0">
-            </div>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="saveAnalyticsManual()">Save Manual Metrics</button>
-          <div class="form-hint" style="margin-top:8px">Engagement rate and top posts require official analytics endpoints that are not exposed by the current OpenAPI.</div>
-        </div>
-      </section>
-
-      <!-- EARNINGS -->
-      <section class="page" id="page-earnings">
-        <div class="disclaimer">
-          <strong>Important:</strong> Write-to-Earn, campaigns, referrals, and commissions have their own eligibility rules. This tracker does <strong>not</strong> read private earnings from Binance. Enter confirmed figures only. Do not treat pending or estimated amounts as realized income. Program availability and reward amounts can change without notice.
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header">
-            <div class="card-title">Add Earnings Entry</div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Category</label>
-              <select class="form-select" id="earnCategory">
-                <option value="write_to_earn">A. Write to Earn</option>
-                <option value="campaign">B. Creator Campaign / Promo</option>
-                <option value="referral">C. Referral / Affiliate</option>
-                <option value="trading_comm">D. Trading Commission</option>
-                <option value="other">E. Other Creator Reward</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Program Name</label>
-              <input class="form-input" id="earnProgram" placeholder="e.g. Square Write to Earn Q4">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Amount</label>
-              <input class="form-input" type="number" id="earnAmount" step="0.01" placeholder="0.00">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Currency</label>
-              <input class="form-input" id="earnCurrency" value="USDT" placeholder="USDT">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Status</label>
-              <select class="form-select" id="earnStatus">
-                <option value="confirmed">Confirmed</option>
-                <option value="pending">Pending</option>
-                <option value="estimated">Estimated</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Period</label>
-              <input class="form-input" id="earnPeriod" placeholder="e.g. 2026-10">
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Notes / Source</label>
-            <input class="form-input" id="earnNotes" placeholder="Evidence or notes">
-          </div>
-          <button class="btn btn-primary" onclick="addEarningsEntry()">Add Entry</button>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Earnings Log</div>
-            <button class="btn btn-sm btn-secondary" onclick="exportEarningsCSV()">Export CSV</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Program</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Period</th>
-                  <th>Notes</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="earningsBody"></tbody>
-            </table>
-          </div>
-          <div id="earningsEmpty" class="empty" style="display:none">
-            <div class="empty-icon">💰</div>
-            <div>No earnings entries yet</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- SETTINGS -->
-      <section class="page" id="page-settings">
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-title" style="margin-bottom:12px">Binance Square Connection</div>
-          <div class="disclaimer">
-            The posting API key is <strong>session-only by default</strong> (held in memory). It is never written into this HTML file. Optional localStorage save is available but is <strong>not secure</strong> against anyone with access to this browser profile. Prefer regenerating the key if it was ever exposed. Create the key at Creator Center → Create API (posting only).
-          </div>
-          <div class="form-group">
-            <label class="form-label">Square OpenAPI Key (posting only)</label>
-            <input class="form-input" type="password" id="squareKey" placeholder="Paste key here — not stored in source" autocomplete="off">
-            <div class="form-hint">Shown only while this tab is open unless you enable the option below.</div>
-          </div>
-          <div class="form-group">
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-              <input type="checkbox" id="persistKey"> Persist key in localStorage (not recommended for shared devices)
-            </label>
-          </div>
-          <div class="btn-group">
-            <button class="btn btn-primary" onclick="saveSquareKey()">Apply Key</button>
-            <button class="btn btn-secondary" onclick="testConnection()">Test Connection</button>
-            <button class="btn btn-danger btn-sm" onclick="clearSquareKey()">Clear Key</button>
-          </div>
-          <div id="keyStatus" class="form-hint" style="margin-top:10px"></div>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-title" style="margin-bottom:12px">Optional AI Provider (session)</div>
-          <div class="form-group">
-            <label class="form-label">Provider</label>
-            <select class="form-select" id="aiProvider">
-              <option value="none">None (template engine only)</option>
-              <option value="openai">OpenAI-compatible</option>
-              <option value="custom">Custom endpoint</option>
+          <div class="card-t" style="margin-bottom:12px">Post generator</div>
+          <div class="fg"><label class="fl">Category</label><select class="fs" id="genCat"></select></div>
+          <div class="fg"><label class="fl">Focus coin (optional)</label><input class="fi" id="genSym" placeholder="BTC, ETH, SOL…"></div>
+          <div class="fg"><label class="fl">Tone</label>
+            <select class="fs" id="genTone">
+              <option value="neutral">Neutral / factual</option>
+              <option value="edu">Educational</option>
+              <option value="short">Short update</option>
+              <option value="community">Community question</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">API Base URL (if custom)</label>
-            <input class="form-input" id="aiBase" placeholder="https://api.openai.com/v1">
+          <div class="btn-row">
+            <button class="btn btn-gold" onclick="genPost()">Generate with live data</button>
+            <button class="btn btn-ghost" onclick="genBatch(5)">Make 5 drafts</button>
           </div>
-          <div class="form-group">
-            <label class="form-label">API Key (session only — never embedded)</label>
-            <input class="form-input" type="password" id="aiKey" placeholder="Optional" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Model</label>
-            <input class="form-input" id="aiModel" value="gpt-4o-mini" placeholder="gpt-4o-mini">
-          </div>
-          <button class="btn btn-secondary" onclick="saveAISettings()">Save AI Settings (session)</button>
-          <div class="form-hint" style="margin-top:8px">If no AI key is set, the built-in template generator is used. AI keys are never written to localStorage or the HTML source.</div>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-title" style="margin-bottom:12px">Data Management</div>
-          <div class="btn-group">
-            <button class="btn btn-secondary" onclick="exportAllData()">Export All Data (JSON)</button>
-            <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import Data</button>
-            <input type="file" id="importFile" accept=".json" style="display:none" onchange="importAllData(event)">
-            <button class="btn btn-danger" onclick="confirmResetAll()">Reset All Local Data</button>
-          </div>
-          <div class="form-hint" style="margin-top:8px">localStorage is browser- and device-specific. It does not sync across devices and is not a backup.</div>
+          <p class="fh">Uses exact last prices from Binance in this browser. No invented numbers.</p>
         </div>
         <div class="card">
-          <div class="card-title" style="margin-bottom:8px">How to get a Square posting key</div>
-          <ol style="font-size:13px;color:var(--text2);padding-left:18px;line-height:1.7">
-            <li>Go to <a href="https://www.binance.com/square/creator-center/home" target="_blank" rel="noopener">Binance Square Creator Center</a></li>
-            <li>Click <strong>Create API</strong> (posting permission only)</li>
-            <li>View and copy the key — store it securely offline</li>
-            <li>Paste it above and click Apply Key</li>
-            <li>Use Test Connection before real publishing</li>
-          </ol>
-          <div class="form-hint">Official skill docs: <a href="https://www.binance.com/en/skills/detail/binance/square-post" target="_blank" rel="noopener">square-post skill</a>. Daily limit: 100 successful posts. Text-only via this browser integration.</div>
-        </div>
-      </section>
-
-      <!-- DIAGNOSTICS -->
-      <section class="page" id="page-diagnostics">
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-title" style="margin-bottom:12px">Connection Diagnostics</div>
-          <div class="btn-group" style="margin-bottom:12px">
-            <button class="btn btn-secondary" onclick="runDiagnostics()">Run All Checks</button>
-            <button class="btn btn-secondary" onclick="testMarketAPI()">Test Market API</button>
-            <button class="btn btn-secondary" onclick="testConnection()">Test Square API</button>
+          <div class="card-t" style="margin-bottom:12px">Editor</div>
+          <textarea class="ft" id="editor" placeholder="Generated text appears here. Edit before saving."></textarea>
+          <div class="fg" style="margin-top:10px"><label class="fl">Category tag</label><input class="fi" id="editorCat" readonly></div>
+          <div class="btn-row">
+            <button class="btn btn-gold" onclick="saveDraft()">Save draft</button>
+            <button class="btn btn-ghost" onclick="copyEditor()">Copy</button>
+            <button class="btn btn-ghost" onclick="openSquare()">Open Square</button>
+            <button class="btn btn-danger btn-sm" onclick="document.getElementById('editor').value=''">Clear</button>
           </div>
-          <pre id="diagOutput" style="background:var(--bg);padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;max-height:400px;white-space:pre-wrap;color:var(--text2)"></pre>
         </div>
-        <div class="card">
-          <div class="card-title" style="margin-bottom:8px">Supported Features & Limitations</div>
-          <ul style="font-size:13px;color:var(--text2);padding-left:18px;line-height:1.8">
-            <li>✅ Live market data (Binance public REST ticker/24hr)</li>
-            <li>✅ Template content generation with real prices</li>
-            <li>✅ Draft / approve / queue / publish workflow</li>
-            <li>✅ Official Square text post via OpenAPI (when key provided)</li>
-            <li>✅ Daily quota tracking (100)</li>
-            <li>✅ localStorage for drafts, history, settings (no secrets by default)</li>
-            <li>✅ CSV export for history & earnings</li>
-            <li>⚠️ Background publishing after tab close: not possible in pure browser — needs external scheduler</li>
-            <li>⚠️ Views / likes / followers: not returned by current OpenAPI</li>
-            <li>⚠️ Write-to-Earn balance: manual entry only</li>
-            <li>⚠️ Media posts (images/video): require official skill scripts (Node), not this single-file browser path</li>
-            <li>⚠️ CORS: browser must be able to reach api.binance.com and www.binance.com</li>
-          </ul>
+      </div>
+    </section>
+    <section class="page" id="page-drafts">
+      <div class="card">
+        <div class="card-h"><div class="card-t">Your drafts (this browser)</div>
+          <div class="btn-row">
+            <button class="btn btn-ghost btn-sm" onclick="exportDrafts()">Export JSON</button>
+            <button class="btn btn-danger btn-sm" onclick="clearDrafts()">Clear all</button>
+          </div>
         </div>
-      </section>
-    </div>
+        <div id="draftList"></div>
+      </div>
+    </section>
+    <section class="page" id="page-library">
+      <div class="card"><div class="card-t" style="margin-bottom:12px">All post categories</div><div class="grid g3" id="libGrid"></div></div>
+    </section>
+    <section class="page" id="page-analytics">
+      <div class="notice">Stats are <strong>local only</strong> (this browser). Binance does not expose views/likes through public OpenAPI used here.</div>
+      <div class="grid g4">
+        <div class="card"><div class="card-t">Drafts saved</div><div class="stat-v" id="anDrafts">0</div></div>
+        <div class="card"><div class="card-t">Pairs tracked</div><div class="stat-v" id="anPairs">0</div></div>
+        <div class="card"><div class="card-t">WS messages</div><div class="stat-v mono" id="anMsg">0</div></div>
+        <div class="card"><div class="card-t">Last REST load</div><div class="stat-v" style="font-size:14px" id="anRest">—</div></div>
+      </div>
+    </section>
+    <section class="page" id="page-settings">
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-t" style="margin-bottom:10px">Data preferences</div>
+        <div class="fg"><label class="fl">REST snapshot interval (seconds)</label>
+          <input class="fi" type="number" id="restInterval" value="30" min="15" max="120">
+          <p class="fh">Full 24h high/low/volume refresh. Live last price streams continuously via WebSocket.</p>
+        </div>
+        <div class="fg"><label class="fl">Hide pure stablecoin pairs</label>
+          <select class="fs" id="hideStables"><option value="1">Yes</option><option value="0">No</option></select>
+        </div>
+        <button class="btn btn-gold" onclick="savePrefs()">Save preferences</button>
+      </div>
+      <div class="card">
+        <div class="card-t" style="margin-bottom:10px">Publishing without a laptop</div>
+        <p class="fh" style="line-height:1.6">Direct API publish from websites is blocked by browser CORS. Use <strong>Copy</strong>, then paste in the Binance app on your phone. No Node required. This site works for every visitor without any API key.</p>
+      </div>
+    </section>
+    <section class="page" id="page-about">
+      <div class="card">
+        <div class="card-t" style="margin-bottom:10px">SquareForge</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.7">Free single-file studio for Binance Square creators. Live prices from Binance public market data. Drafts stay in your browser. Not financial advice.</p>
+        <ul style="margin-top:12px;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.8">
+          <li>Exact last price, 24h %, high, low, quote volume</li>
+          <li>All exchange pairs via REST + live miniTicker stream</li>
+          <li>25 post templates for Square-style content</li>
+          <li>Works on phone — no login required to browse/generate</li>
+        </ul>
+      </div>
+    </section>
   </div>
 </div>
-
-<!-- Mobile bottom nav -->
+</div>
 <nav class="bottom-nav">
-  <button class="bottom-nav-item active" data-page="overview"><span class="icon">📊</span>Home</button>
-  <button class="bottom-nav-item" data-page="market"><span class="icon">📈</span>Market</button>
-  <button class="bottom-nav-item" data-page="generate"><span class="icon">✨</span>Create</button>
-  <button class="bottom-nav-item" data-page="queue"><span class="icon">📤</span>Queue</button>
-  <button class="bottom-nav-item" data-page="settings"><span class="icon">⚙️</span>Settings</button>
+  <button class="bn active" data-page="overview"><span class="i">📊</span>Home</button>
+  <button class="bn" data-page="markets"><span class="i">📈</span>Markets</button>
+  <button class="bn" data-page="generate"><span class="i">✨</span>Create</button>
+  <button class="bn" data-page="movers"><span class="i">🔥</span>Movers</button>
+  <button class="bn" data-page="drafts"><span class="i">📝</span>Drafts</button>
 </nav>
-
-<!-- Toast container -->
-<div class="toast-container" id="toasts"></div>
-
-<!-- Confirm modal -->
-<div class="modal-overlay" id="confirmModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="confirmTitle">Confirm</h3>
-      <button class="modal-close" onclick="closeModal()">&times;</button>
-    </div>
-    <div class="modal-body" id="confirmBody"></div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-danger" id="confirmOk">Confirm</button>
-    </div>
-  </div>
-</div>
-
+<div class="toast-box" id="toasts"></div>
 <script>
-/* ============================================================
-   Binance Square Content Automation Dashboard
-   Single-file · Draft-first · Official OpenAPI when configured
-   ============================================================ */
-
-const STORAGE_KEYS = {
-  drafts: 'bs_drafts',
-  history: 'bs_history',
-  settings: 'bs_settings',
-  earnings: 'bs_earnings',
-  analytics: 'bs_analytics',
-  daily: 'bs_daily',
-  keyOptional: 'bs_square_key_opt' // only if user explicitly enables persist
-};
-
-const SQUARE_ENDPOINT = 'https://www.binance.com/bapi/composite/v1/public/pgc/openApi/content/add';
-const MARKET_BASE = 'https://api.binance.com/api/v3';
-const DAILY_MAX = 100;
-
-// Session state (secrets stay in memory only unless user opts in)
-const state = {
-  squareKey: null,
-  aiKey: null,
-  aiProvider: 'none',
-  aiBase: '',
-  aiModel: 'gpt-4o-mini',
-  market: {},
-  marketStatus: 'idle',
-  marketLast: null,
-  marketTimer: null,
-  queuePaused: false,
-  queueFilter: 'all',
-  publishing: false,
-  todayCount: 0,
-  todayDate: null
-};
-
-// ---------- Utilities ----------
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-function nowISO() {
-  return new Date().toISOString();
-}
-
-function formatTime(iso) {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  } catch { return iso; }
-}
-
-function toast(msg, type = 'info', ms = 3500) {
-  const el = document.createElement('div');
-  el.className = 'toast ' + type;
-  el.textContent = msg;
-  document.getElementById('toasts').appendChild(el);
-  setTimeout(() => el.remove(), ms);
-}
-
-function loadJSON(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw);
-  } catch (e) {
-    console.warn('loadJSON failed', key, e);
-    return fallback;
-  }
-}
-
-function saveJSON(key, val) {
-  try {
-    localStorage.setItem(key, JSON.stringify(val));
-    return true;
-  } catch (e) {
-    toast('Storage error: ' + (e.message || 'quota or permission'), 'error');
-    return false;
-  }
-}
-
-function getSettings() {
-  return loadJSON(STORAGE_KEYS.settings, {
-    watchlist: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'],
-    marketInterval: 60,
-    dailyTarget: 20,
-    postInterval: 45,
-    autoPublish: 'off'
-  });
-}
-
-function saveSettings(s) {
-  saveJSON(STORAGE_KEYS.settings, s);
-}
-
-function getDrafts() {
-  return loadJSON(STORAGE_KEYS.drafts, []);
-}
-
-function saveDrafts(list) {
-  saveJSON(STORAGE_KEYS.drafts, list);
-}
-
-function getHistory() {
-  return loadJSON(STORAGE_KEYS.history, []);
-}
-
-function saveHistory(list) {
-  saveJSON(STORAGE_KEYS.history, list);
-}
-
-function getEarnings() {
-  return loadJSON(STORAGE_KEYS.earnings, []);
-}
-
-function saveEarnings(list) {
-  saveJSON(STORAGE_KEYS.earnings, list);
-}
-
-function getDaily() {
-  const d = loadJSON(STORAGE_KEYS.daily, { date: null, count: 0 });
-  const today = new Date().toISOString().slice(0, 10);
-  if (d.date !== today) {
-    return { date: today, count: 0 };
-  }
-  return d;
-}
-
-function setDaily(count) {
-  const today = new Date().toISOString().slice(0, 10);
-  saveJSON(STORAGE_KEYS.daily, { date: today, count });
-  state.todayCount = count;
-  state.todayDate = today;
-  updateQuotaUI();
-}
-
-function remainingQuota() {
-  return Math.max(0, DAILY_MAX - getDaily().count);
-}
-
-// ---------- Navigation ----------
-function navigate(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
-  const el = document.getElementById('page-' + page);
-  if (el) el.classList.add('active');
-  document.querySelectorAll('[data-page="' + page + '"]').forEach(n => n.classList.add('active'));
-  const titles = {
-    overview: 'Overview', market: 'Market Data', generate: 'Generate Content',
-    planner: 'Daily Planner', queue: 'Publishing Queue', history: 'History',
-    analytics: 'Analytics', earnings: 'Earnings', settings: 'Settings', diagnostics: 'Diagnostics'
-  };
-  document.getElementById('pageTitle').textContent = titles[page] || page;
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarOverlay').classList.remove('open');
-  if (page === 'overview') refreshOverview();
-  if (page === 'market') renderMarket();
-  if (page === 'planner') renderPlannerPreview();
-  if (page === 'queue') renderQueue();
-  if (page === 'history') renderHistory();
-  if (page === 'analytics') renderAnalytics();
-  if (page === 'earnings') renderEarnings();
-}
-
-document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(el => {
-  el.addEventListener('click', () => navigate(el.dataset.page));
-});
-
-document.getElementById('menuToggle').addEventListener('click', () => {
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebarOverlay').classList.toggle('open');
-});
-document.getElementById('sidebarOverlay').addEventListener('click', () => {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarOverlay').classList.remove('open');
-});
-
-// Queue filter tabs
-document.querySelectorAll('[data-qfilter]').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('[data-qfilter]').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    state.queueFilter = tab.dataset.qfilter;
-    renderQueue();
-  });
-});
-
-// ---------- Market Data ----------
-async function fetchTicker(symbol) {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 12000);
-  try {
-    const res = await fetch(`${MARKET_BASE}/ticker/24hr?symbol=${encodeURIComponent(symbol)}`, {
-      signal: controller.signal
-    });
-    clearTimeout(t);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.code && data.msg) throw new Error(data.msg);
-    return {
-      symbol: data.symbol,
-      price: parseFloat(data.lastPrice),
-      change: parseFloat(data.priceChangePercent),
-      high: parseFloat(data.highPrice),
-      low: parseFloat(data.lowPrice),
-      volume: parseFloat(data.volume),
-      quoteVolume: parseFloat(data.quoteVolume),
-      open: parseFloat(data.openPrice),
-      raw: data
-    };
-  } catch (e) {
-    clearTimeout(t);
-    throw e;
-  }
-}
-
-async function refreshMarket() {
-  const settings = getSettings();
-  const symbols = settings.watchlist || ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
-  state.marketStatus = 'loading';
-  updatePills();
-  const results = {};
-  let errors = 0;
-  for (const sym of symbols) {
-    try {
-      results[sym] = await fetchTicker(sym);
-    } catch (e) {
-      errors++;
-      results[sym] = { symbol: sym, error: e.message || String(e) };
-    }
-  }
-  state.market = results;
-  state.marketLast = new Date();
-  state.marketStatus = errors === symbols.length ? 'error' : (errors ? 'partial' : 'ok');
-  updatePills();
-  renderMarket();
-  renderOverviewMarket();
-  document.getElementById('marketLastRefresh').textContent =
-    'Last: ' + state.marketLast.toLocaleTimeString() + (errors ? ` (${errors} failed)` : '');
-  document.getElementById('marketStatus').innerHTML =
-    `Source: Binance Public REST <code>${MARKET_BASE}/ticker/24hr</code><br>` +
-    `Status: ${state.marketStatus} · Symbols: ${symbols.join(', ')} · ` +
-    (errors ? `Errors: ${errors}` : 'All OK');
-}
-
-function renderMarket() {
-  const grid = document.getElementById('marketGrid');
-  const entries = Object.values(state.market);
-  if (!entries.length) {
-    grid.innerHTML = '<div class="empty"><div class="empty-icon">📈</div><div>No data yet. Click Refresh.</div></div>';
-    return;
-  }
-  grid.innerHTML = entries.map(t => {
-    if (t.error) {
-      return `<div class="ticker-card"><div class="ticker-symbol">${t.symbol}</div>
-        <div style="color:var(--red);font-size:13px;margin-top:8px">${escapeHtml(t.error)}</div></div>`;
-    }
-    const up = t.change >= 0;
-    return `<div class="ticker-card">
-      <div class="ticker-symbol">${t.symbol.replace('USDT','')}</div>
-      <div class="ticker-price">$${formatPrice(t.price)}</div>
-      <div class="ticker-change ${up ? 'up' : 'down'}">${up ? '+' : ''}${t.change.toFixed(2)}%</div>
-      <div class="ticker-meta">
-        <span>H ${formatPrice(t.high)}</span>
-        <span>L ${formatPrice(t.low)}</span>
-      </div>
-      <div class="ticker-meta">
-        <span>Vol ${formatVol(t.volume)}</span>
-        <span>Q ${formatVol(t.quoteVolume)}</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderOverviewMarket() {
-  const el = document.getElementById('ovMarket');
-  const main = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
-  const html = main.map(sym => {
-    const t = state.market[sym];
-    if (!t || t.error) return `<div style="font-size:13px;color:var(--text2)">${sym}: —</div>`;
-    const up = t.change >= 0;
-    return `<div style="font-size:13px"><strong>${sym.replace('USDT','')}</strong> $${formatPrice(t.price)}
-      <span class="${up ? 'up' : 'down'}" style="color:${up ? 'var(--green)' : 'var(--red)'}">${up ? '+' : ''}${t.change.toFixed(2)}%</span></div>`;
-  }).join('');
-  el.innerHTML = html || '<div class="skeleton" style="height:40px"></div>';
-}
-
-function formatPrice(n) {
-  if (n == null || isNaN(n)) return '—';
-  if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (n >= 1) return n.toFixed(4);
-  return n.toPrecision(4);
-}
-
-function formatVol(n) {
-  if (n == null || isNaN(n)) return '—';
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-  return n.toFixed(0);
-}
-
-function saveWatchlist() {
-  const raw = document.getElementById('watchlistInput').value;
-  const list = raw.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-  const interval = Math.max(15, Math.min(300, parseInt(document.getElementById('marketInterval').value, 10) || 60));
-  const s = getSettings();
-  s.watchlist = list.length ? list : s.watchlist;
-  s.marketInterval = interval;
-  saveSettings(s);
-  startMarketTimer();
-  refreshMarket();
-  toast('Watchlist & interval saved', 'success');
-}
-
-function startMarketTimer() {
-  if (state.marketTimer) clearInterval(state.marketTimer);
-  const s = getSettings();
-  const ms = (s.marketInterval || 60) * 1000;
-  state.marketTimer = setInterval(() => refreshMarket(), ms);
-}
-
-// ---------- Content Generation (template engine) ----------
-const CATEGORIES = {
-  btc: 'Bitcoin Market Update',
-  eth: 'Ethereum Analysis',
-  alt: 'Altcoin Market Update',
-  news: 'Market Snapshot Summary',
-  trend: 'Market Trend Analysis',
-  ta: 'Technical Analysis Education',
-  sr: 'Support & Resistance',
-  psych: 'Trading Psychology',
-  risk: 'Risk Management',
-  spot: 'Spot Market Education',
-  futures: 'Futures Education',
-  vol: 'Volatility Update',
-  recap: 'Daily Market Recap',
-  glossary: 'Crypto Glossary',
-  community: 'Community Discussion'
-};
-
-function pickMarket(symbolHint) {
-  const keys = Object.keys(state.market).filter(k => state.market[k] && !state.market[k].error);
-  if (!keys.length) return null;
-  if (symbolHint) {
-    const up = symbolHint.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const match = keys.find(k => k.includes(up) || up.includes(k.replace('USDT', '')));
-    if (match) return state.market[match];
-  }
-  return state.market[keys[Math.floor(Math.random() * keys.length)]];
-}
-
-function generateTemplate(category, symbolHint, tone) {
-  const m = pickMarket(symbolHint) || pickMarket('BTC');
-  const price = m ? formatPrice(m.price) : '—';
-  const change = m ? (m.change >= 0 ? '+' : '') + m.change.toFixed(2) + '%' : '—';
-  const high = m ? formatPrice(m.high) : '—';
-  const low = m ? formatPrice(m.low) : '—';
-  const vol = m ? formatVol(m.quoteVolume) : '—';
-  const sym = m ? m.symbol.replace('USDT', '') : (symbolHint || 'BTC');
-  const direction = m && m.change >= 0 ? 'higher' : 'lower';
-  const ts = new Date().toUTCString();
-
-  const intros = {
-    neutral: [
-      `${sym} is trading at $${price} (${change} over 24h).`,
-      `Current ${sym} price: $${price}, 24h change ${change}.`,
-      `Market check — ${sym} at $${price} with a 24h move of ${change}.`
-    ],
-    analytical: [
-      `${sym} last price $${price}. 24h range $${low}–$${high}; change ${change}.`,
-      `Data snapshot for ${sym}: last $${price}, 24h high $${high}, low $${low}, change ${change}.`
-    ],
-    conversational: [
-      `Quick look at ${sym}: sitting around $${price} (${change} on the day).`,
-      `${sym} is ${direction} on the day at $${price} (${change}).`
-    ],
-    concise: [
-      `${sym}: $${price} | 24h ${change} | H $${high} L $${low}`
-    ]
-  };
-  const toneKey = tone in intros ? tone : 'neutral';
-  const intro = intros[toneKey][Math.floor(Math.random() * intros[toneKey].length)];
-
-  const bodies = {
-    btc: [
-      `${intro}\n\nBitcoin remains the reference point for the broader crypto market. 24h volume (quote) ≈ ${vol}. High $${high} / Low $${low}.\n\nThis is an observation of public market data only — not a prediction or trade recommendation.\n\n#Bitcoin #BTC #CryptoMarket #BinanceSquare`,
-      `${intro}\n\nRange today: $${low} – $${high}. Quote volume ≈ ${vol}.\n\nUse this as a snapshot for your own research. Risk management always comes first.\n\n#Bitcoin #Crypto #BinanceSquare`
-    ],
-    eth: [
-      `${intro}\n\nEthereum 24h high $${high}, low $${low}. Quote volume ≈ ${vol}.\n\nETH often moves with risk appetite and broader market structure. Numbers above are from Binance public ticker data as of ${ts}.\n\n#Ethereum #ETH #CryptoMarket #BinanceSquare`
-    ],
-    alt: [
-      `${intro}\n\nAltcoin snapshot: 24h high $${high}, low $${low}, quote volume ≈ ${vol}.\n\nAltcoins can be more volatile than BTC/ETH. Always size positions to your risk tolerance.\n\n#${sym} #Altcoins #CryptoMarket #BinanceSquare`
-    ],
-    news: [
-      `Market snapshot (public data, not news invention):\n\n${intro}\n24h High: $${high} | Low: $${low} | Quote vol ≈ ${vol}\nTimestamp (UTC): ${ts}\n\nNo unverified headlines — only exchange ticker data.\n\n#CryptoMarket #BinanceSquare #${sym}`
-    ],
-    trend: [
-      `${intro}\n\nOver the last 24 hours ${sym} has moved ${change}, with a range of $${low}–$${high}.\n\nTrend context requires longer timeframes (e.g. multi-day closes). This post only reports the 24h window from public data.\n\n#${sym} #MarketTrend #Crypto #BinanceSquare`
-    ],
-    ta: [
-      `Educational note on technical analysis — using ${sym} as an example.\n\nCurrent last price: $${price} (24h ${change}).\n\nCommon tools traders study: moving averages, RSI, volume, and structure (higher highs / lower lows). None of these guarantee outcomes. Always combine with risk rules.\n\nData source: Binance public 24h ticker. Timestamp: ${ts}\n\n#TechnicalAnalysis #CryptoEducation #BinanceSquare`
-    ],
-    sr: [
-      `Support & resistance (educational).\n\nFor ${sym}, today's printed high is $${high} and low is $${low}. Last price $${price}.\n\nThese levels are simply the extremes of the last 24h — not guarantees of future reaction. Traders often watch prior highs/lows, round numbers, and volume nodes as reference zones.\n\n#SupportResistance #${sym} #CryptoEducation #BinanceSquare`
-    ],
-    psych: [
-      `Trading psychology reminder:\n\nPrice noise is constant. ${sym} is at $${price} (${change} 24h) — whether that feels “good” or “bad” depends on your plan, not the screen alone.\n\nUseful habits: define risk before entry, avoid revenge trading, journal decisions, and step away when emotional.\n\nNot financial advice — just process discipline.\n\n#TradingPsychology #Crypto #BinanceSquare`
-    ],
-    risk: [
-      `Risk management basics (educational):\n\n1) Never risk more than you can afford to lose.\n2) Position size from stop distance, not hope.\n3) Diversify carefully — correlated coins can fall together.\n4) Keep records.\n\nMarket example only: ${sym} last $${price}, 24h range $${low}–$${high}.\n\n#RiskManagement #CryptoEducation #BinanceSquare`
-    ],
-    spot: [
-      `Spot market education:\n\nSpot trading means buying/selling the asset itself (e.g. ${sym} at ~$${price}). No leverage by default; you own what you buy.\n\n24h change: ${change}. High $${high} / Low $${low}.\n\nSpot is generally simpler than derivatives, but price risk remains. Do your own research.\n\n#SpotTrading #${sym} #CryptoEducation #BinanceSquare`
-    ],
-    futures: [
-      `Futures education (not a signal):\n\nPerpetual and dated futures let you go long or short with leverage. Leverage amplifies both gains and losses. Funding rates and liquidation levels matter.\n\nExample spot reference: ${sym} ≈ $${price} (${change} 24h).\n\nIf you use futures, understand margin mode, liquidation, and maximum loss scenarios first.\n\n#Futures #CryptoEducation #Risk #BinanceSquare`
-    ],
-    vol: [
-      `Volatility update:\n\n${sym} 24h range: $${low} – $${high} (last $${price}, change ${change}). Quote volume ≈ ${vol}.\n\nWide ranges mean higher short-term uncertainty. Position sizing and stop placement become more important when ranges expand.\n\n#Volatility #${sym} #CryptoMarket #BinanceSquare`
-    ],
-    recap: [
-      `Short market recap (public data):\n\n• ${sym}: $${price} (${change})\n• 24h High / Low: $${high} / $${low}\n• Quote volume ≈ ${vol}\n• As of ${ts}\n\nThis is a factual summary of exchange ticker data, not a forecast.\n\n#MarketRecap #Crypto #BinanceSquare`
-    ],
-    glossary: [
-      `Crypto glossary — quick definition:\n\n**Spot price**: the current market price to buy/sell the asset immediately. Example: ${sym} last printed ≈ $${price} on Binance public data.\n\n**24h change**: percentage move over a rolling 24-hour window (${change} for ${sym} right now).\n\nLearning the terms helps you read charts and avoid confusion. Always verify numbers on the exchange yourself.\n\n#CryptoGlossary #Education #BinanceSquare`
-    ],
-    community: [
-      `Discussion question for the community:\n\n${sym} is currently around $${price} (${change} over 24h). What timeframe do you pay most attention to for your own decisions — and why?\n\nShare your process (not financial advice). Curious to hear different approaches.\n\n#CryptoCommunity #${sym} #BinanceSquare`
-    ]
-  };
-
-  const list = bodies[category] || bodies.btc;
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-async function generateWithAI(category, symbolHint, tone) {
-  if (state.aiProvider === 'none' || !state.aiKey) return null;
-  const m = pickMarket(symbolHint);
-  const marketContext = m && !m.error
-    ? `${m.symbol} last=${m.price} change24h=${m.change}% high=${m.high} low=${m.low} quoteVol=${m.quoteVolume}`
-    : 'No live market data available';
-  const prompt = `Write a short Binance Square post (under 800 characters preferred) about: ${CATEGORIES[category] || category}.
-Tone: ${tone}. Use this verified market data only: ${marketContext}.
-Rules: No guaranteed profits, no fabricated news, no clickbait. Include 2-4 relevant hashtags including #BinanceSquare. Original educational or observational style.`;
-
-  const base = (state.aiBase || 'https://api.openai.com/v1').replace(/\/$/, '');
-  try {
-    const res = await fetch(base + '/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + state.aiKey
-      },
-      body: JSON.stringify({
-        model: state.aiModel || 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'You are a careful crypto content writer for Binance Square. Use only provided market facts. Educational tone.' },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 500,
-        temperature: 0.7
-      })
-    });
-    if (!res.ok) throw new Error('AI HTTP ' + res.status);
-    const data = await res.json();
-    const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    return text ? text.trim() : null;
-  } catch (e) {
-    console.warn('AI generate failed, falling back to template', e);
-    toast('AI unavailable — using template: ' + (e.message || ''), 'warn');
-    return null;
-  }
-}
-
-async function generatePost() {
-  const category = document.getElementById('genCategory').value;
-  const symbol = document.getElementById('genSymbol').value.trim();
-  const tone = document.getElementById('genTone').value;
-  toast('Generating…', 'info', 1500);
-  let text = await generateWithAI(category, symbol, tone);
-  if (!text) text = generateTemplate(category, symbol, tone);
-  document.getElementById('editorText').value = text;
-  document.getElementById('editorCategory').value = CATEGORIES[category] || category;
-  toast('Draft ready — review and edit before saving', 'success');
-}
-
-function clearEditor() {
-  document.getElementById('editorText').value = '';
-  document.getElementById('editorCategory').value = '';
-}
-
-function copyEditor() {
-  const t = document.getElementById('editorText').value;
-  if (!t) { toast('Nothing to copy', 'warn'); return; }
-  navigator.clipboard.writeText(t).then(() => toast('Copied to clipboard', 'success'))
-    .catch(() => toast('Clipboard failed — select and copy manually', 'error'));
-}
-
-function isDuplicate(text, list) {
-  const norm = text.replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 200);
-  return list.some(d => (d.text || '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 200) === norm);
-}
-
-function saveDraft() {
-  const text = document.getElementById('editorText').value.trim();
-  if (!text) { toast('Editor is empty', 'warn'); return; }
-  const category = document.getElementById('editorCategory').value || 'general';
-  const drafts = getDrafts();
-  if (isDuplicate(text, drafts)) {
-    toast('Possible duplicate of an existing draft — not saved', 'warn');
-    return;
-  }
-  drafts.unshift({
-    id: uid(),
-    text,
-    category,
-    status: 'draft',
-    createdAt: nowISO(),
-    updatedAt: nowISO()
-  });
-  saveDrafts(drafts);
-  toast('Draft saved', 'success');
-  refreshOverview();
-}
-
-function approveAndQueue() {
-  const text = document.getElementById('editorText').value.trim();
-  if (!text) { toast('Editor is empty', 'warn'); return; }
-  const category = document.getElementById('editorCategory').value || 'general';
-  const drafts = getDrafts();
-  if (isDuplicate(text, drafts.filter(d => d.status === 'approved' || d.status === 'scheduled'))) {
-    toast('Similar approved item already in queue', 'warn');
-  }
-  drafts.unshift({
-    id: uid(),
-    text,
-    category,
-    status: 'approved',
-    createdAt: nowISO(),
-    updatedAt: nowISO()
-  });
-  saveDrafts(drafts);
-  toast('Approved and added to queue', 'success');
-  clearEditor();
-  refreshOverview();
-}
-
-async function generateBatch(n) {
-  const cats = Object.keys(CATEGORIES);
-  const drafts = getDrafts();
-  let added = 0;
-  for (let i = 0; i < n; i++) {
-    const cat = cats[Math.floor(Math.random() * cats.length)];
-    const text = generateTemplate(cat, null, 'neutral');
-    if (isDuplicate(text, drafts)) continue;
-    drafts.unshift({
-      id: uid(),
-      text,
-      category: CATEGORIES[cat],
-      status: 'draft',
-      createdAt: nowISO(),
-      updatedAt: nowISO()
-    });
-    added++;
-  }
-  saveDrafts(drafts);
-  toast(`Generated ${added} draft(s)`, 'success');
-  refreshOverview();
-  if (document.getElementById('page-planner').classList.contains('active')) renderPlannerPreview();
-}
-
-// ---------- Planner ----------
-function savePlannerSettings() {
-  const target = Math.max(1, Math.min(100, parseInt(document.getElementById('dailyTarget').value, 10) || 20));
-  const interval = Math.max(15, Math.min(240, parseInt(document.getElementById('postInterval').value, 10) || 45));
-  const auto = document.getElementById('autoPublish').value;
-  const s = getSettings();
-  s.dailyTarget = target;
-  s.postInterval = interval;
-  s.autoPublish = auto;
-  saveSettings(s);
-  document.getElementById('dailyTarget').value = target;
-  toast('Planner settings saved', 'success');
-  renderPlannerPreview();
-  refreshOverview();
-}
-
-function togglePause() {
-  state.queuePaused = !state.queuePaused;
-  document.getElementById('pauseBtn').textContent = state.queuePaused ? 'Resume Queue' : 'Pause Queue';
-  toast(state.queuePaused ? 'Queue paused' : 'Queue resumed', 'info');
-}
-
-function renderPlannerPreview() {
-  const drafts = getDrafts().filter(d => d.status === 'draft' || d.status === 'approved' || d.status === 'scheduled');
-  const next = drafts.slice(0, 10);
-  const el = document.getElementById('plannerPreview');
-  const daily = getDaily();
-  document.getElementById('plannerQuotaInfo').textContent =
-    `Published today: ${daily.count} / ${DAILY_MAX} · Remaining: ${remainingQuota()}`;
-  if (!next.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div>No drafts yet. Generate some first.</div></div>';
-    return;
-  }
-  el.innerHTML = next.map((d, i) => `
-    <div class="queue-item">
-      <div class="qi-body">
-        <div class="qi-text">${escapeHtml(d.text.slice(0, 160))}${d.text.length > 160 ? '…' : ''}</div>
-        <div class="qi-meta">
-          <span class="badge badge-${d.status}">${d.status}</span>
-          <span>${escapeHtml(d.category || '')}</span>
-          <span>${formatTime(d.createdAt)}</span>
-        </div>
-      </div>
-    </div>`).join('');
-}
-
-// ---------- Queue & Publishing ----------
-function updateQuotaUI() {
-  const daily = getDaily();
-  const pct = Math.min(100, (daily.count / DAILY_MAX) * 100);
-  const bar = document.getElementById('quotaBar');
-  if (bar) bar.style.width = pct + '%';
-  const qt = document.getElementById('quotaText');
-  if (qt) qt.textContent = `${daily.count} / ${DAILY_MAX} published today · Remaining ${remainingQuota()}`;
-  updatePills();
-}
-
-function renderQueue() {
-  const drafts = getDrafts();
-  let list = drafts.filter(d => ['approved', 'scheduled', 'publishing', 'failed'].includes(d.status));
-  if (state.queueFilter !== 'all') {
-    list = list.filter(d => d.status === state.queueFilter);
-  }
-  const el = document.getElementById('queueList');
-  if (!list.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📤</div><div>Queue empty for this filter</div></div>';
-    return;
-  }
-  el.innerHTML = list.map(d => `
-    <div class="queue-item" data-id="${d.id}">
-      <div class="qi-body">
-        <div class="qi-text">${escapeHtml(d.text.slice(0, 200))}${d.text.length > 200 ? '…' : ''}</div>
-        <div class="qi-meta">
-          <span class="badge badge-${d.status}">${d.status}</span>
-          <span>${escapeHtml(d.category || '')}</span>
-          <span>${formatTime(d.updatedAt || d.createdAt)}</span>
-          ${d.error ? `<span style="color:var(--red)">${escapeHtml(String(d.error).slice(0, 80))}</span>` : ''}
-          ${d.postId ? `<a href="https://www.binance.com/square/post/${d.postId}" target="_blank" rel="noopener">View post</a>` : ''}
-        </div>
-      </div>
-      <div class="qi-actions">
-        ${d.status === 'approved' || d.status === 'failed' ? `<button class="btn btn-sm btn-primary" onclick="publishOne('${d.id}')">Publish</button>` : ''}
-        <button class="btn btn-sm btn-secondary" onclick="editDraft('${d.id}')">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteDraft('${d.id}')">✕</button>
-      </div>
-    </div>`).join('');
-  updateQuotaUI();
-}
-
-function escapeHtml(s) {
-  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function editDraft(id) {
-  const drafts = getDrafts();
-  const d = drafts.find(x => x.id === id);
-  if (!d) return;
-  document.getElementById('editorText').value = d.text;
-  document.getElementById('editorCategory').value = d.category || '';
-  navigate('generate');
-  toast('Loaded into editor — save again after edits', 'info');
-}
-
-function deleteDraft(id) {
-  let drafts = getDrafts();
-  drafts = drafts.filter(d => d.id !== id);
-  saveDrafts(drafts);
-  renderQueue();
-  refreshOverview();
-  toast('Removed', 'info');
-}
-
-async function publishToSquare(text) {
-  if (!state.squareKey) {
-    return { ok: false, error: 'No Square API key configured. Add it in Settings (session-only). Draft mode still works — use Copy.' };
-  }
-  if (remainingQuota() <= 0) {
-    return { ok: false, error: 'Daily quota of 100 successful posts reached.' };
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);
-  try {
-    const res = await fetch(SQUARE_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'X-Square-OpenAPI-Key': state.squareKey,
-        'Content-Type': 'application/json',
-        'clienttype': 'binanceSkill'
-      },
-      body: JSON.stringify({ bodyTextOnly: text }),
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      return { ok: false, error: 'Invalid JSON response (HTTP ' + res.status + ')' };
-    }
-    // Success codes observed: "000000"
-    if (data.code === '000000' || data.code === 0 || data.success === true) {
-      const id = (data.data && (data.data.id || data.data.contentId)) || data.id || null;
-      return { ok: true, postId: id, raw: data };
-    }
-    // Known error codes
-    const code = String(data.code || res.status);
-    const msg = data.message || data.msg || 'Publish failed';
-    if (code === '220009') return { ok: false, error: 'Daily post limit exceeded (220009)' };
-    if (code === '220003') return { ok: false, error: 'API key not found (220003)' };
-    if (code === '220004') return { ok: false, error: 'API key expired (220004)' };
-    if (code === '20002' || code === '20022') return { ok: false, error: 'Sensitive words detected' };
-    if (code === '20013') return { ok: false, error: 'Content too long' };
-    if (code === '20020' || code === '220011') return { ok: false, error: 'Empty content' };
-    return { ok: false, error: `${msg} (code ${code})`, raw: data };
-  } catch (e) {
-    clearTimeout(timer);
-    if (e.name === 'AbortError') return { ok: false, error: 'Request timed out' };
-    return { ok: false, error: 'Network error: ' + (e.message || String(e)) };
-  }
-}
-
-async function publishOne(id) {
-  if (state.publishing) { toast('Already publishing…', 'warn'); return; }
-  if (state.queuePaused) { toast('Queue is paused', 'warn'); return; }
-  const drafts = getDrafts();
-  const d = drafts.find(x => x.id === id);
-  if (!d) return;
-  if (!state.squareKey) {
-    toast('No API key — copy content and post manually on Square', 'warn');
-    navigator.clipboard.writeText(d.text).catch(() => {});
-    return;
-  }
-  state.publishing = true;
-  d.status = 'publishing';
-  d.updatedAt = nowISO();
-  saveDrafts(drafts);
-  renderQueue();
-
-  const result = await publishToSquare(d.text);
-  const history = getHistory();
-
-  if (result.ok) {
-    d.status = 'published';
-    d.postId = result.postId;
-    d.publishedAt = nowISO();
-    d.updatedAt = nowISO();
-    // move to history
-    history.unshift({ ...d });
-    saveHistory(history);
-    const remaining = drafts.filter(x => x.id !== id);
-    saveDrafts(remaining);
-    setDaily(getDaily().count + 1);
-    toast('Published' + (result.postId ? ' · ID ' + result.postId : ''), 'success');
-  } else {
-    d.status = 'failed';
-    d.error = result.error;
-    d.updatedAt = nowISO();
-    saveDrafts(drafts);
-    history.unshift({ ...d, status: 'failed' });
-    saveHistory(history);
-    toast('Publish failed: ' + result.error, 'error', 5000);
-  }
-  state.publishing = false;
-  renderQueue();
-  renderHistory();
-  refreshOverview();
-}
-
-async function processNextInQueue() {
-  const drafts = getDrafts().filter(d => d.status === 'approved' || d.status === 'failed');
-  if (!drafts.length) { toast('No approved items in queue', 'info'); return; }
-  await publishOne(drafts[0].id);
-}
-
-async function processQueueBatch(n) {
-  const drafts = getDrafts().filter(d => d.status === 'approved');
-  const slice = drafts.slice(0, n);
-  if (!slice.length) { toast('No approved items', 'info'); return; }
-  for (const d of slice) {
-    if (remainingQuota() <= 0) { toast('Quota reached', 'warn'); break; }
-    if (state.queuePaused) break;
-    await publishOne(d.id);
-    // polite spacing
-    await new Promise(r => setTimeout(r, 1500));
-  }
-}
-
-// ---------- History ----------
-function renderHistory() {
-  const list = getHistory();
-  const body = document.getElementById('historyBody');
-  const empty = document.getElementById('historyEmpty');
-  if (!list.length) {
-    body.innerHTML = '';
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
-  body.innerHTML = list.slice(0, 100).map(d => `
-    <tr>
-      <td>${formatTime(d.publishedAt || d.updatedAt || d.createdAt)}</td>
-      <td><span class="badge badge-${d.status}">${d.status}</span></td>
-      <td>${escapeHtml(d.category || '')}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml((d.text || '').slice(0, 60))}</td>
-      <td>${d.postId ? `<a href="https://www.binance.com/square/post/${d.postId}" target="_blank" rel="noopener">${d.postId}</a>` : escapeHtml(d.error || '—')}</td>
-      <td>
-        ${d.text ? `<button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText(${JSON.stringify(d.text)}).then(()=>toast('Copied','success'))">Copy</button>` : ''}
-      </td>
-    </tr>`).join('');
-}
-
-function exportHistoryCSV() {
-  const list = getHistory();
-  if (!list.length) { toast('No history', 'warn'); return; }
-  const rows = [['time', 'status', 'category', 'postId', 'error', 'text']];
-  list.forEach(d => {
-    rows.push([
-      d.publishedAt || d.updatedAt || d.createdAt || '',
-      d.status || '',
-      d.category || '',
-      d.postId || '',
-      (d.error || '').replace(/"/g, '""'),
-      (d.text || '').replace(/"/g, '""').replace(/\n/g, ' ')
-    ]);
-  });
-  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-  downloadBlob(csv, 'square-history.csv', 'text/csv');
-  toast('CSV exported', 'success');
-}
-
-function confirmClearHistory() {
-  showConfirm('Clear history?', 'This removes local publishing history. Drafts and queue are not affected.', () => {
-    saveHistory([]);
-    renderHistory();
-    toast('History cleared', 'info');
-  });
-}
-
-// ---------- Analytics ----------
-function renderAnalytics() {
-  const daily = getDaily();
-  const history = getHistory();
-  const drafts = getDrafts();
-  document.getElementById('anToday').textContent = daily.count;
-  document.getElementById('anTotal').textContent = history.filter(h => h.status === 'published').length;
-  document.getElementById('anFailed').textContent = history.filter(h => h.status === 'failed').length + drafts.filter(d => d.status === 'failed').length;
-  document.getElementById('anDrafts').textContent = drafts.filter(d => d.status === 'draft').length;
-  const man = loadJSON(STORAGE_KEYS.analytics, { views: 0, likes: 0, comments: 0, followers: 0 });
-  document.getElementById('anViews').value = man.views || 0;
-  document.getElementById('anLikes').value = man.likes || 0;
-  document.getElementById('anComments').value = man.comments || 0;
-  document.getElementById('anFollowers').value = man.followers || 0;
-}
-
-function saveAnalyticsManual() {
-  saveJSON(STORAGE_KEYS.analytics, {
-    views: parseInt(document.getElementById('anViews').value, 10) || 0,
-    likes: parseInt(document.getElementById('anLikes').value, 10) || 0,
-    comments: parseInt(document.getElementById('anComments').value, 10) || 0,
-    followers: parseInt(document.getElementById('anFollowers').value, 10) || 0
-  });
-  toast('Manual metrics saved locally', 'success');
-}
-
-// ---------- Earnings ----------
-function addEarningsEntry() {
-  const entry = {
-    id: uid(),
-    category: document.getElementById('earnCategory').value,
-    program: document.getElementById('earnProgram').value.trim(),
-    amount: parseFloat(document.getElementById('earnAmount').value) || 0,
-    currency: document.getElementById('earnCurrency').value.trim() || 'USDT',
-    status: document.getElementById('earnStatus').value,
-    period: document.getElementById('earnPeriod').value.trim(),
-    notes: document.getElementById('earnNotes').value.trim(),
-    createdAt: nowISO()
-  };
-  if (!entry.program) { toast('Program name required', 'warn'); return; }
-  const list = getEarnings();
-  list.unshift(entry);
-  saveEarnings(list);
-  renderEarnings();
-  toast('Entry added', 'success');
-}
-
-function renderEarnings() {
-  const list = getEarnings();
-  const body = document.getElementById('earningsBody');
-  const empty = document.getElementById('earningsEmpty');
-  if (!list.length) {
-    body.innerHTML = '';
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
-  const catLabels = {
-    write_to_earn: 'Write to Earn',
-    campaign: 'Campaign',
-    referral: 'Referral',
-    trading_comm: 'Trading Comm.',
-    other: 'Other'
-  };
-  body.innerHTML = list.map(e => `
-    <tr>
-      <td>${catLabels[e.category] || e.category}</td>
-      <td>${escapeHtml(e.program)}</td>
-      <td>${e.amount} ${escapeHtml(e.currency)}</td>
-      <td><span class="badge badge-${e.status === 'confirmed' ? 'published' : e.status === 'pending' ? 'scheduled' : 'draft'}">${e.status}</span></td>
-      <td>${escapeHtml(e.period || '')}</td>
-      <td>${escapeHtml(e.notes || '')}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteEarn('${e.id}')">✕</button></td>
-    </tr>`).join('');
-}
-
-function deleteEarn(id) {
-  saveEarnings(getEarnings().filter(e => e.id !== id));
-  renderEarnings();
-}
-
-function exportEarningsCSV() {
-  const list = getEarnings();
-  if (!list.length) { toast('No entries', 'warn'); return; }
-  const rows = [['category', 'program', 'amount', 'currency', 'status', 'period', 'notes', 'createdAt']];
-  list.forEach(e => rows.push([e.category, e.program, e.amount, e.currency, e.status, e.period, e.notes, e.createdAt]));
-  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-  downloadBlob(csv, 'earnings.csv', 'text/csv');
-  toast('Exported', 'success');
-}
-
-// ---------- Settings / Keys ----------
-function maskKey(k) {
-  if (!k || k.length < 10) return '(short)';
-  return k.slice(0, 5) + '…' + k.slice(-4);
-}
-
-function saveSquareKey() {
-  const key = document.getElementById('squareKey').value.trim();
-  if (!key) { toast('Enter a key first', 'warn'); return; }
-  state.squareKey = key;
-  const persist = document.getElementById('persistKey').checked;
-  if (persist) {
-    // Explicit user choice — still warn
-    localStorage.setItem(STORAGE_KEYS.keyOptional, key);
-    toast('Key applied and saved to localStorage (device-local only)', 'warn', 4500);
-  } else {
-    localStorage.removeItem(STORAGE_KEYS.keyOptional);
-    toast('Key applied for this session only', 'success');
-  }
-  document.getElementById('keyStatus').textContent = 'Active session key: ' + maskKey(key) + (persist ? ' (persisted)' : ' (memory only)');
-  updatePills();
-}
-
-function clearSquareKey() {
-  state.squareKey = null;
-  document.getElementById('squareKey').value = '';
-  localStorage.removeItem(STORAGE_KEYS.keyOptional);
-  document.getElementById('keyStatus').textContent = 'No key configured — draft-only mode';
-  updatePills();
-  toast('Key cleared', 'info');
-}
-
-function saveAISettings() {
-  state.aiProvider = document.getElementById('aiProvider').value;
-  state.aiBase = document.getElementById('aiBase').value.trim();
-  state.aiKey = document.getElementById('aiKey').value.trim() || null;
-  state.aiModel = document.getElementById('aiModel').value.trim() || 'gpt-4o-mini';
-  toast('AI settings applied for this session', 'success');
-}
-
-async function testConnection() {
-  if (!state.squareKey) {
-    toast('Configure a Square key in Settings first', 'warn');
-    document.getElementById('keyStatus').textContent = 'No key — cannot test';
-    return;
-  }
-  toast('Testing Square API…', 'info');
-  // Minimal dry check: empty body should fail with known code, not network error
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch(SQUARE_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'X-Square-OpenAPI-Key': state.squareKey,
-        'Content-Type': 'application/json',
-        'clienttype': 'binanceSkill'
-      },
-      body: JSON.stringify({ bodyTextOnly: '' }),
-      signal: controller.signal
-    });
-    clearTimeout(t);
-    const data = await res.json().catch(() => ({}));
-    const code = String(data.code || '');
-    // Empty body → expected validation error means key was accepted by gateway
-    if (code === '20020' || code === '220011' || code === '000000') {
-      toast('Connection OK (key accepted by API)', 'success');
-      document.getElementById('keyStatus').textContent = 'Connection OK · ' + maskKey(state.squareKey);
-      updatePills(true);
-    } else if (code === '220003' || code === '220004') {
-      toast('Key invalid or expired: ' + (data.message || code), 'error');
-      updatePills(false);
-    } else {
-      toast('Response code ' + code + ': ' + (data.message || 'see diagnostics'), 'warn');
-      document.getElementById('keyStatus').textContent = 'Key sent · response ' + code;
-    }
-  } catch (e) {
-    clearTimeout(t);
-    toast('Network/CORS error: ' + (e.message || e), 'error', 5000);
-    document.getElementById('keyStatus').textContent = 'Network error — check browser can reach Binance';
-  }
-}
-
-// ---------- Diagnostics ----------
-async function testMarketAPI() {
-  const out = document.getElementById('diagOutput');
-  out.textContent = 'Testing market API…\n';
-  try {
-    const t = await fetchTicker('BTCUSDT');
-    out.textContent += 'OK BTCUSDT last=' + t.price + ' change=' + t.change + '%\n';
-    toast('Market API OK', 'success');
-  } catch (e) {
-    out.textContent += 'FAIL: ' + (e.message || e) + '\n';
-    toast('Market API failed', 'error');
-  }
-}
-
-async function runDiagnostics() {
-  const out = document.getElementById('diagOutput');
-  const lines = [];
-  lines.push('=== Diagnostics ' + new Date().toISOString() + ' ===');
-  lines.push('User agent: ' + navigator.userAgent.slice(0, 80));
-  lines.push('localStorage available: ' + (typeof localStorage !== 'undefined'));
-  lines.push('Square key in session: ' + (state.squareKey ? maskKey(state.squareKey) : 'NO'));
-  lines.push('AI provider: ' + state.aiProvider);
-  lines.push('Daily count: ' + getDaily().count + ' / ' + DAILY_MAX);
-  lines.push('Drafts: ' + getDrafts().length);
-  lines.push('History: ' + getHistory().length);
-  lines.push('');
-  lines.push('--- Market ---');
-  try {
-    const t = await fetchTicker('BTCUSDT');
-    lines.push('BTCUSDT OK price=' + t.price);
-  } catch (e) {
-    lines.push('BTCUSDT FAIL: ' + (e.message || e));
-  }
-  lines.push('');
-  lines.push('--- Square endpoint (no publish) ---');
-  if (!state.squareKey) {
-    lines.push('Skipped (no key)');
-  } else {
-    try {
-      const res = await fetch(SQUARE_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'X-Square-OpenAPI-Key': state.squareKey,
-          'Content-Type': 'application/json',
-          'clienttype': 'binanceSkill'
-        },
-        body: JSON.stringify({ bodyTextOnly: '' })
-      });
-      const data = await res.json().catch(() => ({}));
-      lines.push('HTTP ' + res.status + ' code=' + data.code + ' message=' + (data.message || ''));
-    } catch (e) {
-      lines.push('FAIL: ' + (e.message || e));
-    }
-  }
-  lines.push('');
-  lines.push('Endpoint: ' + SQUARE_ENDPOINT);
-  lines.push('Market base: ' + MARKET_BASE);
-  out.textContent = lines.join('\n');
-}
-
-// ---------- Overview ----------
-function refreshOverview() {
-  const daily = getDaily();
-  const drafts = getDrafts();
-  const s = getSettings();
-  document.getElementById('ovPublishedToday').textContent = daily.count;
-  document.getElementById('ovDailyTarget').textContent = s.dailyTarget || 20;
-  document.getElementById('ovRemaining').textContent = remainingQuota();
-  document.getElementById('ovDrafts').textContent = drafts.filter(d => d.status === 'draft').length;
-  document.getElementById('ovFailed').textContent = drafts.filter(d => d.status === 'failed').length;
-  renderOverviewMarket();
-  const next = drafts.filter(d => d.status === 'approved' || d.status === 'draft').slice(0, 5);
-  const qel = document.getElementById('ovQueue');
-  if (!next.length) {
-    qel.innerHTML = '<div class="empty" style="padding:16px"><div>No items in queue</div></div>';
-  } else {
-    qel.innerHTML = next.map(d => `
-      <div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <span class="badge badge-${d.status}">${d.status}</span>
-        ${escapeHtml((d.text || '').slice(0, 70))}…
-      </div>`).join('');
-  }
-  updateQuotaUI();
-}
-
-function updatePills(squareOk) {
-  const pm = document.getElementById('pillMarket');
-  const ps = document.getElementById('pillSquare');
-  const pq = document.getElementById('pillQuota');
-  pm.className = 'pill ' + (state.marketStatus === 'ok' ? 'ok' : state.marketStatus === 'error' ? 'err' : 'warn');
-  pm.innerHTML = '<span class="dot"></span> Market';
-  const hasKey = !!state.squareKey;
-  if (squareOk === true) ps.className = 'pill ok';
-  else if (squareOk === false) ps.className = 'pill err';
-  else ps.className = 'pill ' + (hasKey ? 'warn' : 'err');
-  ps.innerHTML = '<span class="dot"></span> Square';
-  const rem = remainingQuota();
-  pq.className = 'pill ' + (rem > 20 ? 'ok' : rem > 0 ? 'warn' : 'err');
-  pq.innerHTML = '<span class="dot"></span> Quota ' + rem;
-}
-
-// ---------- Import / Export / Reset ----------
-function downloadBlob(content, name, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name; a.click();
-  URL.revokeObjectURL(url);
-}
-
-function exportAllData() {
-  const payload = {
-    exportedAt: nowISO(),
-    drafts: getDrafts(),
-    history: getHistory(),
-    settings: getSettings(),
-    earnings: getEarnings(),
-    analytics: loadJSON(STORAGE_KEYS.analytics, {}),
-    daily: getDaily()
-  };
-  downloadBlob(JSON.stringify(payload, null, 2), 'square-dashboard-export.json', 'application/json');
-  toast('Full export downloaded (no API secrets included)', 'success');
-}
-
-function importAllData(ev) {
-  const file = ev.target.files && ev.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(reader.result);
-      if (data.drafts) saveDrafts(data.drafts);
-      if (data.history) saveHistory(data.history);
-      if (data.settings) saveSettings(data.settings);
-      if (data.earnings) saveEarnings(data.earnings);
-      if (data.analytics) saveJSON(STORAGE_KEYS.analytics, data.analytics);
-      if (data.daily) saveJSON(STORAGE_KEYS.daily, data.daily);
-      toast('Import complete', 'success');
-      refreshOverview();
-      applySettingsToUI();
-    } catch (e) {
-      toast('Import failed: invalid JSON', 'error');
-    }
-  };
-  reader.readAsText(file);
-  ev.target.value = '';
-}
-
-function confirmResetAll() {
-  showConfirm('Reset all local data?', 'This clears drafts, history, earnings, and settings from localStorage. Session API keys are not in localStorage unless you persisted them.', () => {
-    Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-    state.squareKey = null;
-    state.aiKey = null;
-    toast('Local data reset', 'info');
-    location.reload();
-  });
-}
-
-function showConfirm(title, body, onOk) {
-  document.getElementById('confirmTitle').textContent = title;
-  document.getElementById('confirmBody').textContent = body;
-  document.getElementById('confirmModal').classList.add('open');
-  const btn = document.getElementById('confirmOk');
-  const handler = () => {
-    closeModal();
-    onOk();
-    btn.removeEventListener('click', handler);
-  };
-  btn.onclick = handler;
-}
-
-function closeModal() {
-  document.getElementById('confirmModal').classList.remove('open');
-}
-
-function applySettingsToUI() {
-  const s = getSettings();
-  document.getElementById('watchlistInput').value = (s.watchlist || []).join(',');
-  document.getElementById('marketInterval').value = s.marketInterval || 60;
-  document.getElementById('dailyTarget').value = s.dailyTarget || 20;
-  document.getElementById('postInterval').value = s.postInterval || 45;
-  document.getElementById('autoPublish').value = s.autoPublish || 'off';
-}
-
-// ---------- Init ----------
-function init() {
-  // Restore optional persisted key only if present
-  const opt = localStorage.getItem(STORAGE_KEYS.keyOptional);
-  if (opt) {
-    state.squareKey = opt;
-    document.getElementById('squareKey').value = opt;
-    document.getElementById('persistKey').checked = true;
-    document.getElementById('keyStatus').textContent = 'Restored from localStorage: ' + maskKey(opt);
-  } else {
-    document.getElementById('keyStatus').textContent = 'No key — draft-only mode. Configure in Settings.';
-  }
-
-  applySettingsToUI();
-  state.todayCount = getDaily().count;
-  updatePills();
-  refreshOverview();
-  refreshMarket();
-  startMarketTimer();
-
-  // Soft auto-publish loop only if enabled and tab visible
-  setInterval(() => {
-    const s = getSettings();
-    if (s.autoPublish !== 'on' || state.queuePaused || state.publishing || document.hidden) return;
-    if (!state.squareKey || remainingQuota() <= 0) return;
-    const next = getDrafts().find(d => d.status === 'approved');
-    if (next) publishOne(next.id);
-  }, Math.max(60000, (getSettings().postInterval || 45) * 60 * 1000));
-}
-
+const REST='https://api.binance.com/api/v3';
+const WS_URL='wss://stream.binance.com:9443/ws/!miniTicker@arr';
+const STABLES=new Set(['USDT','USDC','BUSD','TUSD','FDUSD','DAI','USDP','USDD']);
+const CATS={btc:'Bitcoin market update',eth:'Ethereum analysis',sol:'Solana update',alt:'Altcoin snapshot',gainers:'Top gainers recap',losers:'Top losers recap',volume:'Volume leaders',trend:'Market breadth',vol:'Volatility note',range:'Daily range watch',ta:'TA education',sr:'Support & resistance intro',risk:'Risk management',psych:'Trading psychology',spot:'Spot trading basics',futures:'Futures education',glossary:'Crypto glossary',beginner:'Beginner tip',community:'Community question',recap:'Session recap',compare:'BTC vs ETH',momentum:'Momentum check',liquidity:'Liquidity note',caution:'Risk reminder',weekend:'Weekend market note'};
+const state={map:new Map(),ws:null,wsOk:false,msgCount:0,lastMsgAt:0,lastRestAt:0,restTimer:null,uiTimer:null,page:'overview'};
+function toast(msg,type='info',ms=3200){const el=document.createElement('div');el.className='toast '+(type==='success'?'ok':type==='error'?'err':'info');el.textContent=msg;document.getElementById('toasts').appendChild(el);setTimeout(()=>el.remove(),ms)}
+function fmtPx(n){const x=Number(n);if(!isFinite(x))return'—';if(x>=1000)return x.toLocaleString(undefined,{maximumFractionDigits:2});if(x>=1)return x.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4});return x.toPrecision(4)}
+function fmtPct(n){const x=Number(n);if(!isFinite(x))return'—';return(x>=0?'+':'')+x.toFixed(2)+'%'}
+function fmtVol(n){const x=Number(n);if(!isFinite(x))return'—';if(x>=1e9)return(x/1e9).toFixed(2)+'B';if(x>=1e6)return(x/1e6).toFixed(2)+'M';if(x>=1e3)return(x/1e3).toFixed(1)+'K';return x.toFixed(0)}
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function restSnapshot(){try{const res=await fetch(REST+'/ticker/24hr',{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);const arr=await res.json();if(!Array.isArray(arr))throw new Error('Unexpected payload');const now=Date.now();for(const t of arr){state.map.set(t.symbol,{s:t.symbol,c:parseFloat(t.lastPrice),o:parseFloat(t.openPrice),h:parseFloat(t.highPrice),l:parseFloat(t.lowPrice),v:parseFloat(t.volume),q:parseFloat(t.quoteVolume),P:parseFloat(t.priceChangePercent),lastUpdate:now})}state.lastRestAt=now;document.getElementById('anRest').textContent=new Date(now).toLocaleTimeString();document.getElementById('anPairs').textContent=state.map.size;document.getElementById('pillCoinN').textContent=state.map.size;refreshAllUI()}catch(e){console.warn(e);toast('Market REST failed: '+(e.message||e),'error')}}
+function connectWS(){if(state.ws){try{state.ws.close()}catch{}}let ws;try{ws=new WebSocket(WS_URL)}catch(e){document.getElementById('wsFoot').textContent='WS blocked';setWsPill(false);return}state.ws=ws;ws.onopen=()=>{state.wsOk=true;setWsPill(true);document.getElementById('wsFoot').textContent='WS: live miniTicker'};ws.onclose=()=>{state.wsOk=false;setWsPill(false);document.getElementById('wsFoot').textContent='WS: reconnecting…';setTimeout(connectWS,3000)};ws.onerror=()=>{state.wsOk=false;setWsPill(false)};ws.onmessage=(ev)=>{try{const data=JSON.parse(ev.data);if(!Array.isArray(data))return;const now=Date.now();state.msgCount++;state.lastMsgAt=now;for(const t of data){const c=parseFloat(t.c),o=parseFloat(t.o),P=o?((c-o)/o)*100:(state.map.get(t.s)?.P||0);state.map.set(t.s,{s:t.s,c,o,h:parseFloat(t.h),l:parseFloat(t.l),v:parseFloat(t.v),q:parseFloat(t.q),P,lastUpdate:now})}if(state.msgCount%2===0)document.getElementById('anMsg').textContent=state.msgCount.toLocaleString()}catch{}}}
+function setWsPill(ok){const el=document.getElementById('pillWs');el.className='pill '+(ok?'on':'off');el.innerHTML='<span class="dot"></span> Stream'}
+function listPairs(filter){const hideStables=(document.getElementById('hideStables')?.value??'1')==='1';const out=[];for(const t of state.map.values()){const s=t.s;if(filter==='usdt'&&!s.endsWith('USDT'))continue;if(filter==='btc'&&!s.endsWith('BTC'))continue;if(hideStables){const base=s.replace(/USDT$|BTC$|ETH$|BNB$|FDUSD$|TUSD$|USDC$/,'');if(STABLES.has(base)&&s.endsWith('USDT'))continue}out.push(t)}return out}
+function get(sym){const u=(sym||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(state.map.has(u))return state.map.get(u);if(state.map.has(u+'USDT'))return state.map.get(u+'USDT');return null}
+function refreshAllUI(){const age=state.lastMsgAt?Math.max(0,((Date.now()-state.lastMsgAt)/1000)|0):'—';document.getElementById('pillAge').textContent=typeof age==='number'?age+'s ago':age;document.getElementById('pillTick').className='pill '+(state.wsOk?'on':'warn');const btc=get('BTCUSDT'),eth=get('ETHUSDT');if(btc){document.getElementById('ovBtc').textContent='$'+fmtPx(btc.c);const el=document.getElementById('ovBtcCh');el.textContent='24h '+fmtPct(btc.P);el.className='stat-s '+(btc.P>=0?'up':'dn')}if(eth){document.getElementById('ovEth').textContent='$'+fmtPx(eth.c);const el=document.getElementById('ovEthCh');el.textContent='24h '+fmtPct(eth.P);el.className='stat-s '+(eth.P>=0?'up':'dn')}const usdt=listPairs('usdt');let up=0,down=0;for(const t of usdt){if(t.P>0)up++;else if(t.P<0)down++}document.getElementById('ovUp').textContent=up;document.getElementById('ovDown').textContent=down;const sorted=[...usdt].sort((a,b)=>b.P-a.P);document.getElementById('ovGainers').innerHTML=rowList(sorted.slice(0,5));document.getElementById('ovLosers').innerHTML=rowList(sorted.slice(-5).reverse());const tape=sorted.slice(0,25).concat(sorted.slice(-15));const tapeHtml=tape.map(t=>{const cls=t.P>=0?'up':'dn';return`<span class="tape-item"><span class="sym">${esc(t.s.replace('USDT',''))}</span><span class="px">${fmtPx(t.c)}</span><span class="ch ${cls}">${fmtPct(t.P)}</span></span>`}).join('');document.getElementById('tapeTrack').innerHTML=tapeHtml+tapeHtml;if(state.page==='markets')renderMarkets();if(state.page==='movers')renderMovers();if(state.page==='volume')renderVolume();document.getElementById('anDrafts').textContent=loadDrafts().length}
+function rowList(arr){if(!arr.length)return'<div class="empty"><div class="ico">⏳</div>Loading live data…</div>';return arr.map(t=>{const cls=t.P>=0?'up':'dn';return`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px"><strong>${esc(t.s.replace(/USDT$/,''))}</strong><span class="mono">${fmtPx(t.c)}</span><span class="mono ${cls}">${fmtPct(t.P)}</span></div>`}).join('')}
+function renderMarkets(){const q=(document.getElementById('mSearch').value||'').toUpperCase().trim();const sort=document.getElementById('mSort').value;const filter=document.getElementById('mFilter').value;let list=listPairs(filter);if(q)list=list.filter(t=>t.s.includes(q));if(sort==='vol')list.sort((a,b)=>b.q-a.q);else if(sort==='change')list.sort((a,b)=>b.P-a.P);else if(sort==='name')list.sort((a,b)=>a.s.localeCompare(b.s));else if(sort==='price')list.sort((a,b)=>b.c-a.c);document.getElementById('mCount').textContent=list.length+' pairs';document.getElementById('mBody').innerHTML=list.slice(0,200).map(t=>{const cls=t.P>=0?'up':'dn';return`<tr><td><strong>${esc(t.s)}</strong></td><td class="num">${fmtPx(t.c)}</td><td class="num ${cls}">${fmtPct(t.P)}</td><td class="num">${fmtPx(t.h)}</td><td class="num">${fmtPx(t.l)}</td><td class="num">${fmtVol(t.q)}</td></tr>`}).join('')||'<tr><td colspan="6">Waiting for Binance data…</td></tr>'}
+function renderMovers(){const usdt=listPairs('usdt').sort((a,b)=>b.P-a.P);document.getElementById('gainersList').innerHTML=moverTable(usdt.slice(0,20));document.getElementById('losersList').innerHTML=moverTable(usdt.slice(-20).reverse())}
+function moverTable(arr){return`<div class="tbl-wrap"><table><thead><tr><th>Symbol</th><th>Price</th><th>24h %</th><th>Quote vol</th></tr></thead><tbody>${arr.map(t=>{const cls=t.P>=0?'up':'dn';return`<tr><td><strong>${esc(t.s)}</strong></td><td class="num">${fmtPx(t.c)}</td><td class="num ${cls}">${fmtPct(t.P)}</td><td class="num">${fmtVol(t.q)}</td></tr>`}).join('')}</tbody></table></div>`}
+function renderVolume(){const list=listPairs('usdt').sort((a,b)=>b.q-a.q).slice(0,40);document.getElementById('volBody').innerHTML=list.map((t,i)=>{const cls=t.P>=0?'up':'dn';return`<tr><td>${i+1}</td><td><strong>${esc(t.s)}</strong></td><td class="num">${fmtPx(t.c)}</td><td class="num ${cls}">${fmtPct(t.P)}</td><td class="num">${fmtVol(t.q)}</td></tr>`}).join('')}
+function fillCats(){document.getElementById('genCat').innerHTML=Object.entries(CATS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('');document.getElementById('libGrid').innerHTML=Object.entries(CATS).map(([k,v])=>`<div class="coin" style="cursor:pointer" onclick="document.getElementById('genCat').value='${k}';go('generate')"><div class="coin-sym">${esc(v)}</div><div class="coin-name">${k}</div></div>`).join('')}
+function pickData(hint){if(hint){const t=get(hint);if(t)return t}for(const m of['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT'])if(state.map.has(m))return state.map.get(m);return listPairs('usdt')[0]||null}
+function topN(n,dir){return listPairs('usdt').sort((a,b)=>dir==='up'?b.P-a.P:a.P-b.P).slice(0,n)}
+function genText(cat,hint,tone){const t=pickData(hint);const ts=new Date().toISOString().replace('T',' ').slice(0,19)+' UTC';const sym=t?t.s.replace(/USDT$/,''):(hint||'BTC');const px=t?fmtPx(t.c):'—',ch=t?fmtPct(t.P):'—',hi=t?fmtPx(t.h):'—',lo=t?fmtPx(t.l):'—',qv=t?fmtVol(t.q):'—';const gain=topN(3,'up'),lose=topN(3,'down'),vol=listPairs('usdt').sort((a,b)=>b.q-a.q).slice(0,3);const line=arr=>arr.map(x=>`${x.s.replace(/USDT$/,'')} ${fmtPct(x.P)}`).join(' · ');const templates={btc:`${sym} last $${px} (${ch} 24h).\nHigh $${hi} · Low $${lo} · Quote vol ${qv}.\nData: Binance public ticker · ${ts}\nNot financial advice.\n#Bitcoin #BTC #CryptoMarket #BinanceSquare`,eth:`Ethereum snapshot: $${px} (${ch}).\n24h range $${lo}–$${hi}. Quote volume ${qv}.\nSource: Binance public market data · ${ts}\n#Ethereum #ETH #BinanceSquare`,sol:`Solana check: $${px} · 24h ${ch}.\nH $${hi} L $${lo} · Vol ${qv}\nExact prints from Binance · ${ts}\n#Solana #SOL #BinanceSquare`,alt:`Alt snapshot — ${sym}: $${px} (${ch}).\nRange $${lo}–$${hi}. Exchange data only, not a prediction.\n#${sym} #Altcoins #BinanceSquare`,gainers:`Top USDT gainers (24h, Binance public data):\n${line(gain)}\nTimestamp ${ts}\n#CryptoMarket #Gainers #BinanceSquare`,losers:`Top USDT losers (24h, Binance public data):\n${line(lose)}\nTimestamp ${ts}\n#CryptoMarket #BinanceSquare`,volume:`Highest quote volume:\n${vol.map(x=>`${x.s.replace(/USDT$/,'')} · ${fmtVol(x.q)} · ${fmtPct(x.P)}`).join('\n')}\n#Volume #Crypto #BinanceSquare`,trend:`Market breadth note · ${ts}\n${sym} reference: $${px} (${ch}).\n#MarketTrend #BinanceSquare`,vol:`Volatility note for ${sym}:\nLast $${px} · 24h range $${lo}–$${hi} (${ch}).\n#Volatility #${sym} #BinanceSquare`,range:`${sym} daily range\nLast $${px}\nHigh $${hi} · Low $${lo}\nChange ${ch} · ${ts}\n#${sym} #Crypto #BinanceSquare`,ta:`Educational TA note:\nExample: ${sym} last $${px} (${ch}).\nTools people study: structure, volume, MAs, RSI — none guarantee outcomes.\n#TechnicalAnalysis #Education #BinanceSquare`,sr:`Support & resistance (education):\nPrinted high/low for ${sym}: $${hi} / $${lo}. Last $${px}.\n#Education #${sym} #BinanceSquare`,risk:`Risk reminder:\n1) Size positions you can afford to lose\n2) Define invalidation before entry\n3) Avoid revenge trades\nExample: ${sym} $${px} (${ch}).\n#RiskManagement #BinanceSquare`,psych:`Psychology > prediction.\n${sym} is $${px} (${ch}). Your plan matters more than the last tick.\n#TradingPsychology #BinanceSquare`,spot:`Spot basics: buy/sell the asset itself.\nExample: ${sym} ≈ $${px} on Binance public data.\n#SpotTrading #Education #BinanceSquare`,futures:`Futures education (not a signal):\nLeverage amplifies gains and losses.\nSpot reference: ${sym} $${px} (${ch}).\n#Futures #Risk #BinanceSquare`,glossary:`Glossary — Last price:\nMost recent trade price. For ${sym}: $${px} (${ch}).\n#CryptoGlossary #BinanceSquare`,beginner:`Beginner tip:\nWrite why you enter and where you exit before you click.\nExample: ${sym} $${px}.\n#Beginner #CryptoEducation #BinanceSquare`,community:`Question for the community:\n${sym} is at $${px} (${ch} 24h). What timeframe do you use — and why?\n#CryptoCommunity #BinanceSquare`,recap:`Quick recap · ${ts}\n${sym}: $${px} (${ch})\nH $${hi} · L $${lo} · QVol ${qv}\nSource: Binance public data\n#MarketRecap #BinanceSquare`,compare:`BTC $${fmtPx(get('BTCUSDT')?.c)} (${fmtPct(get('BTCUSDT')?.P)}) · ETH $${fmtPx(get('ETHUSDT')?.c)} (${fmtPct(get('ETHUSDT')?.P)})\nPublic Binance tickers · ${ts}\n#BTC #ETH #BinanceSquare`,momentum:`Momentum check: ${sym} ${ch} over 24h at $${px}.\nVolume ${qv}. Data only — not a call to trade.\n#Momentum #${sym} #BinanceSquare`,liquidity:`Liquidity note: ${sym} 24h quote volume ${qv}.\nLast $${px}.\n#Liquidity #BinanceSquare`,caution:`Caution:\n${sym} last $${px} (${ch}).\nDouble-check fees, slippage, and risk limits.\n#Risk #BinanceSquare`,weekend:`Weekend note · ${ts}\nLiquidity can thin out. ${sym} $${px} (${ch}).\n#Crypto #BinanceSquare`};let text=templates[cat]||templates.btc;if(tone==='short')text=`${sym}: $${px} | 24h ${ch} | H ${hi} L ${lo}\n#${sym} #BinanceSquare`;else if(tone==='community'&&cat!=='community')text+='\n\nWhat do you think?';return text}
+function genPost(){const cat=document.getElementById('genCat').value,hint=document.getElementById('genSym').value.trim(),tone=document.getElementById('genTone').value;if(!state.map.size){toast('Waiting for live market data…','error');return}document.getElementById('editor').value=genText(cat,hint,tone);document.getElementById('editorCat').value=CATS[cat]||cat;toast('Draft ready — exact live numbers used','success')}
+function loadDrafts(){try{return JSON.parse(localStorage.getItem('sf_drafts')||'[]')}catch{return[]}}
+function saveDrafts(list){localStorage.setItem('sf_drafts',JSON.stringify(list))}
+function saveDraft(){const text=document.getElementById('editor').value.trim();if(!text){toast('Editor empty','error');return}const list=loadDrafts();list.unshift({id:Date.now().toString(36),text,cat:document.getElementById('editorCat').value||'',at:new Date().toISOString()});saveDrafts(list.slice(0,200));toast('Draft saved on this device','success');renderDrafts()}
+function copyEditor(){const t=document.getElementById('editor').value;if(!t){toast('Nothing to copy','error');return}navigator.clipboard.writeText(t).then(()=>toast('Copied — paste in Binance Square','success')).catch(()=>toast('Select text manually','error'))}
+function openSquare(){window.open('https://www.binance.com/square','_blank','noopener')}
+function genBatch(n){const keys=Object.keys(CATS),list=loadDrafts();for(let i=0;i<n;i++){const cat=keys[Math.floor(Math.random()*keys.length)];list.unshift({id:Date.now().toString(36)+i,text:genText(cat,'','neutral'),cat:CATS[cat],at:new Date().toISOString()})}saveDrafts(list.slice(0,200));toast(n+' drafts created','success');renderDrafts()}
+function renderDrafts(){const list=loadDrafts(),el=document.getElementById('draftList');if(!list.length){el.innerHTML='<div class="empty"><div class="ico">📝</div>No drafts yet</div>';return}el.innerHTML=list.map(d=>`<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--bg3)"><div style="font-size:13px;white-space:pre-wrap;max-height:72px;overflow:hidden">${esc(d.text)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center"><span class="badge b-draft">${esc(d.cat||'draft')}</span><span class="fh">${esc((d.at||'').slice(0,16))}</span><button class="btn btn-ghost btn-sm" onclick='navigator.clipboard.writeText(${JSON.stringify(d.text)}).then(()=>toast("Copied","success"))'>Copy</button><button class="btn btn-ghost btn-sm" onclick="loadToEditor('${d.id}')">Edit</button><button class="btn btn-danger btn-sm" onclick="delDraft('${d.id}')">Delete</button></div></div>`).join('')}
+function loadToEditor(id){const d=loadDrafts().find(x=>x.id===id);if(!d)return;document.getElementById('editor').value=d.text;document.getElementById('editorCat').value=d.cat||'';go('generate')}
+function delDraft(id){saveDrafts(loadDrafts().filter(d=>d.id!==id));renderDrafts()}
+function clearDrafts(){if(!confirm('Delete all local drafts?'))return;saveDrafts([]);renderDrafts();toast('Drafts cleared','info')}
+function exportDrafts(){const blob=new Blob([JSON.stringify(loadDrafts(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='squareforge-drafts.json';a.click()}
+function go(page){state.page=page;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('page-'+page)?.classList.add('active');document.querySelectorAll('.nav-item, .bn').forEach(n=>n.classList.toggle('active',n.dataset.page===page));const titles={overview:'Overview',markets:'All Markets',movers:'Gainers & Losers',volume:'Volume Leaders',generate:'Generate Posts',drafts:'Drafts',library:'Post Types',analytics:'Local Stats',settings:'Settings',about:'About'};document.getElementById('pageTitle').textContent=titles[page]||page;document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('on');if(page==='markets')renderMarkets();if(page==='movers')renderMovers();if(page==='volume')renderVolume();if(page==='drafts')renderDrafts()}
+document.querySelectorAll('.nav-item, .bn').forEach(el=>el.addEventListener('click',()=>go(el.dataset.page)));
+document.getElementById('menuBtn').onclick=()=>{document.getElementById('sidebar').classList.toggle('open');document.getElementById('overlay').classList.toggle('on')};
+document.getElementById('overlay').onclick=()=>{document.getElementById('sidebar').classList.remove('open');document.getElementById('overlay').classList.remove('on')};
+function savePrefs(){const interval=Math.max(15,Math.min(120,parseInt(document.getElementById('restInterval').value,10)||30));localStorage.setItem('sf_prefs',JSON.stringify({restInterval:interval,hideStables:document.getElementById('hideStables').value}));startRestTimer(interval);toast('Preferences saved','success');refreshAllUI()}
+function loadPrefs(){try{const p=JSON.parse(localStorage.getItem('sf_prefs')||'{}');if(p.restInterval)document.getElementById('restInterval').value=p.restInterval;if(p.hideStables!=null)document.getElementById('hideStables').value=p.hideStables;return p}catch{return{}}}
+function startRestTimer(sec){if(state.restTimer)clearInterval(state.restTimer);state.restTimer=setInterval(restSnapshot,(sec||30)*1000)}
+function forceRestRefresh(){toast('Refreshing full 24h snapshot…','info');restSnapshot()}
+async function init(){fillCats();const prefs=loadPrefs();await restSnapshot();connectWS();startRestTimer(prefs.restInterval||30);state.uiTimer=setInterval(refreshAllUI,1000);renderDrafts()}
 init();
 </script>
 </body>
